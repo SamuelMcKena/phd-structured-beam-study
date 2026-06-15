@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import bessel_twin_core as bt
+from vbb_study.config import um as BT_UM
 from . import vbb_hexagon_metrics as vhm
 from . import vbb_polarized_train as vpt
 from . import vbb_style
@@ -87,7 +87,7 @@ def _metrics_for_result(
     if not np.isfinite(contrast) and np.isfinite(tp_abs) and np.isfinite(ts_abs):
         contrast = float(abs(tp_abs - ts_abs) / max(0.5 * (tp_abs + ts_abs), _EPS))
     return {
-        "ring_r_found_um": float(ring_r / bt.um),
+        "ring_r_found_um": float(ring_r / BT_UM),
         "order6_over_order0": float(sfx["order6_over_order0"]),
         "order6_over_non_dc": float(acc.get("order6_over_non_dc", sfx["order6_over_order0"])),
         "localisation_ratio": float(acc["localisation_ratio"]),
@@ -171,9 +171,9 @@ def compute_air_sixfold_zone_um(
     threshold = zone_fraction * peak_o6
     above = np.flatnonzero(order6_z >= threshold)
     if above.size >= 2:
-        zone_um = float((z_m[above[-1]] - z_m[above[0]]) / bt.um)
-        z_start_um = float(z_m[above[0]] / bt.um)
-        z_end_um = float(z_m[above[-1]] / bt.um)
+        zone_um = float((z_m[above[-1]] - z_m[above[0]]) / BT_UM)
+        z_start_um = float(z_m[above[0]] / BT_UM)
+        z_end_um = float(z_m[above[-1]] / BT_UM)
     else:
         zone_um = z_start_um = z_end_um = np.nan
 
@@ -187,7 +187,7 @@ def compute_air_sixfold_zone_um(
         "hexagon_pass_z": pass_z,
         "accepted_plane_count": int(np.count_nonzero(pass_z)),
         "accepted_any": bool(np.any(pass_z)),
-        "z_um": z_m / bt.um,
+        "z_um": z_m / BT_UM,
     }
 
 
@@ -335,7 +335,7 @@ def propagate_hexagon_in_medium(
         corr = np.exp(1j * np.asarray(correction_phase, dtype=float))
         Ex = Ex * corr
         Ey = Ey * corr
-    z_values = np.linspace(0.0, float(z_max_um) * bt.um, int(z_points))
+    z_values = np.linspace(0.0, float(z_max_um) * BT_UM, int(z_points))
     prop = vpt.vector_angular_spectrum_propagate(
         Ex, Ey, grid,
         wavelength_m=float(wavelength_m),
@@ -348,7 +348,7 @@ def propagate_hexagon_in_medium(
         "z_values_m": z_values,
         "intensity_stack": np.asarray(prop["intensity_stack"], dtype=float),
         "xz": np.asarray(prop["xz"], dtype=float),
-        "z_um": z_values / bt.um,
+        "z_um": z_values / BT_UM,
         "grid": grid,
         "correction_applied": correction_phase is not None,
         "k_dot_e_rms": float(prop["k_dot_e_rms"]),
@@ -402,9 +402,9 @@ def in_medium_sixfold_survival(
     threshold = zone_fraction * peak_o6
     above = np.flatnonzero(order6_z >= threshold)
     if above.size >= 2:
-        survival_um = float((z_m[above[-1]] - z_m[above[0]]) / bt.um)
-        z_start_um = float(z_m[above[0]] / bt.um)
-        z_end_um = float(z_m[above[-1]] / bt.um)
+        survival_um = float((z_m[above[-1]] - z_m[above[0]]) / BT_UM)
+        z_start_um = float(z_m[above[0]] / BT_UM)
+        z_end_um = float(z_m[above[-1]] / BT_UM)
     else:
         survival_um = z_start_um = z_end_um = np.nan
 
@@ -418,7 +418,7 @@ def in_medium_sixfold_survival(
         "hexagon_pass_z": pass_z,
         "accepted_plane_count": int(np.count_nonzero(pass_z)),
         "accepted_any": bool(np.any(pass_z)),
-        "z_um": z_m / bt.um,
+        "z_um": z_m / BT_UM,
         "zone_fraction": zone_fraction,
         "correction_applied": bool(medium_prop.get("correction_applied", False)),
     }
