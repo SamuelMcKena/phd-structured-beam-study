@@ -13,6 +13,10 @@ propagation
     Medium wavelength and wavenumber, ASM longitudinal wavenumber,
     Matsushima band-limit mask, Nyquist margins, discrete power.
 
+fields
+    Engine-compatible scalar grids, centered FFTs, phase wrapping and
+    quantisation, Gaussian amplitudes, and transverse wavevector helpers.
+
 holography
     Axicon phase, spiral phase plate, combined phase, signum flip, blaze
     carrier, phase quantisation, greyscale conversion, fill-factor mask.
@@ -47,6 +51,7 @@ polygonal
 from __future__ import annotations
 
 from . import (
+    fields,
     holography,
     capsule_geometry,
     interface,
@@ -60,6 +65,7 @@ from . import (
 
 __all__ = [
     "capsule_geometry",
+    "fields",
     "holography",
     "interface",
     "materials",
