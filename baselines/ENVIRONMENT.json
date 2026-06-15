@@ -1,0 +1,40 @@
+{
+  "array_hashing": "sha256(np.ascontiguousarray(a).tobytes())",
+  "created_utc": "2026-06-15T18:16:46.736055+00:00",
+  "determinism_gate": {
+    "cases": [
+      "general_holographic_ideal",
+      "general_holographic_lab",
+      "general_physical_ideal",
+      "general_physical_lab",
+      "limits_holographic_ideal",
+      "limits_holographic_lab",
+      "limits_physical_ideal",
+      "limits_physical_lab"
+    ],
+    "process_boundary": "separate subprocesses launched via active interpreter before baseline capture",
+    "runs_per_case": 2,
+    "status": "passed"
+  },
+  "endianness_assumption": "Hashes use native-endian NumPy bytes from this platform; dtype_str records byte order and ENVIRONMENT.json records sys.byteorder.",
+  "engine_git_commit": null,
+  "engine_git_commit_note": "unavailable: no .git metadata visible and git is not on PATH",
+  "package_versions": {
+    "IPython": "9.9.0",
+    "Pillow": "12.1.0",
+    "matplotlib": "3.10.8",
+    "nbformat": "5.10.4",
+    "numpy": "2.4.1",
+    "pandas": "3.0.3",
+    "plotly": "6.5.2",
+    "pytest": "9.0.3",
+    "scipy": "1.17.0"
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "platform_machine": "AMD64",
+  "platform_processor": "Intel64 Family 6 Model 181 Stepping 0, GenuineIntel",
+  "python_executable": "C:\\PhD\\.venv2\\Scripts\\python.exe",
+  "python_version": "3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]",
+  "schema_version": "stage1_characterisation_lock_v1",
+  "sys_byteorder": "little"
+}

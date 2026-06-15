@@ -1,0 +1,5 @@
+document,path,bytes,section_count,first_sections
+Theory derivation,Publication_Study\docs\00_theory.md,8138,11,1. True Bessel-Gauss target field; 1a. Conical axicon-phase input field; 1b. Propagated finite-aperture Bessel-like field; 2. Axicon transmission function
+Metric conventions,Publication_Study\docs\01_conventions.md,7178,14,Vortex Ring Radius; J0 First-Zero Radius; HWHM Core Radius; Feature Radius And Diameter
+Validation record,Publication_Study\docs\02_validation.md,3534,3,Current Validation Table; Validation Notes; Not Tested By This Suite
+Materials proxy,Publication_Study\docs\03_materials_application.md,2828,5,Status; Planning Proxy Warning; What The Layer Does; What The Layer Does Not Do

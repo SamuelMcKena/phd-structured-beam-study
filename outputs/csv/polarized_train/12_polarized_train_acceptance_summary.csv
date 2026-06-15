@@ -1,0 +1,5 @@
+check,pass,value,tolerance
+matched_index_hexagon_vanishes_at_axicon_exit,True,0.06433939235782339,< 0.35
+full_vector_path_enforces_k_dot_e,True,2.269945333914233e-17,< 1e-10
+ez_retained,True,0.015711705626087206,> 1e-3
+lab_realistic_same_train,True,1.0,same config object values

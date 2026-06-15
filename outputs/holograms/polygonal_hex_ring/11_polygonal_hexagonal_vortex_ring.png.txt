@@ -1,0 +1,1 @@
+Publication study figure `11_polygonal_hexagonal_vortex_ring.png` (11 polygonal hexagonal vortex ring). The figure is generated directly by the ordered notebook run; axes, colorbars, display scaling, and units are shown in the figure or the corresponding notebook section.

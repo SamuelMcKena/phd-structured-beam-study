@@ -1,0 +1,1 @@
+Publication study figure `segmented_ra_physical_axicon_train_fast_axis_8bit.png` (segmented ra physical axicon train fast axis 8bit). The figure is generated directly by the ordered notebook run; axes, colorbars, display scaling, and units are shown in the figure or the corresponding notebook section.

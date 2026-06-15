@@ -1,0 +1,18 @@
+{
+  "code_version": null,
+  "config_hash": "297970b7bb44b9d4",
+  "extra": {},
+  "paths": {
+    "cgh": {
+      "params_json": "C:\\PhD\\Code\\Publication_Study\\outputs\\holograms\\hex_outline\\zernike_ell4_Z6_6_amp+0.00_hex_bessel_params.json",
+      "phase_png": "C:\\PhD\\Code\\Publication_Study\\outputs\\holograms\\hex_outline\\zernike_ell4_Z6_6_amp+0.00_hex_bessel_phase.png"
+    },
+    "csv": "C:\\PhD\\Code\\Publication_Study\\outputs\\csv\\hex_outline\\17_zernike_hex_bessel_sweep.csv",
+    "figure": "C:\\PhD\\Code\\Publication_Study\\outputs\\figures\\hex_outline\\17_zernike_hex_bessel_sweep.png"
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python_executable": "C:\\PhD\\.venv2\\Scripts\\python.exe",
+  "python_version": "3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]",
+  "repo_root": "C:\\PhD\\Code",
+  "timestamp_utc": "2026-06-02T16:26:59.584092+00:00"
+}

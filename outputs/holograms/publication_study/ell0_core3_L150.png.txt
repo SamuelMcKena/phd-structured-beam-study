@@ -1,0 +1,1 @@
+Publication study figure `ell0_core3_L150.png` (ell0 core3 L150). The figure is generated directly by the ordered notebook run; axes, colorbars, display scaling, and units are shown in the figure or the corresponding notebook section.

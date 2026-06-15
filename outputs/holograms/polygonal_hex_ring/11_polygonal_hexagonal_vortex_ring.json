@@ -1,0 +1,18 @@
+{
+  "encoded_power_fraction": 0.988994695746969,
+  "kind": "localized polygonal vortex ring",
+  "not_the_default_discrete_lattice": true,
+  "polygon_config": {
+    "N": 6,
+    "angular_samples": 2048,
+    "charge": 2,
+    "corner_sharpness": 0.75,
+    "flat_radius_m": 7e-06,
+    "k_ring_width_fraction": 0.08,
+    "kr_m_inv": 1200000.0,
+    "orientation_rad": 0.0,
+    "phase_bits": 8,
+    "refinement_iterations": 60,
+    "ring_width_m": 1e-06
+  }
+}

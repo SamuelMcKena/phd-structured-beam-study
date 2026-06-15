@@ -1,0 +1,12 @@
+path,figure_family,width_px,height_px,mode,status,notes
+outputs/figures/quicklook/01_quicklook_slm_phase_mask.png,quicklook_current,1120,971,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/02_quicklook_fourier_filter_plane.png,quicklook_current,1133,949,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/03_quicklook_pupil_plane.png,quicklook_current,1098,949,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/04_quicklook_ideal_target_xy_xz.png,quicklook_current,2265,949,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/05_quicklook_conical_axicon_xy_xz.png,quicklook_current,2265,949,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/06_quicklook_lab_xy_xz.png,quicklook_current,2265,949,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/07_quicklook_through_sample_xz.png,quicklook_current,1300,905,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/08_quicklook_material_proxy_map.png,quicklook_current,1103,993,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/four_condition_phase_comparison_phase_masks.png,quicklook_current,3719,868,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/four_condition_phase_comparison_xy_profiles.png,quicklook_current,3719,855,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output
+outputs/figures/quicklook/four_condition_phase_comparison_xz_maps.png,quicklook_current,3719,861,RGBA,diagnostic_allowed,current Stage 8.7D quicklook visual output

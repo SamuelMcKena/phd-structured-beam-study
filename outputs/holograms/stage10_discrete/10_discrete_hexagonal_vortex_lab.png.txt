@@ -1,0 +1,1 @@
+Publication study figure `10_discrete_hexagonal_vortex_lab.png` (10 discrete hexagonal vortex lab). The figure is generated directly by the ordered notebook run; axes, colorbars, display scaling, and units are shown in the figure or the corresponding notebook section.

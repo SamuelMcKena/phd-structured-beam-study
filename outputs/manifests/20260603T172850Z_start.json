@@ -1,0 +1,21 @@
+{
+  "clean_output": null,
+  "completed_notebooks": [],
+  "continue_on_error": false,
+  "failed_notebook": null,
+  "finalize_requested": false,
+  "git_commit": null,
+  "output_root": "C:\\PhD\\Code\\Publication_Study\\outputs",
+  "phase": "start",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "project_schema_version": "2.0.0",
+  "python_executable": "C:\\PhD\\.venv2\\Scripts\\python.exe",
+  "python_version": "3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]",
+  "requested_notebooks": [
+    "notebooks/00_study_overview_and_conventions.ipynb"
+  ],
+  "run_id": "20260603T172850Z",
+  "stage": null,
+  "started_at_utc": "2026-06-03T17:28:50.462908+00:00",
+  "timestamp_utc": "2026-06-03T17:28:50.462911+00:00"
+}

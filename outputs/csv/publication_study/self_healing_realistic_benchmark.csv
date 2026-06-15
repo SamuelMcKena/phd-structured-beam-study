@@ -1,0 +1,3 @@
+case_id,path,obstacle_kind,obstacle_z_um,blocked_fraction,peak_recovery_end,peak_recovery_max,peak_recovery_mean,onaxis_recovery_end,target_bessel_length_um,ell
+disk_large,ideal,disk,52.5,0.0012054443359375,1.0025202069200934,1.0113741068133908,0.9214721833409231,3.688061246209892,150.0,3
+disk_large_realistic,realistic,disk,52.5,0.0012054443359375,0.9997815876234206,1.0141659962105758,0.9987423494095395,0.9707630751982554,150.0,3

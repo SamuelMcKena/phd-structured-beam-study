@@ -1,0 +1,13 @@
+knob,sens
+objective_NA,2.2447558935753415e-17
+pulse_energy_in_uJ,-3.875009230146836e-17
+scan_speed_mm_s,1.7510053760490218e-16
+rep_rate_kHz,2.841885873003867e-16
+beam_radius_on_slm_mm,-3.076279285527748e-16
+blaze_period_px,-4.4170028735277923e-16
+slm_phase_bits,4.575006275967736e-16
+fill_factor,-1.9366898421940588e-15
+ell,-0.1703385611152603
+write_depth_um,-0.2114054547827226
+target_core_diameter_um,-0.6581875993640696
+target_bessel_length_um,0.8973063122251986

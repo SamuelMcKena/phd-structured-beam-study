@@ -1,0 +1,40 @@
+{
+  "hex_outline_config": {
+    "core_clearance_widths": 2.2,
+    "flat_radius_m": 7e-06,
+    "line_sigma_m": 9e-07,
+    "orientation_rad": 0.0,
+    "phase_bits": 8,
+    "random_seed": 12347,
+    "retrieval_iterations": 240,
+    "roi_margin_m": 9.999999999999999e-06,
+    "signal_widths": 1.5,
+    "target_truncation_widths": 3.0,
+    "threshold_fraction": 0.35
+  },
+  "label": "wide_outline_hollow_hex_outline",
+  "metrics": {
+    "component_count": 1,
+    "core_peak_ratio": 0.012772687222858315,
+    "dark_core_pass": true,
+    "edge_uniformity": 0.9773549922725691,
+    "edge_uniformity_pass": true,
+    "largest_component_fraction": 1.0,
+    "outline_energy_fraction": 0.9645019484188077,
+    "outline_energy_pass": true,
+    "outline_f1": 0.8116771608471666,
+    "outline_f1_pass": true,
+    "outline_precision": 1.0,
+    "outline_recall": 0.6830443159922929,
+    "side_balance": 0.9764659241139929,
+    "side_balance_pass": true,
+    "side_lobe_pass": true,
+    "side_lobe_peak_ratio": 0.10576996269953001,
+    "single_outline_component_pass": true,
+    "target_flat_radius_um": 7.0,
+    "target_line_fwhm_um": 2.1195,
+    "target_line_sigma_um": 0.9,
+    "threshold_fraction": 0.35
+  },
+  "target": "hollow_regular_hexagon_outline"
+}

@@ -1,0 +1,40 @@
+{
+  "hex_outline_config": {
+    "core_clearance_widths": 2.2,
+    "flat_radius_m": 7e-06,
+    "line_sigma_m": 9e-07,
+    "orientation_rad": 0.0,
+    "phase_bits": 8,
+    "random_seed": 22340,
+    "retrieval_iterations": 260,
+    "roi_margin_m": 1.8e-05,
+    "signal_widths": 1.5,
+    "target_truncation_widths": 3.0,
+    "threshold_fraction": 0.35
+  },
+  "label": "bessel_like_wide_single_plane_seeded_hollow_hex_outline",
+  "metrics": {
+    "component_count": 1,
+    "core_peak_ratio": 0.007889870689989942,
+    "dark_core_pass": true,
+    "edge_uniformity": 0.9872025001275934,
+    "edge_uniformity_pass": true,
+    "largest_component_fraction": 1.0,
+    "outline_energy_fraction": 0.967505513668135,
+    "outline_energy_pass": true,
+    "outline_f1": 0.8234627373193539,
+    "outline_f1_pass": true,
+    "outline_precision": 1.0,
+    "outline_recall": 0.6999036608863198,
+    "side_balance": 0.9911049357270194,
+    "side_balance_pass": true,
+    "side_lobe_pass": true,
+    "side_lobe_peak_ratio": 0.11206099946031363,
+    "single_outline_component_pass": true,
+    "target_flat_radius_um": 7.0,
+    "target_line_fwhm_um": 2.1195,
+    "target_line_sigma_um": 0.9,
+    "threshold_fraction": 0.35
+  },
+  "target": "hollow_regular_hexagon_outline"
+}

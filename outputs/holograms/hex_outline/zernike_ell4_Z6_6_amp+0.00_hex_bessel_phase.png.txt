@@ -1,0 +1,1 @@
+Publication study figure `zernike_ell4_Z6_6_amp+0.00_hex_bessel_phase.png` (zernike ell4 Z6 6 amp+0.00 hex bessel phase). Axes, colorbars, display scaling, and units are shown in the figure or the corresponding notebook section.

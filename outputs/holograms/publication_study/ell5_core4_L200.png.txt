@@ -1,0 +1,1 @@
+Publication study figure `ell5_core4_L200.png` (ell5 core4 L200). The figure is generated directly by the ordered notebook run; axes, colorbars, display scaling, and units are shown in the figure or the corresponding notebook section.

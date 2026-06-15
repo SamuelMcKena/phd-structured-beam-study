@@ -1,0 +1,23 @@
+{
+  "code_version": null,
+  "config_hash": "5db4ceb1be69d4c0",
+  "extra": {
+    "old_discrete_label": "discrete lattice (kaleidoscope) -- not a localized ring"
+  },
+  "paths": {
+    "acceptance_csv": "C:\\PhD\\Code\\Publication_Study\\outputs\\csv\\polygonal_hex_ring\\11_polygonal_hex_ring_acceptance_metrics.csv",
+    "cgh": {
+      "params_json": "C:\\PhD\\Code\\Publication_Study\\outputs\\holograms\\polygonal_hex_ring\\11_polygonal_hexagonal_vortex_ring.json",
+      "phase_png": "C:\\PhD\\Code\\Publication_Study\\outputs\\holograms\\polygonal_hex_ring\\11_polygonal_hexagonal_vortex_ring.png"
+    },
+    "checkpoint_fig": "C:\\PhD\\Code\\Publication_Study\\outputs\\figures\\polygonal_hex_ring\\11_polygonal_hex_ring_ideal_lab_xy_xz.png",
+    "material_csv": "C:\\PhD\\Code\\Publication_Study\\outputs\\csv\\polygonal_hex_ring\\11_polygonal_hex_ring_materials_proxy.csv",
+    "negative_fig": "C:\\PhD\\Code\\Publication_Study\\outputs\\figures\\polygonal_hex_ring\\11_polygonal_hex_ring_lattice_negative_control.png",
+    "stability_csv": "C:\\PhD\\Code\\Publication_Study\\outputs\\csv\\polygonal_hex_ring\\11_polygonal_hex_ring_z_stability.csv"
+  },
+  "platform": "Windows-11-10.0.26200-SP0",
+  "python_executable": "C:\\PhD\\.venv2\\Scripts\\python.exe",
+  "python_version": "3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]",
+  "repo_root": "C:\\PhD\\Code",
+  "timestamp_utc": "2026-05-29T17:00:58.723141+00:00"
+}
