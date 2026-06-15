@@ -9,10 +9,13 @@ readable next to the theory notes.
 from __future__ import annotations
 
 import math
+import warnings
 from typing import Any
 
 import numpy as np
 from scipy import optimize, special as sp
+
+from .fields import gaussian_amplitude
 
 TWOPI = 2.0 * math.pi
 EPS = 1.0e-30
@@ -211,6 +214,70 @@ def conical_axicon_input_field(
     envelope = np.exp(-(R**2) / max(float(waist_m), EPS) ** 2)
     conical_phase = np.exp(1j * (-float(kr_m_inv) * R + int(ell) * Phi))
     return complex(amplitude) * envelope * conical_phase
+
+
+def build_conical_axicon_field_ideal(
+    grid: dict[str, Any],
+    design: Any,
+    laser: Any,
+    include_vortex: bool = True,
+) -> np.ndarray:
+    """Return the Gaussian-apodized conical axicon-phase input field.
+
+    This field is ``exp(-r^2/w0^2) exp(i(-k_r r + ell phi))``. It is useful as
+    an idealized axicon input/source field, but it is not the true
+    ``J_ell(k_r r)`` Bessel-Gauss target envelope.
+    """
+
+    amp = gaussian_amplitude(grid["R"], max(design.w0_sample_m, grid["dx"]))
+    phase = -design.kr_sample_m_inv * grid["R"]
+    if include_vortex:
+        phase = phase + design.ell * grid["PHI"]
+    return amp * np.exp(1j * phase)
+
+
+def build_bessel_gauss_field_ideal(
+    grid: dict[str, Any],
+    design: Any,
+    laser: Any | None = None,
+    include_vortex: bool = True,
+) -> np.ndarray:
+    """Return the true scalar Bessel-Gauss target field.
+
+    The transverse envelope is
+    ``J_|ell|(k_r r) exp(i ell phi) exp(-r^2/w0^2)``. For ``ell > 0`` the
+    on-axis amplitude is therefore near zero, unlike the conical axicon input
+    field above.
+    """
+
+    ell = int(design.ell) if include_vortex else 0
+    envelope = sp.jv(abs(ell), design.kr_sample_m_inv * grid["R"])
+    envelope = envelope * np.exp(-(grid["R"] ** 2) / max(design.w0_sample_m, grid["dx"], EPS) ** 2)
+    phase = np.exp(1j * ell * grid["PHI"])
+    return envelope * phase
+
+
+def build_sample_field_ideal(
+    grid: dict[str, Any],
+    design: Any,
+    laser: Any,
+    include_vortex: bool = True,
+) -> np.ndarray:
+    """Compatibility wrapper for the legacy conical axicon-phase field.
+
+    Despite the old generic name, this returns
+    :func:`build_conical_axicon_field_ideal`, not the true ``J_ell`` target.
+    Use :func:`build_bessel_gauss_field_ideal` when a Bessel-Gauss target field
+    is required.
+    """
+
+    warnings.warn(
+        "build_sample_field_ideal() returns the legacy conical axicon-phase field; "
+        "use build_conical_axicon_field_ideal() or build_bessel_gauss_field_ideal() explicitly.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return build_conical_axicon_field_ideal(grid, design, laser, include_vortex=include_vortex)
 
 
 # ---------------------------------------------------------------------------
