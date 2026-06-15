@@ -17,7 +17,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import bessel_twin_core as bt
+from vbb_study.config import EPS as BT_EPS, um as BT_UM
+from vbb_study.equations.fields import gaussian_amplitude
+from vbb_study.facade import core as _bt
 from . import vbb_materials, vbb_metrics, vbb_style
 from .equations import holography as holography_eq
 
@@ -81,7 +83,7 @@ def n_wave_complex_field(
         U += np.exp(1j * (float(kr_m_inv) * (X * np.cos(angle) + Y * np.sin(angle)) + float(phase)))
     U /= np.sqrt(float(pattern.N))
     if waist_m is not None:
-        U *= bt.gaussian_amplitude(np.asarray(grid["R"], dtype=float), float(waist_m))
+        U *= gaussian_amplitude(np.asarray(grid["R"], dtype=float), float(waist_m))
     return U
 
 
@@ -115,7 +117,7 @@ def hexagonal_axicon_field(
 
     U = np.exp(1j * hexagonal_axicon_phase(grid, kr_m_inv, pattern))
     if waist_m is not None:
-        U *= bt.gaussian_amplitude(np.asarray(grid["R"], dtype=float), float(waist_m))
+        U *= gaussian_amplitude(np.asarray(grid["R"], dtype=float), float(waist_m))
     return U
 
 
@@ -130,7 +132,7 @@ def phase_only_lab_field(
     target = np.asarray(target_field, dtype=complex)
     phase = np.angle(target)
     amp = np.abs(target)
-    amp_norm = amp / (float(np.max(amp)) + bt.EPS)
+    amp_norm = amp / (float(np.max(amp)) + BT_EPS)
     key = str(method).lower().strip()
     if key in {"complex", "complex_amplitude", "method_b", "b"}:
         encoded_power_fraction = float(np.mean(amp_norm**2))
@@ -172,8 +174,8 @@ def propagate_discrete_case(
         encoding = {"encoded_power_fraction": 1.0, "encoding_method": "complex_ideal"}
     else:
         U0, encoding = phase_only_lab_field(target, phase_bits=phase_bits, method=encoding_method)
-        U0 = U0 * bt.gaussian_amplitude(np.asarray(grid["R"], dtype=float), waist_m)
-    volume = bt.propagate_volume(
+        U0 = U0 * gaussian_amplitude(np.asarray(grid["R"], dtype=float), waist_m)
+    volume = _bt().propagate_volume(
         U0,
         dict(grid),
         wavelength_m,
@@ -231,8 +233,8 @@ def symmetry_metrics(
     other = np.array(amps, copy=True)
     if int(expected_N) < other.size:
         other[int(expected_N)] = 0.0
-    order_fidelity = float(expected_amp / (float(np.max(other)) + expected_amp + bt.EPS))
-    contrast = float((np.max(prof) - np.min(prof)) / (np.max(prof) + np.min(prof) + bt.EPS))
+    order_fidelity = float(expected_amp / (float(np.max(other)) + expected_amp + BT_EPS))
+    contrast = float((np.max(prof) - np.min(prof)) / (np.max(prof) + np.min(prof) + BT_EPS))
     phase = float(np.angle(coeff[int(expected_N)])) if int(expected_N) < coeff.size else 0.0
     orientation = float((-phase / max(int(expected_N), 1)) % (2.0 * np.pi / max(int(expected_N), 1)))
     return {
@@ -241,9 +243,9 @@ def symmetry_metrics(
         "order_N_fidelity": order_fidelity,
         "azimuthal_contrast": contrast,
         "orientation_rad": orientation,
-        "vertex_radius_um": float(radius_m / bt.um),
-        "flat_to_flat_radius_um": float(radius_m * np.cos(np.pi / max(int(expected_N), 3)) / bt.um),
-        "lattice_spacing_um": float(2.0 * np.pi * float(radius_m) / max(float(expected_N), 1.0) / bt.um),
+        "vertex_radius_um": float(radius_m / BT_UM),
+        "flat_to_flat_radius_um": float(radius_m * np.cos(np.pi / max(int(expected_N), 3)) / BT_UM),
+        "lattice_spacing_um": float(2.0 * np.pi * float(radius_m) / max(float(expected_N), 1.0) / BT_UM),
     }
 
 
@@ -269,16 +271,16 @@ def best_symmetry_metrics(
 
     if radius_m is not None:
         metrics = symmetry_metrics(image, grid, expected_N=expected_N, radius_m=float(radius_m))
-        metrics["analysis_radius_um"] = float(radius_m / bt.um)
+        metrics["analysis_radius_um"] = float(radius_m / BT_UM)
         return metrics
 
     dx = float(grid["dx"])
     n = int(grid["N"])
     half_window = 0.48 * n * dx
-    low = float(min_radius_m) if min_radius_m is not None else max(0.55 / max(float(kr_m_inv), bt.EPS), 2.5 * dx)
-    high = float(max_radius_m) if max_radius_m is not None else min(8.0 / max(float(kr_m_inv), bt.EPS), half_window)
+    low = float(min_radius_m) if min_radius_m is not None else max(0.55 / max(float(kr_m_inv), BT_EPS), 2.5 * dx)
+    high = float(max_radius_m) if max_radius_m is not None else min(8.0 / max(float(kr_m_inv), BT_EPS), half_window)
     if not np.isfinite(high) or high <= low:
-        high = min(half_window, max(low + 4.0 * dx, 2.0 * np.pi / max(float(kr_m_inv), bt.EPS)))
+        high = min(half_window, max(low + 4.0 * dx, 2.0 * np.pi / max(float(kr_m_inv), BT_EPS)))
     best: dict[str, float] | None = None
     for r_m in np.linspace(low, high, int(candidates)):
         m = symmetry_metrics(image, grid, expected_N=expected_N, radius_m=float(r_m))
@@ -286,7 +288,7 @@ def best_symmetry_metrics(
         if best is None or score > float(best["_score"]):
             best = dict(m)
             best["_score"] = score
-            best["analysis_radius_um"] = float(r_m / bt.um)
+            best["analysis_radius_um"] = float(r_m / BT_UM)
     assert best is not None
     best.pop("_score", None)
     return best
@@ -305,7 +307,7 @@ def per_z_symmetry(case: Mapping[str, Any], *, radius_m: float) -> pd.DataFrame:
             expected_N=int(case["pattern"].N),
             radius_m=radius_m,
         )
-        rows.append({"z_um": float(z_m / bt.um), **metrics})
+        rows.append({"z_um": float(z_m / BT_UM), **metrics})
     return pd.DataFrame(rows)
 
 
@@ -326,9 +328,9 @@ def threshold_polygon_metrics(case: Mapping[str, Any], pulse_energy_J: float, th
         sector = mask & (theta >= lo) & (theta < hi)
         sector_means.append(float(np.mean(F[sector])) if np.any(sector) else np.nan)
     vals = np.asarray(sector_means, dtype=float)
-    uniformity = float(1.0 / (1.0 + np.nanstd(vals) / (np.nanmean(vals) + bt.EPS))) if np.any(np.isfinite(vals)) else np.nan
+    uniformity = float(1.0 / (1.0 + np.nanstd(vals) / (np.nanmean(vals) + BT_EPS))) if np.any(np.isfinite(vals)) else np.nan
     return {
-        "threshold_area_um2": float(np.count_nonzero(mask) * grid["dx"] ** 2 / (bt.um**2)),
+        "threshold_area_um2": float(np.count_nonzero(mask) * grid["dx"] ** 2 / (BT_UM**2)),
         "vertex_edge_fluence_uniformity": uniformity,
         "sector_fluence_J_cm2": vals,
         "fluence_xy_J_cm2": F,
@@ -357,21 +359,21 @@ def continuous_limit_error(
 
     R = np.asarray(grid["R"], dtype=float)
     bessel = np.cos(float(kr_m_inv) * R) if sp is None else sp.j0(float(kr_m_inv) * R)
-    target = (bessel * bt.gaussian_amplitude(R, waist_m)) ** 2
+    target = (bessel * gaussian_amplitude(R, waist_m)) ** 2
     target_avg = vbb_metrics.azimuthal_average(target, grid, center_mode="origin")
     target_profile = np.asarray(target_avg["profile"], dtype=float)
-    target_profile = target_profile / (float(np.nanmax(target_profile)) + bt.EPS)
+    target_profile = target_profile / (float(np.nanmax(target_profile)) + BT_EPS)
     rows: list[dict[str, float]] = []
     for N in N_values:
         pattern = DiscretePattern(f"N{int(N)}", int(N), tuple(0.0 for _ in range(int(N))))
         I = np.abs(n_wave_complex_field(grid, kr_m_inv, pattern, waist_m=waist_m)) ** 2
         avg = vbb_metrics.azimuthal_average(I, grid, center_mode="origin")
         profile = np.asarray(avg["profile"], dtype=float)
-        profile = profile / (float(np.nanmax(profile)) + bt.EPS)
+        profile = profile / (float(np.nanmax(profile)) + BT_EPS)
         finite = np.isfinite(profile) & np.isfinite(target_profile)
         err = float(
             np.sqrt(np.mean((profile[finite] - target_profile[finite]) ** 2))
-            / (np.sqrt(np.mean(target_profile[finite] ** 2)) + bt.EPS)
+            / (np.sqrt(np.mean(target_profile[finite] ** 2)) + BT_EPS)
         )
         rows.append({"N": int(N), "continuous_N_bessel_l2_error": err})
     return pd.DataFrame(rows)
@@ -447,7 +449,7 @@ def run_pattern_suite(
                 expected_N=pattern.N,
                 kr_m_inv=kr_m_inv,
             )
-            radius_m = float(sym["analysis_radius_um"]) * bt.um
+            radius_m = float(sym["analysis_radius_um"]) * BT_UM
             per_z = per_z_symmetry(case, radius_m=radius_m)
             mat = threshold_polygon_metrics(case, pulse_energy_J, threshold_J_cm2)
             row = {
@@ -462,7 +464,7 @@ def run_pattern_suite(
                 "vertex_radius_um": sym["vertex_radius_um"],
                 "flat_to_flat_radius_um": sym["flat_to_flat_radius_um"],
                 "analysis_radius_um": sym["analysis_radius_um"],
-                "lattice_spacing_um": float(2.0 * np.pi / max(float(kr_m_inv), bt.EPS) / bt.um),
+                "lattice_spacing_um": float(2.0 * np.pi / max(float(kr_m_inv), BT_EPS) / BT_UM),
                 "encoded_power_fraction": float(case["encoding"].get("encoded_power_fraction", np.nan)),
                 "threshold_area_um2": mat["threshold_area_um2"],
                 "vertex_edge_fluence_uniformity": mat["vertex_edge_fluence_uniformity"],
@@ -490,7 +492,7 @@ def plot_pattern_gallery(cases: Sequence[Mapping[str, Any]], output_path: str | 
             case = next(c for c in subset if c["path"] == path)
             img = np.asarray(case["volume"]["planes"]["peak"], dtype=float)
             grid = case["volume"]["crop_grid"]
-            x_um = np.asarray(grid["x"], dtype=float) / bt.um
+            x_um = np.asarray(grid["x"], dtype=float) / BT_UM
             artist = axes[row, col].imshow(
                 vbb_style.display_scale(img, gamma=0.45),
                 origin="lower",
