@@ -18,7 +18,9 @@ from matplotlib.patches import Patch
 import numpy as np
 import pandas as pd
 
-import bessel_twin_core as bt
+from vbb_study.config import EPS as BT_EPS, TwinConfig, uJ as BT_UJ, um as BT_UM
+from vbb_study.design import compute_design_from_targets
+from vbb_study.facade import core as _bt
 from . import vbb_capsule, vbb_materials, vbb_style
 
 
@@ -68,8 +70,8 @@ def feature_geometry(
         and capsule_index planning descriptors.
     """
     mask = np.asarray(mask_rz, dtype=bool)
-    r_m = np.abs(np.asarray(r_axis_um, dtype=float)) * bt.um
-    z_m = np.asarray(z_axis_um, dtype=float) * bt.um
+    r_m = np.abs(np.asarray(r_axis_um, dtype=float)) * BT_UM
+    z_m = np.asarray(z_axis_um, dtype=float) * BT_UM
 
     radius_m = np.full(len(z_m), np.nan, dtype=float)
     for iz in range(len(z_m)):
@@ -93,19 +95,19 @@ def feature_geometry(
 
     rv = radius_m[valid]
     zv = z_m[valid]
-    length_um = float((zv[-1] - zv[0]) / bt.um)
+    length_um = float((zv[-1] - zv[0]) / BT_UM)
     mean_r = float(np.mean(rv))
-    mean_diameter_um = float(2.0 * mean_r / bt.um)
-    diameter_std_um = float(2.0 * np.std(rv) / bt.um)
-    diameter_cv = float(np.std(2.0 * rv) / (np.mean(2.0 * rv) + bt.EPS))
-    slope = float(np.polyfit(zv / bt.um, rv / bt.um, 1)[0])
+    mean_diameter_um = float(2.0 * mean_r / BT_UM)
+    diameter_std_um = float(2.0 * np.std(rv) / BT_UM)
+    diameter_cv = float(np.std(2.0 * rv) / (np.mean(2.0 * rv) + BT_EPS))
+    slope = float(np.polyfit(zv / BT_UM, rv / BT_UM, 1)[0])
     sidewall_straightness = float(1.0 / (1.0 + 6.0 * diameter_cv + abs(slope)))
 
     edge_n = max(1, int(0.15 * len(rv)))
     r_start = float(np.mean(rv[:edge_n]))
     r_end = float(np.mean(rv[-edge_n:]))
-    asym = float(abs(r_start - r_end) / (mean_r + bt.EPS))
-    endcap_rounding = float(np.clip(1.0 - 0.5 * (r_start + r_end) / (mean_r + bt.EPS), 0.0, 1.0))
+    asym = float(abs(r_start - r_end) / (mean_r + BT_EPS))
+    endcap_rounding = float(np.clip(1.0 - 0.5 * (r_start + r_end) / (mean_r + BT_EPS), 0.0, 1.0))
 
     flat_score = float(1.0 / (1.0 + 8.0 * diameter_cv))
     sym_score = float(1.0 / (1.0 + 4.0 * asym))
@@ -189,7 +191,7 @@ def axial_flatten_apodization(strength: float) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 def holographic_max_zone_um(
-    base_config: bt.TwinConfig,
+    base_config: TwinConfig,
     target_spot_um: float,
     *,
     ell: int | None = None,
@@ -214,18 +216,18 @@ def holographic_max_zone_um(
         target=replace(
             base_config.target,
             ell=ell_use,
-            target_core_diameter_m=float(target_spot_um) * bt.um,
-            target_bessel_length_m=1.0 * bt.um,
+            target_core_diameter_m=float(target_spot_um) * BT_UM,
+            target_bessel_length_m=1.0 * BT_UM,
         ),
     )
-    design = bt.compute_design_from_targets(cfg_probe.laser, cfg_probe.target, cfg_probe.material)
+    design = compute_design_from_targets(cfg_probe.laser, cfg_probe.target, cfg_probe.material)
     kr_sample = float(design.kr_sample_m_inv)
     k_medium = float(cfg_probe.laser.k0 * cfg_probe.material.refractive_index)
     w_slm = float(cfg_probe.laser.beam_radius_on_slm_m)
     # From: cone_lpmm = L × kr_sample² / (2π × 1000 × k_medium × w_slm)
     # L_max = max_cone_lpmm × 2π × 1000 × k_medium × w_slm / kr_sample²
     L_max_m = max_cone_lpmm * 2.0 * math.pi * 1e3 * k_medium * w_slm / (kr_sample ** 2)
-    return float(L_max_m / bt.um)
+    return float(L_max_m / BT_UM)
 
 
 # ---------------------------------------------------------------------------
@@ -234,7 +236,7 @@ def holographic_max_zone_um(
 
 def capsule_sweep_from_journey(
     journey: Any,
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     strengths: Sequence[float] = (0.0, 0.35, 0.70, 1.0, 1.5),
 ) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
@@ -272,7 +274,7 @@ def capsule_sweep_from_journey(
 
         shape = vbb_capsule.capsule_shape_metrics(F_xz, x_m, z_m, threshold)
         mask = above_threshold_mask_rz(F_xz, threshold)
-        geom = feature_geometry(mask, x_m / bt.um, z_m / bt.um)
+        geom = feature_geometry(mask, x_m / BT_UM, z_m / BT_UM)
 
         # Threshold clearance: does the beam exceed Fth anywhere in the zone?
         threshold_cleared = bool(float(np.nanmax(F_xz)) >= threshold)
@@ -319,7 +321,7 @@ def capsule_sweep_from_journey(
 # ---------------------------------------------------------------------------
 
 def design_solver_with_gap(
-    base_config: bt.TwinConfig,
+    base_config: TwinConfig,
     *,
     target_zone_um: float = 150.0,
     spot_samples_um: Sequence[float] = (2.0, 3.0, 4.0, 5.0),
@@ -356,17 +358,17 @@ def design_solver_with_gap(
                         target=replace(
                             base_config.target,
                             ell=int(ell),
-                            target_core_diameter_m=float(spot_um) * bt.um,
-                            target_bessel_length_m=float(zone_um) * bt.um,
+                            target_core_diameter_m=float(spot_um) * BT_UM,
+                            target_bessel_length_m=float(zone_um) * BT_UM,
                         ),
-                        energy=replace(base_config.energy, pulse_energy_in_J=float(energy_uJ) * bt.uJ),
+                        energy=replace(base_config.energy, pulse_energy_in_J=float(energy_uJ) * BT_UJ),
                     )
-                    design = bt.compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
+                    design = compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
                     cone_lpmm = float(abs(design.kr_slm_m_inv) / (2.0 * math.pi) / 1e3)
                     holo_feasible = bool(cone_lpmm + filter_lpmm < carrier_lpmm - 0.06)
 
                     sampling = vbb_regime.sampling_validity(cfg, design)
-                    hw = bool(bt._hardware_reachable(cfg, design))
+                    hw = bool(_bt()._hardware_reachable(cfg, design))
 
                     rows.append({
                         "ell": int(ell),
@@ -379,7 +381,7 @@ def design_solver_with_gap(
                         "carrier_lpmm": carrier_lpmm,
                         "filter_lpmm": filter_lpmm,
                         "gamma_slm_deg": float(design.gamma_slm_deg),
-                        "w0_sample_um": float(design.w0_sample_m / bt.um),
+                        "w0_sample_um": float(design.w0_sample_m / BT_UM),
                         # Holographic route
                         "holo_first_order_feasible": holo_feasible,
                         "max_holo_zone_um": float(max_holo_um),
@@ -435,19 +437,19 @@ def fabrication_geometry_report(
     for iz in range(len(z_m)):
         col = mask[:, iz] if mask.shape[1] == len(z_m) else mask[iz, :]
         if np.any(col):
-            outer_by_z[iz] = float(np.max(np.abs(x_m[col])) / bt.um)
+            outer_by_z[iz] = float(np.max(np.abs(x_m[col])) / BT_UM)
 
     valid = np.isfinite(outer_by_z)
     if np.count_nonzero(valid) >= 2:
         ov = outer_by_z[valid]
-        zv = z_m[valid] / bt.um
+        zv = z_m[valid] / BT_UM
         taper_um = float(np.nanmax(ov) - np.nanmin(ov))
         mean_r_um = float(np.nanmean(ov))
-        taper_fraction = float(taper_um / (mean_r_um + bt.EPS))
+        taper_fraction = float(taper_um / (mean_r_um + BT_EPS))
         slope_um_per_um = float(np.polyfit(zv, ov, 1)[0])
         r_top_um = float(ov[0])
         r_bot_um = float(ov[-1])
-        weld_symmetry = float(np.clip(1.0 - abs(r_top_um - r_bot_um) / (mean_r_um + bt.EPS), 0.0, 1.0))
+        weld_symmetry = float(np.clip(1.0 - abs(r_top_um - r_bot_um) / (mean_r_um + BT_EPS), 0.0, 1.0))
     else:
         taper_um = mean_r_um = taper_fraction = slope_um_per_um = np.nan
         r_top_um = r_bot_um = weld_symmetry = np.nan
@@ -458,7 +460,7 @@ def fabrication_geometry_report(
         for iz in range(len(z_m)):
             col = mask[:, iz] if mask.shape[1] == len(z_m) else mask[iz, :]
             if np.any(col):
-                absr = np.abs(x_m[col]) / bt.um
+                absr = np.abs(x_m[col]) / BT_UM
                 inner_by_z[iz] = float(np.min(absr))
         iv = np.isfinite(inner_by_z)
         ring_outer_um = mean_r_um
@@ -510,14 +512,14 @@ def plot_rz_fluence_pair(
     vbb_style.apply_style()
     cases = [ideal_case, lab_case]
     labels = ["ideal", f"lab (realistic, {correction})"]
-    vmax = max(float(np.nanmax(c["F_xz"])) for c in cases) + bt.EPS
+    vmax = max(float(np.nanmax(c["F_xz"])) for c in cases) + BT_EPS
 
     fig, axes = plt.subplots(1, 2, figsize=(11.0, 4.4), constrained_layout=True)
     artist = None
     for ax, case, label in zip(axes, cases, labels):
         F = np.asarray(case["F_xz"], dtype=float)
-        x_um = np.asarray(case["x_m"], dtype=float) / bt.um
-        z_um = np.asarray(case["z_m"], dtype=float) / bt.um
+        x_um = np.asarray(case["x_m"], dtype=float) / BT_UM
+        z_um = np.asarray(case["z_m"], dtype=float) / BT_UM
         thr = float(case["threshold_J_cm2"])
         artist = ax.imshow(
             vbb_style.display_scale(F / vmax, gamma=0.55, normalise=False),
@@ -559,12 +561,12 @@ def plot_capsule_morph(
     gs = fig.add_gridspec(2, max(2, n_cases), height_ratios=[1.1, 1.0])
 
     # Top row: r-z fluence thumbnails at each apodization strength
-    vmax = max(float(np.nanmax(c["F_xz"])) for c in cases) + bt.EPS
+    vmax = max(float(np.nanmax(c["F_xz"])) for c in cases) + BT_EPS
     for i, case in enumerate(cases):
         ax = fig.add_subplot(gs[0, i])
         F = np.asarray(case["F_xz"], dtype=float)
-        x_um = np.asarray(case["x_m"], dtype=float) / bt.um
-        z_um = np.asarray(case["z_m"], dtype=float) / bt.um
+        x_um = np.asarray(case["x_m"], dtype=float) / BT_UM
+        z_um = np.asarray(case["z_m"], dtype=float) / BT_UM
         thr = float(case["threshold_J_cm2"])
         ax.imshow(
             vbb_style.display_scale(F / vmax, gamma=0.55, normalise=False),
