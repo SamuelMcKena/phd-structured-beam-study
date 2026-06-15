@@ -14,9 +14,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
-import bessel_twin_core as bt
-
 from . import vbb_metrics, vbb_style
+from vbb_study.config import EPS as BT_EPS, PathKind, mm as BT_MM, um as BT_UM
+from vbb_study.facade import core as _bt
 
 try:
 	import plotly.graph_objects as go
@@ -45,7 +45,7 @@ def _bundle_stage4_metrics(bundle: Mapping[str, Any], *, center_mode: str = "cen
 	ring_power = np.asarray(per_z["ring_power"], dtype=float)
 	per_z["ring_power_fraction"] = np.divide(
 		ring_power,
-		total_power + bt.EPS,
+		total_power + BT_EPS,
 		out=np.zeros_like(ring_power),
 		where=total_power > 0.0,
 	)
@@ -70,8 +70,8 @@ def _sample_indices(z_um: np.ndarray, start_um: float, end_um: float, sample_cou
 
 
 def _extent_xy_um(grid: Mapping[str, Any]) -> list[float]:
-	x = np.asarray(grid["x"], dtype=float) / bt.um
-	y = np.asarray(grid.get("y", grid["x"]), dtype=float) / bt.um
+	x = np.asarray(grid["x"], dtype=float) / BT_UM
+	y = np.asarray(grid.get("y", grid["x"]), dtype=float) / BT_UM
 	return [float(x[0]), float(x[-1]), float(y[0]), float(y[-1])]
 
 
@@ -126,7 +126,7 @@ def _sweep_config(base_config: Any, parameter: str, value: Any) -> Any:
 	if key == "ell":
 		return replace(base_config, target=replace(base_config.target, ell=int(value)))
 	if key == "beam_radius_on_slm_mm":
-		return replace(base_config, laser=replace(base_config.laser, beam_radius_on_slm_m=float(value) * bt.mm))
+		return replace(base_config, laser=replace(base_config.laser, beam_radius_on_slm_m=float(value) * BT_MM))
 	if key == "include_active_aperture":
 		return replace(base_config, include_active_aperture=bool(value))
 	raise ValueError(
@@ -139,12 +139,12 @@ def _run_case_bundle(
 	config: Any,
 	*,
 	preset: str,
-	path: bt.PathKind,
+	path: PathKind,
 	case_id: str,
 	sweep_parameter: str | None = None,
 	sweep_value: Any = None,
 ) -> dict[str, Any]:
-	result = bt.run_case(config, preset=preset, path=path, case_id=case_id)
+	result = _bt().run_case(config, preset=preset, path=path, case_id=case_id)
 	bundle = {
 		"config": config,
 		"preset": preset,
@@ -165,7 +165,7 @@ def build_parameter_morph_bundles(
 	values: Sequence[Any],
 	*,
 	preset: str = "fast",
-	path: bt.PathKind = "ideal",
+	path: PathKind = "ideal",
 ) -> list[dict[str, Any]]:
 	"""Run a compact parameter sweep suitable for the morph-panel layout."""
 
@@ -197,10 +197,10 @@ def plot_radial_profile_waterfall(
 
 	vbb_style.apply_style()
 	stage4 = _bundle_stage4_metrics(bundle, center_mode=center_mode)
-	z_um = np.asarray(stage4["z_m"], dtype=float) / bt.um
-	r_um = np.asarray(stage4["r_profile_m"], dtype=float) / bt.um
+	z_um = np.asarray(stage4["z_m"], dtype=float) / BT_UM
+	r_um = np.asarray(stage4["r_profile_m"], dtype=float) / BT_UM
 	profiles = np.nan_to_num(np.asarray(stage4["radial_profile_smooth"], dtype=float), nan=0.0)
-	ring_radius_um = np.asarray(stage4["ring_radius_m"], dtype=float) / bt.um
+	ring_radius_um = np.asarray(stage4["ring_radius_m"], dtype=float) / BT_UM
 	start_um, end_um = _zone_limits_um(bundle)
 	selected = _sample_indices(z_um, start_um, end_um, sample_count)
 
@@ -212,7 +212,7 @@ def plot_radial_profile_waterfall(
 	cmap = mpl.colormaps[vbb_style.INTENSITY_CMAP]
 	norm = mpl.colors.Normalize(vmin=float(z_um[0]), vmax=float(z_um[-1]))
 	dz = np.diff(z_um[selected])
-	amplitude = 0.75 * float(np.min(dz)) if dz.size else max(2.0, 0.12 * float(z_um[-1] - z_um[0] + bt.EPS))
+	amplitude = 0.75 * float(np.min(dz)) if dz.size else max(2.0, 0.12 * float(z_um[-1] - z_um[0] + BT_EPS))
 	for idx in selected:
 		base = float(z_um[idx])
 		profile = profiles[idx]
@@ -294,13 +294,13 @@ def plot_annotated_bessel_region(
 	result = bundle["result"]
 	volume = result["volume"]
 	stage4 = _bundle_stage4_metrics(bundle, center_mode=center_mode)
-	z_um = np.asarray(stage4["z_m"], dtype=float) / bt.um
-	x_um = np.asarray(volume["crop_grid"]["x"], dtype=float) / bt.um
-	ring_radius_um = np.asarray(stage4["ring_radius_m"], dtype=float) / bt.um
+	z_um = np.asarray(stage4["z_m"], dtype=float) / BT_UM
+	x_um = np.asarray(volume["crop_grid"]["x"], dtype=float) / BT_UM
+	ring_radius_um = np.asarray(stage4["ring_radius_m"], dtype=float) / BT_UM
 	peak_trace = np.asarray(volume["peak"], dtype=float)
-	peak_trace = peak_trace / (float(np.max(peak_trace)) + bt.EPS)
+	peak_trace = peak_trace / (float(np.max(peak_trace)) + BT_EPS)
 	start_um, end_um = _zone_limits_um(bundle)
-	z_max_um = float(z_um[0]) + float(_bundle_design(bundle).target_bessel_length_m / bt.um)
+	z_max_um = float(z_um[0]) + float(_bundle_design(bundle).target_bessel_length_m / BT_UM)
 
 	fig = plt.figure(figsize=(12.0, 5.3), constrained_layout=True)
 	grid = fig.add_gridspec(1, 2, width_ratios=[1.85, 0.95])
@@ -480,12 +480,12 @@ def plot_interactive_radial_surface(
 		raise RuntimeError("Plotly is not available in the current environment.")
 
 	stage4 = _bundle_stage4_metrics(bundle, center_mode=center_mode)
-	z_um = np.asarray(stage4["z_m"], dtype=float) / bt.um
-	r_um = np.asarray(stage4["r_profile_m"], dtype=float) / bt.um
+	z_um = np.asarray(stage4["z_m"], dtype=float) / BT_UM
+	r_um = np.asarray(stage4["r_profile_m"], dtype=float) / BT_UM
 	profiles = np.nan_to_num(np.asarray(stage4["radial_profile_smooth"], dtype=float), nan=0.0)
-	ring_radius_um = np.asarray(stage4["ring_radius_m"], dtype=float) / bt.um
+	ring_radius_um = np.asarray(stage4["ring_radius_m"], dtype=float) / BT_UM
 	ring_power_fraction = np.asarray(stage4["ring_power_fraction"], dtype=float)
-	ring_power_norm = ring_power_fraction / (float(np.max(ring_power_fraction)) + bt.EPS)
+	ring_power_norm = ring_power_fraction / (float(np.max(ring_power_fraction)) + BT_EPS)
 	start_um, end_um = _zone_limits_um(bundle)
 
 	if np.isfinite(start_um) and np.isfinite(end_um) and end_um > start_um:
