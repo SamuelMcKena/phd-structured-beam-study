@@ -19,12 +19,12 @@ import numpy as np
 from scipy import ndimage
 from scipy import special as sp
 
-import bessel_twin_core as bt
-
 from . import vbb_style
 from .equations import holography as holography_eq
 from .equations import scalar_bessel as scalar_eq
 from .equations import vector_jones as jones_eq
+from vbb_study.config import EPS as BT_EPS, nm as BT_NM, um as BT_UM
+from vbb_study.equations.propagation import make_bl_asm_propagator
 
 EPS = 1.0e-15
 
@@ -95,7 +95,7 @@ def _grid_xy(grid: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, np.ndarra
 
 def _extent_um(grid: Mapping[str, Any]) -> list[float]:
 	_, _, x, y, _ = _grid_xy(grid)
-	return [float(x[0] / bt.um), float(x[-1] / bt.um), float(y[0] / bt.um), float(y[-1] / bt.um)]
+	return [float(x[0] / BT_UM), float(x[-1] / BT_UM), float(y[0] / BT_UM), float(y[-1] / BT_UM)]
 
 
 def _phase_angle(grid: Mapping[str, Any]) -> np.ndarray:
@@ -666,8 +666,8 @@ def _propagate_vector_field(
 ) -> VectorField:
 	if abs(float(z_m)) <= 0.0:
 		return field
-	prop_x = bt.make_bl_asm_propagator(field.Ex, grid, wavelength_m, n_medium=n_medium, bandlimit=True)
-	prop_y = bt.make_bl_asm_propagator(field.Ey, grid, wavelength_m, n_medium=n_medium, bandlimit=True)
+	prop_x = make_bl_asm_propagator(field.Ex, grid, wavelength_m, n_medium=n_medium, bandlimit=True)
+	prop_y = make_bl_asm_propagator(field.Ey, grid, wavelength_m, n_medium=n_medium, bandlimit=True)
 	return VectorField(Ex=np.asarray(prop_x(float(z_m)), dtype=complex), Ey=np.asarray(prop_y(float(z_m)), dtype=complex))
 
 
@@ -702,7 +702,7 @@ def build_actual_lab_vector_case(
 	carrier_lpmm: float = 0.0,
 	reference_phase_rad: float = 0.0,
 	z_m: float = 0.0,
-	wavelength_m: float = 1029.0 * bt.nm,
+	wavelength_m: float = 1029.0 * BT_NM,
 	n_medium: float = 1.0,
 	require_lab_realizable: bool = False,
 	export_dir: str | Path | None = None,
@@ -802,7 +802,7 @@ def build_actual_lab_vector_case(
 		"refused": False,
 		"comparison_included": bool(realizability["lab_realizable"] and not realizability["simulation_only"]),
 		"z_m": float(z_m),
-		"z_um": float(z_m / bt.um),
+		"z_um": float(z_m / BT_UM),
 	}
 	if export_dir is not None:
 		case["export_paths"] = export_lab_vector_cgh(case, export_dir, label=label)
@@ -1246,11 +1246,11 @@ def plot_polarization_quiver(
 	ring_source = np.where(total >= intensity_floor * float(np.max(total)), total, 0.0)
 	if np.any(ring_source > 0.0):
 		ring_radius = float(R.ravel()[int(np.argmax(ring_source.ravel()))])
-		ring_width = max(3.0 * float(grid.get("dx", np.median(np.diff(x)))), 0.25 * max(ring_radius, bt.EPS))
+		ring_width = max(3.0 * float(grid.get("dx", np.median(np.diff(x)))), 0.25 * max(ring_radius, BT_EPS))
 		ring_mask = np.abs(R - ring_radius) <= ring_width
 	else:
 		ring_mask = np.ones_like(total, dtype=bool)
-	Xs, Ys = np.meshgrid(x[::step] / bt.um, y[::step] / bt.um, indexing="xy")
+	Xs, Ys = np.meshgrid(x[::step] / BT_UM, y[::step] / BT_UM, indexing="xy")
 	psi_s = psi[::step, ::step]
 	mask = (total[::step, ::step] >= intensity_floor * float(np.max(total))) & ring_mask[::step, ::step]
 	U = np.cos(psi_s)
