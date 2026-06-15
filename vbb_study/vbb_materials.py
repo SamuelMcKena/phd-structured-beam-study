@@ -18,7 +18,9 @@ import numpy as np
 import pandas as pd
 from scipy import special as sp
 
-import bessel_twin_core as bt
+from vbb_study.config import EPS as BT_EPS, PathKind, TwinConfig, mm as BT_MM, uJ as BT_UJ, um as BT_UM
+from vbb_study.design import default_config
+from vbb_study.facade import core as _bt
 from . import vbb_metrics, vbb_style
 from .equations import materials as material_eq
 from .publication import materials as material_schema
@@ -65,7 +67,7 @@ def plane_fluence_stack_from_intensity(
     """
 
     stack = positive_intensity(intensity_stack)
-    denom = np.sum(stack, axis=(1, 2), keepdims=True) * float(dx_m) * float(dx_m) + bt.EPS
+    denom = np.sum(stack, axis=(1, 2), keepdims=True) * float(dx_m) * float(dx_m) + BT_EPS
     return (float(pulse_energy_J) * stack / denom) / 1.0e4
 
 
@@ -86,8 +88,8 @@ def effective_pulses(material: Any, rep_rate_Hz: float) -> float:
         return float(material.effective_pulses(float(rep_rate_Hz)))
     mode = str(getattr(material, "static_or_scan", "scan")).lower().strip()
     if mode == "scan":
-        width = float(getattr(material, "feature_width_m", 3.0 * bt.um))
-        speed = max(float(getattr(material, "scan_speed_m_s", 1.0 * bt.mm)), bt.EPS)
+        width = float(getattr(material, "feature_width_m", 3.0 * BT_UM))
+        speed = max(float(getattr(material, "scan_speed_m_s", 1.0 * BT_MM)), BT_EPS)
         return max(1.0, float(rep_rate_Hz) * width / speed)
     return max(1.0, float(getattr(material, "n_static_pulses", 1)))
 
@@ -134,9 +136,9 @@ def _threshold_crossing(
         return (np.nan, np.nan, -1, float(np.nanmax(y)) if np.any(finite) else np.nan)
     ell_abs = abs(int(ell))
     if ell_abs == 0:
-        search = finite & (r <= max(3.0 / max(float(kr_m_inv), bt.EPS), r[min(len(r) - 1, max(3, len(r) // 5))]))
+        search = finite & (r <= max(3.0 / max(float(kr_m_inv), BT_EPS), r[min(len(r) - 1, max(3, len(r) // 5))]))
     else:
-        predicted = float(sp.jnp_zeros(ell_abs, 1)[0] / max(float(kr_m_inv), bt.EPS))
+        predicted = float(sp.jnp_zeros(ell_abs, 1)[0] / max(float(kr_m_inv), BT_EPS))
         search = finite & (r >= 0.45 * predicted) & (r <= 1.8 * predicted)
     if not np.any(search):
         search = finite
@@ -170,7 +172,7 @@ def _threshold_crossing(
 
 
 def _interp_level(x0: float, y0: float, x1: float, y1: float, level: float) -> float:
-    if abs(y1 - y0) <= bt.EPS:
+    if abs(y1 - y0) <= BT_EPS:
         return float(0.5 * (x0 + x1))
     t = (float(level) - y0) / (y1 - y0)
     return float(x0 + np.clip(t, 0.0, 1.0) * (x1 - x0))
@@ -200,7 +202,7 @@ def _angular_uniformity(
         return {"azimuthal_cv": np.nan, "azimuthal_uniformity": np.nan, "azimuthal_bins_used": float(len(means))}
     arr = np.asarray(means, dtype=float)
     mean = float(np.mean(arr))
-    cv = float(np.std(arr) / (mean + bt.EPS))
+    cv = float(np.std(arr) / (mean + BT_EPS))
     return {
         "azimuthal_cv": cv,
         "azimuthal_uniformity": float(1.0 / (1.0 + cv)),
@@ -227,7 +229,7 @@ def xy_feature_geometry(
     mask = threshold_mask(F, threshold_J_cm2)
     dx = float(grid["dx"])
     area_m2 = float(np.count_nonzero(mask) * dx * dx)
-    equivalent_diameter_um = float(2.0 * np.sqrt(area_m2 / np.pi) / bt.um) if area_m2 > 0 else 0.0
+    equivalent_diameter_um = float(2.0 * np.sqrt(area_m2 / np.pi) / BT_UM) if area_m2 > 0 else 0.0
 
     avg = vbb_metrics.azimuthal_average(F, grid, center_mode="origin")
     r = np.asarray(avg["r_m"], dtype=float)
@@ -242,8 +244,8 @@ def xy_feature_geometry(
     if np.any(mask):
         R = np.asarray(grid["R"], dtype=float)
         r_mask = R[mask]
-        max_radius_um = float(np.max(r_mask) / bt.um)
-        min_radius_um = float(np.min(r_mask) / bt.um)
+        max_radius_um = float(np.max(r_mask) / BT_UM)
+        min_radius_um = float(np.min(r_mask) / BT_UM)
     else:
         max_radius_um = min_radius_um = 0.0
 
@@ -256,19 +258,19 @@ def xy_feature_geometry(
     else:
         radial_mask = np.zeros_like(mask, dtype=bool)
     uniformity = _angular_uniformity(F, grid, radial_mask)
-    threshold_ring_radius_um = float(0.5 * (r_inner + r_outer) / bt.um) if ell_abs > 0 and np.isfinite(r_outer) else np.nan
-    threshold_wall_um = float((r_outer - r_inner) / bt.um) if np.isfinite(r_outer) else np.nan
+    threshold_ring_radius_um = float(0.5 * (r_inner + r_outer) / BT_UM) if ell_abs > 0 and np.isfinite(r_outer) else np.nan
+    threshold_wall_um = float((r_outer - r_inner) / BT_UM) if np.isfinite(r_outer) else np.nan
 
     return {
         "threshold_J_cm2": float(threshold_J_cm2),
-        "xy_threshold_area_um2": float(area_m2 / (bt.um**2)),
+        "xy_threshold_area_um2": float(area_m2 / (BT_UM**2)),
         "xy_threshold_equivalent_diameter_um": equivalent_diameter_um,
-        "thresholded_proxy_area_um2": float(area_m2 / (bt.um**2)),
+        "thresholded_proxy_area_um2": float(area_m2 / (BT_UM**2)),
         "thresholded_equivalent_diameter_um": equivalent_diameter_um,
         "xy_threshold_min_radius_um": min_radius_um,
         "xy_threshold_max_radius_um": max_radius_um,
-        "xy_threshold_inner_radius_um": float(r_inner / bt.um) if np.isfinite(r_inner) else np.nan,
-        "xy_threshold_outer_radius_um": float(r_outer / bt.um) if np.isfinite(r_outer) else np.nan,
+        "xy_threshold_inner_radius_um": float(r_inner / BT_UM) if np.isfinite(r_inner) else np.nan,
+        "xy_threshold_outer_radius_um": float(r_outer / BT_UM) if np.isfinite(r_outer) else np.nan,
         "xy_threshold_wall_thickness_um": threshold_wall_um,
         "annular_threshold_proxy_ring_radius_um": threshold_ring_radius_um,
         "annular_threshold_proxy_wall_thickness_um": threshold_wall_um if ell_abs > 0 else np.nan,
@@ -306,11 +308,11 @@ def xz_feature_geometry(
         inds = np.argwhere(mask)
         ix0, iz0 = inds.min(axis=0)
         ix1, iz1 = inds.max(axis=0)
-        length_um = float(max(0.0, z[iz1] - z[iz0]) / bt.um)
-        width_um = float(max(0.0, x[ix1] - x[ix0]) / bt.um)
-        area_um2 = float(np.count_nonzero(mask) * dx * dz / (bt.um**2))
-        z_start_um = float(z[iz0] / bt.um)
-        z_end_um = float(z[iz1] / bt.um)
+        length_um = float(max(0.0, z[iz1] - z[iz0]) / BT_UM)
+        width_um = float(max(0.0, x[ix1] - x[ix0]) / BT_UM)
+        area_um2 = float(np.count_nonzero(mask) * dx * dz / (BT_UM**2))
+        z_start_um = float(z[iz0] / BT_UM)
+        z_end_um = float(z[iz1] / BT_UM)
     else:
         length_um = width_um = area_um2 = z_start_um = z_end_um = 0.0
 
@@ -318,12 +320,12 @@ def xz_feature_geometry(
     for col in range(len(z)):
         xs = np.abs(x[mask[:, col]]) if np.any(mask[:, col]) else np.asarray([], dtype=float)
         if xs.size:
-            radius_by_z_um[col] = float(np.max(xs) / bt.um)
+            radius_by_z_um[col] = float(np.max(xs) / BT_UM)
     valid = np.isfinite(radius_by_z_um)
     if np.count_nonzero(valid) >= 2:
         taper_um = float(np.nanmax(radius_by_z_um[valid]) - np.nanmin(radius_by_z_um[valid]))
         mean_radius = float(np.nanmean(radius_by_z_um[valid]))
-        coeff = np.polyfit(z[valid] / bt.um, radius_by_z_um[valid], 1)
+        coeff = np.polyfit(z[valid] / BT_UM, radius_by_z_um[valid], 1)
         slope = float(coeff[0])
     else:
         taper_um = mean_radius = slope = np.nan
@@ -342,10 +344,10 @@ def xz_feature_geometry(
         "written_feature_to_bessel_zone_ratio": ratio,
         "threshold_radius_mean_um": mean_radius,
         "threshold_taper_um": taper_um,
-        "threshold_taper_fraction": float(taper_um / (mean_radius + bt.EPS)) if np.isfinite(taper_um) and np.isfinite(mean_radius) else np.nan,
+        "threshold_taper_fraction": float(taper_um / (mean_radius + BT_EPS)) if np.isfinite(taper_um) and np.isfinite(mean_radius) else np.nan,
         "tgv_radius_mean_um": mean_radius,
         "tgv_taper_um": taper_um,
-        "tgv_taper_fraction": float(taper_um / (mean_radius + bt.EPS)) if np.isfinite(taper_um) and np.isfinite(mean_radius) else np.nan,
+        "tgv_taper_fraction": float(taper_um / (mean_radius + BT_EPS)) if np.isfinite(taper_um) and np.isfinite(mean_radius) else np.nan,
         "tgv_radius_slope_um_per_um": slope,
         "radius_by_z_um": radius_by_z_um,
     }
@@ -361,7 +363,7 @@ def _strict_region_um(metrics: Mapping[str, Any]) -> float:
     return np.nan
 
 
-def _transmission_fraction(config: bt.TwinConfig) -> float:
+def _transmission_fraction(config: TwinConfig) -> float:
     energy = config.energy
     factors = [
         float(getattr(energy, "pre_slm_transmission", 1.0)),
@@ -374,7 +376,7 @@ def _transmission_fraction(config: bt.TwinConfig) -> float:
     return material_eq.transmission_fraction(*factors)
 
 
-def feature_geometry_from_result(result: Mapping[str, Any], config: bt.TwinConfig) -> dict[str, Any]:
+def feature_geometry_from_result(result: Mapping[str, Any], config: TwinConfig) -> dict[str, Any]:
     """Compute material-facing planning proxies for one simulated case.
 
     The returned thresholded quantities compare optical fluence with a planning
@@ -411,11 +413,11 @@ def feature_geometry_from_result(result: Mapping[str, Any], config: bt.TwinConfi
         "case_id": str(metrics.get("case_id", "")),
         "path": str(metrics.get("path", result.get("path", ""))),
         "ell": int(design.ell),
-        "target_core_diameter_um": float(design.target_core_diameter_m / bt.um),
-        "target_bessel_length_um": float(design.target_bessel_length_m / bt.um),
+        "target_core_diameter_um": float(design.target_core_diameter_m / BT_UM),
+        "target_bessel_length_um": float(design.target_bessel_length_m / BT_UM),
         "gamma_slm_deg": float(design.gamma_slm_deg),
-        "input_energy_uJ": float(config.energy.pulse_energy_in_J / bt.uJ),
-        "pulse_energy_at_sample_uJ": float(config.energy.pulse_energy_at_sample_J / bt.uJ),
+        "input_energy_uJ": float(config.energy.pulse_energy_in_J / BT_UJ),
+        "pulse_energy_at_sample_uJ": float(config.energy.pulse_energy_at_sample_J / BT_UJ),
         "threshold_J_cm2": threshold,
         "threshold_fluence_J_cm2": threshold,
         "effective_pulses": effective_pulses(config.material, config.laser.rep_rate_Hz),
@@ -442,7 +444,7 @@ def feature_geometry_from_result(result: Mapping[str, Any], config: bt.TwinConfi
         "incubation_model": "power_law_proxy",
         "incubation_coefficient": float(getattr(config.material, "incubation_exponent", np.nan)),
         "transmission_fraction": _transmission_fraction(config),
-        "pulse_energy_uJ": float(config.energy.pulse_energy_in_J / bt.uJ),
+        "pulse_energy_uJ": float(config.energy.pulse_energy_in_J / BT_UJ),
         "xz_proxy_definition": axial_method,
         "xz_energy_conservation_status": xz_energy_status,
         "beam_family": "vortex_bessel" if int(design.ell) else "scalar_bessel",
@@ -460,7 +462,7 @@ def feature_geometry_from_result(result: Mapping[str, Any], config: bt.TwinConfi
     }
 
 
-def material_proxy_row_from_geometry(geom: Mapping[str, Any], config: bt.TwinConfig) -> dict[str, Any]:
+def material_proxy_row_from_geometry(geom: Mapping[str, Any], config: TwinConfig) -> dict[str, Any]:
     """Return one canonical Stage 6 material proxy row."""
 
     row = {
@@ -482,8 +484,8 @@ def material_proxy_row_from_geometry(geom: Mapping[str, Any], config: bt.TwinCon
         "incubation_model": "power_law_proxy",
         "incubation_coefficient": float(getattr(config.material, "incubation_exponent", np.nan)),
         "pulse_count": float(geom.get("pulse_count", geom.get("effective_pulses", np.nan))),
-        "pulse_energy_uJ": float(config.energy.pulse_energy_in_J / bt.uJ),
-        "pulse_energy_at_sample_uJ": float(config.energy.pulse_energy_at_sample_J / bt.uJ),
+        "pulse_energy_uJ": float(config.energy.pulse_energy_in_J / BT_UJ),
+        "pulse_energy_at_sample_uJ": float(config.energy.pulse_energy_at_sample_J / BT_UJ),
         "transmission_fraction": float(geom.get("transmission_fraction", _transmission_fraction(config))),
         "peak_fluence_J_cm2": float(geom.get("peak_fluence_J_cm2", np.nan)),
         "fluence_to_threshold_ratio": float(geom.get("fluence_to_threshold_ratio", np.nan)),
@@ -520,7 +522,7 @@ def material_proxy_row_from_geometry(geom: Mapping[str, Any], config: bt.TwinCon
     return material_schema.ordered_material_row(row)
 
 
-def design_row_from_case(result: Mapping[str, Any], config: bt.TwinConfig) -> dict[str, Any]:
+def design_row_from_case(result: Mapping[str, Any], config: TwinConfig) -> dict[str, Any]:
     """Return one canonical material planning row with blank calibration fields."""
 
     geom = feature_geometry_from_result(result, config)
@@ -537,14 +539,14 @@ def design_row_from_case(result: Mapping[str, Any], config: bt.TwinConfig) -> di
 
 def build_shortlist_design_table(
     shortlist: Sequence[Mapping[str, Any]],
-    base_config: bt.TwinConfig | None = None,
+    base_config: TwinConfig | None = None,
     *,
     preset: str = "fast",
-    path: bt.PathKind = "realistic",
+    path: PathKind = "realistic",
 ) -> tuple[pd.DataFrame, list[dict[str, Any]]]:
     """Simulate the shortlist and return the Stage 6 material proxy table."""
 
-    base = bt.default_config(preset) if base_config is None else base_config
+    base = default_config(preset) if base_config is None else base_config
     rows: list[dict[str, Any]] = []
     cases: list[dict[str, Any]] = []
     for item in shortlist:
@@ -553,12 +555,12 @@ def build_shortlist_design_table(
             target=replace(
                 base.target,
                 ell=int(item["ell"]),
-                target_core_diameter_m=float(item["D_um"]) * bt.um,
-                target_bessel_length_m=float(item["L_um"]) * bt.um,
+                target_core_diameter_m=float(item["D_um"]) * BT_UM,
+                target_bessel_length_m=float(item["L_um"]) * BT_UM,
             ),
-            energy=replace(base.energy, pulse_energy_in_J=float(item["Ein_uJ"]) * bt.uJ),
+            energy=replace(base.energy, pulse_energy_in_J=float(item["Ein_uJ"]) * BT_UJ),
         )
-        result = bt.run_case(cfg, preset=preset, path=path, case_id=str(item["label"]))
+        result = _bt().run_case(cfg, preset=preset, path=path, case_id=str(item["label"]))
         geom = feature_geometry_from_result(result, cfg)
         rows.append(design_row_from_case(result, cfg))
         cases.append({"config": cfg, "result": result, "geometry": geom, "spec": dict(item)})
@@ -646,8 +648,8 @@ def plot_feature_geometry(
     F_xy = np.asarray(geom["fluence_xy_J_cm2"], dtype=float)
     F_xz = np.asarray(geom["centerline_fluence_xz_J_cm2"], dtype=float)
     threshold = float(geom["threshold_J_cm2"])
-    x_um = np.asarray(grid["x"], dtype=float) / bt.um
-    z_um = np.asarray(volume["z"], dtype=float) / bt.um
+    x_um = np.asarray(grid["x"], dtype=float) / BT_UM
+    z_um = np.asarray(volume["z"], dtype=float) / BT_UM
     extent_xy = [float(x_um[0]), float(x_um[-1]), float(x_um[0]), float(x_um[-1])]
     extent_xz = [float(z_um[0]), float(z_um[-1]), float(x_um[0]), float(x_um[-1])]
 
