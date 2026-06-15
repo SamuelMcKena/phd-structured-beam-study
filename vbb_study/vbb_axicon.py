@@ -14,7 +14,11 @@ from typing import Any, Literal, Mapping, Protocol
 
 import numpy as np
 
-import bessel_twin_core as bt
+from vbb_study.config import BeamDesign, EPS, TWOPI, um
+from vbb_study.design import compute_design_from_targets
+from vbb_study.equations.fields import make_xy_grid
+from vbb_study.equations.propagation import make_bl_asm_propagator
+from vbb_study.equations.scalar_bessel import build_conical_axicon_field_ideal
 
 try:
     from scipy.ndimage import gaussian_filter
@@ -48,34 +52,34 @@ def _payload_get(input_field: Any, key: str, default: Any = None) -> Any:
     return default
 
 
-def _design(input_field: Any, config: Any) -> bt.BeamDesign:
+def _design(input_field: Any, config: Any) -> BeamDesign:
     found = _payload_get(input_field, "design")
     if found is not None:
         return found
-    return bt.compute_design_from_targets(config.laser, config.target, config.material)
+    return compute_design_from_targets(config.laser, config.target, config.material)
 
 
 def _sample_grid(input_field: Any, config: Any) -> dict[str, Any]:
     found = _payload_get(input_field, "grid")
     if found is not None:
         return found
-    return bt.make_xy_grid(int(config.grid.ideal_N), float(config.grid.ideal_dx_m))
+    return make_xy_grid(int(config.grid.ideal_N), float(config.grid.ideal_dx_m))
 
 
-def _as_scalar_input(input_field: Any, grid: Mapping[str, Any], design: bt.BeamDesign) -> np.ndarray:
+def _as_scalar_input(input_field: Any, grid: Mapping[str, Any], design: BeamDesign) -> np.ndarray:
     if isinstance(input_field, np.ndarray):
         return np.asarray(input_field, dtype=complex)
     field = _payload_get(input_field, "field")
     if field is not None:
         return np.asarray(field, dtype=complex)
-    amp = np.exp(-(np.asarray(grid["R"], dtype=float) ** 2) / max(float(design.w0_sample_m), bt.EPS) ** 2)
+    amp = np.exp(-(np.asarray(grid["R"], dtype=float) ** 2) / max(float(design.w0_sample_m), EPS) ** 2)
     return amp.astype(complex)
 
 
 def _as_vector_input(
     input_field: Any,
     grid: Mapping[str, Any],
-    design: bt.BeamDesign,
+    design: BeamDesign,
 ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None, bool]:
     ex = _payload_get(input_field, "Ex")
     ey = _payload_get(input_field, "Ey")
@@ -100,9 +104,9 @@ def _phase_rms_from_angle(angle: np.ndarray, weights: np.ndarray | None = None) 
         return float("nan")
     phase_m = phase[mask]
     w_m = w[mask]
-    mean = np.angle(np.sum(w_m * np.exp(1j * phase_m)) / (np.sum(w_m) + bt.EPS))
+    mean = np.angle(np.sum(w_m * np.exp(1j * phase_m)) / (np.sum(w_m) + EPS))
     residual = np.angle(np.exp(1j * (phase_m - mean)))
-    return float(np.sqrt(np.sum(w_m * residual * residual) / (np.sum(w_m) + bt.EPS)))
+    return float(np.sqrt(np.sum(w_m * residual * residual) / (np.sum(w_m) + EPS)))
 
 
 def residual_phase_rms(field: np.ndarray) -> float:
@@ -123,7 +127,7 @@ def _lowpass(phi: np.ndarray) -> np.ndarray:
         xx = np.arange(nx) - nx / 2
         XX, YY = np.meshgrid(xx, yy, indexing="xy")
         radius = 0.12 * min(nx, ny)
-        spec *= np.exp(-0.5 * (XX * XX + YY * YY) / max(radius * radius, bt.EPS))
+        spec *= np.exp(-0.5 * (XX * XX + YY * YY) / max(radius * radius, EPS))
         return np.angle(np.fft.ifft2(np.fft.ifftshift(spec)))
     z = np.exp(1j * phase)
     zr = gaussian_filter(np.real(z), sigma=4.0, mode="nearest")
@@ -187,7 +191,7 @@ def _slm2_correction(
         levels = int(stroke_levels)
         if levels < 2:
             raise ValueError("stroke_levels must be at least 2 when provided.")
-        phi_corr = np.round(phi_corr / bt.TWOPI * levels) * (bt.TWOPI / levels)
+        phi_corr = np.round(phi_corr / TWOPI * levels) * (TWOPI / levels)
     after_phase = phi + phi_corr
     weights = np.abs(arr) ** 2
     diagnostics: dict[str, float | int | str | None] = {
@@ -227,7 +231,7 @@ class HolographicAxicon:
     def generate(self, input_field: Any, config: Any) -> AxiconResult:
         design = _design(input_field, config)
         grid = _sample_grid(input_field, config)
-        U = bt.build_conical_axicon_field_ideal(grid, design, config.laser)
+        U = build_conical_axicon_field_ideal(grid, design, config.laser)
         return AxiconResult(
             Ex=U,
             Ey=None,
@@ -250,7 +254,7 @@ class PhysicalAxicon:
         design = _design(input_field, config)
         grid = _sample_grid(input_field, config)
         physical = getattr(config, "physical_axicon", None)
-        inter_slm_z_m = float(getattr(physical, "inter_slm_z_m", 25.0 * bt.um))
+        inter_slm_z_m = float(getattr(physical, "inter_slm_z_m", 25.0 * um))
         inter_slm_n = float(getattr(physical, "inter_slm_n", 1.0))
         mode = getattr(physical, "slm2_conjugate_mode", "full")
         stroke_levels = getattr(physical, "slm2_stroke_levels", 256)
@@ -274,9 +278,9 @@ class PhysicalAxicon:
         def _propagate(component: np.ndarray | None) -> np.ndarray | None:
             if component is None:
                 return None
-            if abs(inter_slm_z_m) <= bt.EPS:
+            if abs(inter_slm_z_m) <= EPS:
                 return np.asarray(component, dtype=complex).copy()
-            prop = bt.make_bl_asm_propagator(
+            prop = make_bl_asm_propagator(
                 np.asarray(component, dtype=complex),
                 grid,
                 config.laser.wavelength_m,
@@ -302,7 +306,7 @@ class PhysicalAxicon:
         gamma_override = getattr(physical, "axicon_base_angle_deg", None)
         if gamma_override is None:
             denom = config.laser.k0 * (n_axicon - axicon_medium_n)
-            gamma_rad = np.arctan(k_r / max(abs(denom), bt.EPS))
+            gamma_rad = np.arctan(k_r / max(abs(denom), EPS))
             if denom < 0.0:
                 gamma_rad = -gamma_rad
             gamma_deg = float(np.rad2deg(gamma_rad))
@@ -383,7 +387,7 @@ class PhysicalAxicon:
             "axicon_transmission": transmission,
             "input_power_au_m2": input_power,
             "output_power_au_m2": output_power,
-            "efficiency": float(output_power / max(input_power, bt.EPS)),
+            "efficiency": float(output_power / max(input_power, EPS)),
         }
         return AxiconResult(
             Ex=np.asarray(Ex_out, dtype=complex),
