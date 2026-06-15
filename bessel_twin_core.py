@@ -95,6 +95,7 @@ from vbb_study.design import (
     get_preset,
     objective_map_from_config,
 )
+from vbb_study import vbb_axicon, vbb_regime, vbb_studies
 
 
 # ---------------------------------------------------------------------------
@@ -1265,8 +1266,6 @@ def run_sas_self_checks(
 
 
 def _case_validity_report(config: TwinConfig, design: BeamDesign, result: Dict[str, Any]) -> Dict[str, Any]:
-    from vbb_study import vbb_regime
-
     report = vbb_regime.sampling_validity(config, design, result)
     return vbb_regime.enforce_validity(report, getattr(config, "validity_on_violation", "flag"))
 
@@ -1312,8 +1311,6 @@ def _run_full_source_to_sample_case(
     generation_method = str(getattr(config, "generation_method", "holographic")).lower().strip()
     axicon_result = None
     if generation_method == "physical":
-        from vbb_study import vbb_axicon
-
         axicon_result = vbb_axicon.PhysicalAxicon().generate({"design": design}, config)
         grid = axicon_result.grid
         U0 = axicon_result.Ex
@@ -1347,8 +1344,6 @@ def _run_full_source_to_sample_case(
             "axicon_metadata": dict(axicon_result.metadata),
         }
     elif path == "ideal":
-        from vbb_study import vbb_axicon
-
         axicon_result = vbb_axicon.HolographicAxicon().generate({"design": design}, config)
         grid = axicon_result.grid
         U0 = axicon_result.Ex
@@ -1432,8 +1427,6 @@ def run_case(
         raise NotImplementedError("run_case(study_kind='through_sample') requires an explicit SurfaceField hand-off.")
     if study_kind != "beam_to_surface":
         raise ValueError(f"Unsupported study kind: {study_kind!r}")
-
-    from vbb_study import vbb_studies
 
     result = vbb_studies.build_beam_to_surface_result(config, path=path, z_values_m=z_values_m)
     metrics_config = result.get("metrics_config", config)
@@ -1678,8 +1671,6 @@ def run_sampling_feasibility_envelope(
     save: bool = True,
 ) -> pd.DataFrame:
     """Flag numerical/hardware feasibility over the requested sweep envelope."""
-
-    from vbb_study import vbb_regime, vbb_studies
 
     base = default_config(preset) if config is None else config
     rows = []
