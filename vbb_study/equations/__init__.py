@@ -26,6 +26,9 @@ objective_pupil
     magnification, Fourier-plane ring position, first-order filter radii,
     Gaussian pupil fill fraction.
 
+metrics
+    Engine-compatible radial metrics and strict Bessel-region adapters.
+
 interface
     Snell's law for cone angles, transverse wavevector conservation,
     non-diffracting length in sample, interface aberration pupil phase,
@@ -56,6 +59,7 @@ from . import (
     capsule_geometry,
     interface,
     materials,
+    metrics,
     objective_pupil,
     polygonal,
     propagation,
@@ -69,6 +73,7 @@ __all__ = [
     "holography",
     "interface",
     "materials",
+    "metrics",
     "objective_pupil",
     "polygonal",
     "propagation",
