@@ -18,7 +18,12 @@ import numpy as np
 import pandas as pd
 from scipy import special as sp
 
-import bessel_twin_core as bt
+from vbb_study.config import EPS as BT_EPS, um as BT_UM
+from vbb_study.design import compute_design_from_targets, default_config
+from vbb_study.equations.fields import gaussian_amplitude, make_xy_grid
+from vbb_study.equations.propagation import angular_spectrum_propagate_bl, make_bl_asm_propagator, scalable_angular_spectrum_propagate
+from vbb_study.equations.scalar_bessel import build_conical_axicon_field_ideal
+from vbb_study.facade import core as _bt
 from . import setup_study, vbb_metrics, vbb_style
 
 
@@ -83,30 +88,30 @@ def _row(
 
 def _normalise_intensity(values: np.ndarray) -> np.ndarray:
     arr = np.asarray(values, dtype=float)
-    return arr / (float(np.nanmax(arr)) + bt.EPS)
+    return arr / (float(np.nanmax(arr)) + BT_EPS)
 
 
 def _relative_l2(a: np.ndarray, b: np.ndarray) -> float:
     aa = _normalise_intensity(a)
     bb = _normalise_intensity(b)
-    return float(np.linalg.norm(aa - bb) / (np.linalg.norm(bb) + bt.EPS))
+    return float(np.linalg.norm(aa - bb) / (np.linalg.norm(bb) + BT_EPS))
 
 
 def _gaussian_waist_m(intensity: np.ndarray, grid: dict[str, Any]) -> float:
     I = np.maximum(np.asarray(intensity, dtype=float), 0.0)
-    total = float(np.sum(I)) + bt.EPS
+    total = float(np.sum(I)) + BT_EPS
     r2_mean = float(np.sum(I * grid["R"] ** 2) / total)
     return float(np.sqrt(2.0 * r2_mean))
 
 
 def check_bl_asm_energy_conservation() -> list[dict[str, Any]]:
-    wavelength = 1.0 * bt.um
-    grid = bt.make_xy_grid(256, 0.35 * bt.um)
-    U0 = bt.gaussian_amplitude(grid["R"], 8.0 * bt.um)
-    prop = bt.make_bl_asm_propagator(U0, grid, wavelength, n_medium=1.0, bandlimit=True)
-    z = np.linspace(0.0, 120.0 * bt.um, 9)
+    wavelength = 1.0 * BT_UM
+    grid = make_xy_grid(256, 0.35 * BT_UM)
+    U0 = gaussian_amplitude(grid["R"], 8.0 * BT_UM)
+    prop = make_bl_asm_propagator(U0, grid, wavelength, n_medium=1.0, bandlimit=True)
+    z = np.linspace(0.0, 120.0 * BT_UM, 9)
     powers = np.asarray([np.sum(np.abs(prop(float(zi))) ** 2) * grid["dx"] ** 2 for zi in z], dtype=float)
-    drift = float((np.max(powers) - np.min(powers)) / (np.mean(powers) + bt.EPS))
+    drift = float((np.max(powers) - np.min(powers)) / (np.mean(powers) + BT_EPS))
     return [
         _row(
             "propagator",
@@ -115,17 +120,17 @@ def check_bl_asm_energy_conservation() -> list[dict[str, Any]]:
             drift,
             "<= 1e-10 relative drift",
             "fraction",
-            {"z_um": (z / bt.um).round(3).tolist()},
+            {"z_um": (z / BT_UM).round(3).tolist()},
         )
     ]
 
 
 def check_gaussian_free_space_diffraction() -> list[dict[str, Any]]:
-    wavelength = 1.0 * bt.um
-    waist0 = 8.0 * bt.um
-    grid = bt.make_xy_grid(512, 0.25 * bt.um)
+    wavelength = 1.0 * BT_UM
+    waist0 = 8.0 * BT_UM
+    grid = make_xy_grid(512, 0.25 * BT_UM)
     U0 = np.exp(-(grid["R"] ** 2) / waist0**2)
-    prop = bt.make_bl_asm_propagator(U0, grid, wavelength, n_medium=1.0, bandlimit=True)
+    prop = make_bl_asm_propagator(U0, grid, wavelength, n_medium=1.0, bandlimit=True)
     z_rayleigh = np.pi * waist0**2 / wavelength
     z = np.linspace(0.0, 1.2 * z_rayleigh, 6)
     rel_errors = []
@@ -135,8 +140,8 @@ def check_gaussian_free_space_diffraction() -> list[dict[str, Any]]:
         I = np.abs(prop(float(zi))) ** 2
         w_meas = _gaussian_waist_m(I, grid)
         w_ana = waist0 * np.sqrt(1.0 + (float(zi) / z_rayleigh) ** 2)
-        measured.append(w_meas / bt.um)
-        analytic.append(w_ana / bt.um)
+        measured.append(w_meas / BT_UM)
+        analytic.append(w_ana / BT_UM)
         rel_errors.append(abs(w_meas - w_ana) / w_ana)
     max_error = float(np.max(rel_errors))
     return [
@@ -164,21 +169,21 @@ def _bg_stack(
     wavelength_m: float,
     z_m: np.ndarray,
     N: int = 384,
-    dx_m: float = 0.16 * bt.um,
+    dx_m: float = 0.16 * BT_UM,
 ) -> tuple[dict[str, Any], np.ndarray]:
-    grid = bt.make_xy_grid(N, dx_m)
+    grid = make_xy_grid(N, dx_m)
     U0 = sp.jv(int(ell), kr_m_inv * grid["R"]) * np.exp(1j * int(ell) * grid["PHI"])
     U0 = U0 * np.exp(-(grid["R"] ** 2) / waist_m**2)
-    prop = bt.make_bl_asm_propagator(U0, grid, wavelength_m, n_medium=1.0, bandlimit=True)
+    prop = make_bl_asm_propagator(U0, grid, wavelength_m, n_medium=1.0, bandlimit=True)
     stack = np.asarray([np.abs(prop(float(zi))) ** 2 for zi in z_m], dtype=float)
     return grid, stack
 
 
 def check_bessel_gauss_invariance() -> list[dict[str, Any]]:
     ell = 3
-    wavelength = 1.0 * bt.um
-    kr = 0.8 / bt.um
-    waist = 24.0 * bt.um
+    wavelength = 1.0 * BT_UM
+    kr = 0.8 / BT_UM
+    waist = 24.0 * BT_UM
     zmax = (2.0 * np.pi / wavelength) * waist / kr
     z = np.linspace(0.0, 1.5 * zmax, 40)
     grid, stack = _bg_stack(ell=ell, kr_m_inv=kr, waist_m=waist, wavelength_m=wavelength, z_m=z)
@@ -194,7 +199,7 @@ def check_bessel_gauss_invariance() -> list[dict[str, Any]]:
     expected_r = sp.jnp_zeros(ell, 1)[0] / kr
     inside = z <= 0.8 * zmax
     ring_dev = float(np.max(np.abs(per_z["ring_radius_m"][inside] - expected_r) / expected_r))
-    peak_norm = per_z["peak_in_plane"] / (float(np.max(per_z["peak_in_plane"])) + bt.EPS)
+    peak_norm = per_z["peak_in_plane"] / (float(np.max(per_z["peak_in_plane"])) + BT_EPS)
     below_half = np.flatnonzero(peak_norm < 0.5)
     break_z = float(z[below_half[0]]) if below_half.size else float(z[-1])
     break_ratio = break_z / zmax
@@ -206,7 +211,7 @@ def check_bessel_gauss_invariance() -> list[dict[str, Any]]:
             ring_dev,
             "<= 3e-2 relative ring-radius error",
             "fraction",
-            {"zmax_um": zmax / bt.um, "expected_ring_radius_um": expected_r / bt.um},
+            {"zmax_um": zmax / BT_UM, "expected_ring_radius_um": expected_r / BT_UM},
         ),
         _row(
             "true_bessel_gauss",
@@ -216,8 +221,8 @@ def check_bessel_gauss_invariance() -> list[dict[str, Any]]:
             "0.35 <= first half-max break / zmax <= 1.05",
             "z/zmax",
             {
-                "break_z_um": break_z / bt.um,
-                "zmax_um": zmax / bt.um,
+                "break_z_um": break_z / BT_UM,
+                "zmax_um": zmax / BT_UM,
                 "minimum_peak_norm_after_break": float(np.min(peak_norm[below_half])) if below_half.size else np.nan,
             },
             reason="Finite Bessel-Gauss peak persistence is validated as a measured FWHM zone; it is expected to be shorter than the geometric aperture z_max.",
@@ -226,8 +231,8 @@ def check_bessel_gauss_invariance() -> list[dict[str, Any]]:
 
 
 def check_axicon_zmax_scaling() -> list[dict[str, Any]]:
-    cases = [(0.7 / bt.um, 18.0 * bt.um), (0.8 / bt.um, 24.0 * bt.um), (1.0 / bt.um, 22.0 * bt.um)]
-    wavelength = 1.0 * bt.um
+    cases = [(0.7 / BT_UM, 18.0 * BT_UM), (0.8 / BT_UM, 24.0 * BT_UM), (1.0 / BT_UM, 22.0 * BT_UM)]
+    wavelength = 1.0 * BT_UM
     ratios = []
     details = []
     for kr, waist in cases:
@@ -235,10 +240,10 @@ def check_axicon_zmax_scaling() -> list[dict[str, Any]]:
         z = np.linspace(0.0, 1.3 * zmax, 35)
         grid, stack = _bg_stack(ell=3, kr_m_inv=kr, waist_m=waist, wavelength_m=wavelength, z_m=z)
         peak = np.max(stack, axis=(1, 2))
-        zone = bt.bessel_zone_metrics(z, peak, level=0.5)
-        ratio = float(zone["bessel_zone_um"] / (zmax / bt.um))
+        zone = _bt().bessel_zone_metrics(z, peak, level=0.5)
+        ratio = float(zone["bessel_zone_um"] / (zmax / BT_UM))
         ratios.append(ratio)
-        details.append({"kr_per_um": kr * bt.um, "w0_um": waist / bt.um, "zmax_um": zmax / bt.um, "zone_um": zone["bessel_zone_um"], "ratio": ratio})
+        details.append({"kr_per_um": kr * BT_UM, "w0_um": waist / BT_UM, "zmax_um": zmax / BT_UM, "zone_um": zone["bessel_zone_um"], "ratio": ratio})
     ratios_arr = np.asarray(ratios, dtype=float)
     spread = float(np.max(np.abs(ratios_arr - np.mean(ratios_arr))))
     passed = bool(np.all((ratios_arr >= 0.45) & (ratios_arr <= 0.80)) and spread <= 0.05)
@@ -257,13 +262,13 @@ def check_axicon_zmax_scaling() -> list[dict[str, Any]]:
 
 
 def check_ring_radius_vs_kr() -> list[dict[str, Any]]:
-    grid = bt.make_xy_grid(512, 0.08 * bt.um)
+    grid = make_xy_grid(512, 0.08 * BT_UM)
     rel_errors = []
     details = []
     for ell in (1, 3, 5):
         for kr_um in (0.7, 1.0, 1.3):
-            kr = kr_um / bt.um
-            intensity = sp.jv(ell, kr * grid["R"]) ** 2 * np.exp(-2.0 * grid["R"] ** 2 / (90.0 * bt.um) ** 2)
+            kr = kr_um / BT_UM
+            intensity = sp.jv(ell, kr * grid["R"]) ** 2 * np.exp(-2.0 * grid["R"] ** 2 / (90.0 * BT_UM) ** 2)
             metrics = vbb_metrics.peak_plane_radial_metrics(
                 intensity,
                 grid,
@@ -275,7 +280,7 @@ def check_ring_radius_vs_kr() -> list[dict[str, Any]]:
             expected = sp.jnp_zeros(ell, 1)[0] / kr
             rel = float(abs(metrics["ring_radius_m"] - expected) / expected)
             rel_errors.append(rel)
-            details.append({"ell": ell, "kr_per_um": kr_um, "measured_um": metrics["ring_radius_m"] / bt.um, "expected_um": expected / bt.um, "rel_error": rel})
+            details.append({"ell": ell, "kr_per_um": kr_um, "measured_um": metrics["ring_radius_m"] / BT_UM, "expected_um": expected / BT_UM, "rel_error": rel})
     max_error = float(np.max(rel_errors))
     return [
         _row(
@@ -293,22 +298,22 @@ def check_ring_radius_vs_kr() -> list[dict[str, Any]]:
 def sas_bl_asm_comparison(output_dir: str | Path | None = None, *, save_figure: bool = True) -> tuple[pd.DataFrame, Path | None]:
     """Run the notebook-04 SAS-vs-BL-ASM comparison and optionally save a figure."""
 
-    base = bt.default_config("fast")
+    base = default_config("fast")
     N = 256
-    dx = 0.45 * bt.um
-    grid = bt.make_xy_grid(N, dx)
-    design = bt.compute_design_from_targets(base.laser, base.target, base.material)
+    dx = 0.45 * BT_UM
+    grid = make_xy_grid(N, dx)
+    design = compute_design_from_targets(base.laser, base.target, base.material)
     fields = {
-        "gaussian": bt.gaussian_amplitude(grid["R"], 12.0 * bt.um),
-        "soft_square_aperture": ((np.abs(grid["X"]) <= 8.0 * bt.um) & (np.abs(grid["Y"]) <= 8.0 * bt.um)).astype(float),
-        "conical_axicon_input": bt.build_conical_axicon_field_ideal(grid, design, base.laser),
+        "gaussian": gaussian_amplitude(grid["R"], 12.0 * BT_UM),
+        "soft_square_aperture": ((np.abs(grid["X"]) <= 8.0 * BT_UM) & (np.abs(grid["Y"]) <= 8.0 * BT_UM)).astype(float),
+        "conical_axicon_input": build_conical_axicon_field_ideal(grid, design, base.laser),
     }
-    z_values = [50.0 * bt.um, 120.0 * bt.um, 220.0 * bt.um]
+    z_values = [50.0 * BT_UM, 120.0 * BT_UM, 220.0 * BT_UM]
     rows: list[dict[str, Any]] = []
     example: tuple[np.ndarray, np.ndarray, dict[str, Any], dict[str, Any]] | None = None
     for label, U0 in fields.items():
         for z in z_values:
-            U_bl = bt.angular_spectrum_propagate_bl(
+            U_bl = angular_spectrum_propagate_bl(
                 U0,
                 grid,
                 base.laser.wavelength_m,
@@ -316,7 +321,7 @@ def sas_bl_asm_comparison(output_dir: str | Path | None = None, *, save_figure: 
                 n_medium=base.material.refractive_index,
                 bandlimit=True,
             )
-            U_sas, g_sas, meta = bt.scalable_angular_spectrum_propagate(
+            U_sas, g_sas, meta = scalable_angular_spectrum_propagate(
                 U0,
                 grid,
                 base.laser.wavelength_m,
@@ -326,21 +331,21 @@ def sas_bl_asm_comparison(output_dir: str | Path | None = None, *, save_figure: 
                 bandlimit=True,
                 skip_final_phase=True,
             )
-            I_bl_on_sas = bt._resample_intensity_to_common_grid(np.abs(U_bl) ** 2, grid, g_sas["x"])
+            I_bl_on_sas = _bt()._resample_intensity_to_common_grid(np.abs(U_bl) ** 2, grid, g_sas["x"])
             I_sas = np.abs(U_sas) ** 2
             rows.append(
                 {
                     "field": label,
-                    "z_um": z / bt.um,
+                    "z_um": z / BT_UM,
                     "rel_l2_norm_intensity": _relative_l2(I_sas, I_bl_on_sas),
                     "sas_retained_power_fraction": meta["retained_power_fraction"],
                     "sas_full_power_ratio": meta["full_power_ratio"],
                     "sas_z_over_limit": meta["z_over_limit"],
-                    "sas_output_dx_um": g_sas["dx"] / bt.um,
+                    "sas_output_dx_um": g_sas["dx"] / BT_UM,
                     "sas_output_magnification": meta["output_magnification"],
                 }
             )
-            if label == "conical_axicon_input" and abs(z - 120.0 * bt.um) <= 1e-30:
+            if label == "conical_axicon_input" and abs(z - 120.0 * BT_UM) <= 1e-30:
                 example = (I_bl_on_sas, I_sas, g_sas, meta)
     df = pd.DataFrame(rows)
     figure_path: Path | None = None
@@ -348,7 +353,7 @@ def sas_bl_asm_comparison(output_dir: str | Path | None = None, *, save_figure: 
         vbb_style.apply_style()
         I_bl, I_sas, g_sas, meta = example
         diff = np.abs(_normalise_intensity(I_sas) - _normalise_intensity(I_bl))
-        extent = [g_sas["x"][0] / bt.um, g_sas["x"][-1] / bt.um, g_sas["x"][0] / bt.um, g_sas["x"][-1] / bt.um]
+        extent = [g_sas["x"][0] / BT_UM, g_sas["x"][-1] / BT_UM, g_sas["x"][0] / BT_UM, g_sas["x"][-1] / BT_UM]
         fig, ax = plt.subplots(1, 3, figsize=(12.5, 3.8))
         images = [_normalise_intensity(I_bl), _normalise_intensity(I_sas), diff]
         titles = ["BL-ASM on SAS grid", "SAS", "normalised abs diff"]
@@ -377,7 +382,7 @@ def sas_bl_asm_comparison(output_dir: str | Path | None = None, *, save_figure: 
 
 def check_sas_vs_bl_asm(output_dir: str | Path | None = None, *, save_figure: bool = True) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    self_checks = bt.run_sas_self_checks(output_dir=output_dir or "outputs", save=bool(output_dir))
+    self_checks = _bt().run_sas_self_checks(output_dir=output_dir or "outputs", save=bool(output_dir))
     for _, item in self_checks.iterrows():
         rows.append(
             _row(
@@ -385,9 +390,9 @@ def check_sas_vs_bl_asm(output_dir: str | Path | None = None, *, save_figure: bo
                 f"self_check_{item['check']}",
                 bool(item["pass"]),
                 float(item["value"]),
-                f"existing bt.run_sas_self_checks tolerance for {item['metric']}",
+                f"existing _bt().run_sas_self_checks tolerance for {item['metric']}",
                 str(item["metric"]),
-                {"source": "bt.run_sas_self_checks"},
+                {"source": "_bt().run_sas_self_checks"},
             )
         )
     comparison, figure_path = sas_bl_asm_comparison(output_dir=output_dir, save_figure=save_figure)
@@ -450,7 +455,7 @@ def check_energy_conservation(
         [float(np.sum(np.abs(np.asarray(propagator(float(z)), dtype=complex)) ** 2)) for z in z_arr],
         dtype=float,
     )
-    drift = float((np.max(powers) - np.min(powers)) / (p0 + bt.EPS))
+    drift = float((np.max(powers) - np.min(powers)) / (p0 + BT_EPS))
     return [
         _row(
             "propagator",
@@ -459,7 +464,7 @@ def check_energy_conservation(
             drift,
             f"<= {tol:.0e} relative drift",
             "fraction",
-            {"z_um": (z_arr / bt.um).round(3).tolist(), "p0": p0, "tol": tol},
+            {"z_um": (z_arr / BT_UM).round(3).tolist(), "p0": p0, "tol": tol},
         )
     ]
 
@@ -492,7 +497,7 @@ def check_gaussian_diffraction(
         dx_guess = float(w0) / 4.0   # rough; the propagator's grid pitch is unknown here
         # Estimate waist from second moment (works for any square grid)
         x1d = np.arange(-(N // 2), N - N // 2, dtype=float)
-        total = float(np.sum(I)) + bt.EPS
+        total = float(np.sum(I)) + BT_EPS
         r2 = float(np.sum(I * (x1d[:, None] ** 2 + x1d[None, :] ** 2)) / total)
         # Convert pixel^2 → m^2 using the estimated dx_guess if we have no better info
         # If the propagator is from make_bl_asm_propagator the grid IS available externally;
@@ -502,9 +507,9 @@ def check_gaussian_diffraction(
         # Use only the shape of the growth law (ratio tracks correctly)
         if float(z) < 1e-30:
             w_ref = w_meas_px
-        rel = abs(w_meas_px / (w_ref + bt.EPS) - np.sqrt(1.0 + (float(z) / z_R) ** 2))
+        rel = abs(w_meas_px / (w_ref + BT_EPS) - np.sqrt(1.0 + (float(z) / z_R) ** 2))
         rel_errors.append(float(rel))
-        details.append({"z_um": float(z / bt.um), "w_meas_px": float(w_meas_px), "w_ana_px": float(w_ana_px)})
+        details.append({"z_um": float(z / BT_UM), "w_meas_px": float(w_meas_px), "w_ana_px": float(w_ana_px)})
     max_err = float(np.max(rel_errors))
     return [
         _row(
@@ -556,9 +561,9 @@ def check_bg_invariance(
     if len(radii) < 3:
         return [_row("true_bessel_gauss", "bg_invariance_ring_radius", False, np.nan, f"<= {tol}", "fraction")]
     radii_arr = np.asarray(radii, dtype=float)
-    cv = float(np.std(radii_arr) / (np.mean(radii_arr) + bt.EPS))
+    cv = float(np.std(radii_arr) / (np.mean(radii_arr) + BT_EPS))
     peak_in = peak[inside]
-    peak_cv = float(np.std(peak_in) / (np.mean(peak_in) + bt.EPS))
+    peak_cv = float(np.std(peak_in) / (np.mean(peak_in) + BT_EPS))
     return [
         _row(
             "true_bessel_gauss",
@@ -567,8 +572,8 @@ def check_bg_invariance(
             cv,
             f"<= {tol} coefficient of variation",
             "CV",
-            {"mean_radius_um": float(np.mean(radii_arr) / bt.um), "n_planes": len(radii),
-             "z_start_um": z_start / bt.um, "z_end_um": z_end / bt.um, "tol": tol},
+            {"mean_radius_um": float(np.mean(radii_arr) / BT_UM), "n_planes": len(radii),
+             "z_start_um": z_start / BT_UM, "z_end_um": z_end / BT_UM, "tol": tol},
         ),
         _row(
             "true_bessel_gauss",
@@ -604,14 +609,14 @@ def check_ring_radius_vs_kr(
     from scipy.special import jnp_zeros
     expected = float(jnp_zeros(int(l), 1)[0] / float(k_r))
     N = 512
-    dx = min(0.10 * bt.um, expected / 8.0)
-    grid = bt.make_xy_grid(N, dx)
+    dx = min(0.10 * BT_UM, expected / 8.0)
+    grid = make_xy_grid(N, dx)
     intensity = sp.jv(int(l), float(k_r) * grid["R"]) ** 2 * np.exp(
         -2.0 * grid["R"] ** 2 / (12.0 * expected) ** 2
     )
     result = measure_fn(intensity, grid)
     measured = float(result["ring_radius_m"])
-    rel = abs(measured - expected) / (expected + bt.EPS)
+    rel = abs(measured - expected) / (expected + BT_EPS)
     return [
         _row(
             "radial_metrics",
@@ -622,9 +627,9 @@ def check_ring_radius_vs_kr(
             "fraction",
             {
                 "ell": int(l),
-                "k_r_per_um": float(k_r * bt.um),
-                "expected_um": float(expected / bt.um),
-                "measured_um": float(measured / bt.um),
+                "k_r_per_um": float(k_r * BT_UM),
+                "expected_um": float(expected / BT_UM),
+                "measured_um": float(measured / BT_UM),
                 "tol": tol,
             },
         )
@@ -649,41 +654,41 @@ def check_resolution_convergence(
     coarse/2) and checks that ring radius and FWHM zone change by less than
     ``tol``. A large change indicates the coarse grid is under-resolved.
     """
-    kr = float(kr_um) / bt.um
-    waist = float(waist_um) * bt.um
-    wavelength = float(wavelength_um) * bt.um
+    kr = float(kr_um) / BT_UM
+    waist = float(waist_um) * BT_UM
+    wavelength = float(wavelength_um) * BT_UM
     zmax = (2.0 * np.pi / wavelength) * waist / kr
 
     rows: list[dict[str, Any]] = []
-    coarse_dx = 0.20 * bt.um
+    coarse_dx = 0.20 * BT_UM
     fine_dx = coarse_dx / 2.0
     results = {}
     for label, dx, N in (("coarse", coarse_dx, 320), ("fine", fine_dx, 512)):
-        grid = bt.make_xy_grid(N, dx)
+        grid = make_xy_grid(N, dx)
         U0 = sp.jv(ell, kr * grid["R"]) * np.exp(1j * ell * grid["PHI"])
         U0 = U0 * np.exp(-(grid["R"] ** 2) / waist ** 2)
-        prop = bt.make_bl_asm_propagator(U0, grid, wavelength, n_medium=1.0, bandlimit=True)
+        prop = make_bl_asm_propagator(U0, grid, wavelength, n_medium=1.0, bandlimit=True)
         z = np.linspace(0.0, 1.3 * zmax, 80)   # 80 pts → dz≈3 µm → finer FWHM resolution
         stack = np.asarray([np.abs(prop(float(zi))) ** 2 for zi in z], dtype=float)
         # 99th-percentile is less sensitive than strict max to single-pixel
         # undersampling differences between coarse and fine transverse grids.
         peak = np.percentile(stack, 99.0, axis=(1, 2))
-        peak_norm = peak / (float(np.max(peak)) + bt.EPS)
+        peak_norm = peak / (float(np.max(peak)) + BT_EPS)
         above = np.flatnonzero(peak_norm >= 0.5)
         if above.size >= 2:
             s = above[0]
             e = above[-1]
             z_start_c = float(np.interp(0.5, [peak_norm[max(0,s-1)], peak_norm[s]], [z[max(0,s-1)], z[s]])) if s > 0 else z[s]
             z_end_c   = float(np.interp(0.5, [peak_norm[e], peak_norm[min(len(peak)-1,e+1)]], [z[e], z[min(len(peak)-1,e+1)]])) if e < len(peak)-1 else z[e]
-            zone_um_interp = float((z_end_c - z_start_c) / bt.um)
+            zone_um_interp = float((z_end_c - z_start_c) / BT_UM)
         else:
-            zone_um_interp = float(bt.bessel_zone_metrics(z, peak, level=0.5)["bessel_zone_um"])
+            zone_um_interp = float(_bt().bessel_zone_metrics(z, peak, level=0.5)["bessel_zone_um"])
         per_z = vbb_metrics.per_z_metrics_from_stack(
             stack, grid, ell=ell, kr_m_inv=kr, z_m=z,
             center_mode="origin", smoothing_sigma=0.0,
         )
         inside = z <= 0.8 * zmax
-        mean_ring_um = float(np.nanmean(per_z["ring_radius_m"][inside]) / bt.um)
+        mean_ring_um = float(np.nanmean(per_z["ring_radius_m"][inside]) / BT_UM)
         results[label] = {
             "zone_um": zone_um_interp,
             "mean_ring_um": mean_ring_um,
@@ -695,7 +700,7 @@ def check_resolution_convergence(
     ):
         c = results["coarse"][coarse_key]
         f = results["fine"][fine_key]
-        rel = abs(c - f) / (abs(f) + bt.EPS)
+        rel = abs(c - f) / (abs(f) + BT_EPS)
         rows.append(
             _row(
                 "convergence",
@@ -705,8 +710,8 @@ def check_resolution_convergence(
                 f"<= {tol} relative change coarse→fine",
                 "fraction",
                 {
-                    "coarse_dx_um": coarse_dx / bt.um,
-                    "fine_dx_um": fine_dx / bt.um,
+                    "coarse_dx_um": coarse_dx / BT_UM,
+                    "fine_dx_um": fine_dx / BT_UM,
                     "coarse": round(c, 4),
                     "fine": round(f, 4),
                     "ell": ell,
@@ -752,23 +757,23 @@ def run_validation_suite(
 
     # --- Parametric API spot-checks (spec-required) ---
     # Energy conservation with explicit propagator
-    _wavelength = 1.0 * bt.um
-    _grid_ec = bt.make_xy_grid(256, 0.35 * bt.um)
-    _U0_ec = bt.gaussian_amplitude(_grid_ec["R"], 8.0 * bt.um)
-    _prop_ec = bt.make_bl_asm_propagator(_U0_ec, _grid_ec, _wavelength, n_medium=1.0, bandlimit=True)
+    _wavelength = 1.0 * BT_UM
+    _grid_ec = make_xy_grid(256, 0.35 * BT_UM)
+    _U0_ec = gaussian_amplitude(_grid_ec["R"], 8.0 * BT_UM)
+    _prop_ec = make_bl_asm_propagator(_U0_ec, _grid_ec, _wavelength, n_medium=1.0, bandlimit=True)
     all_rows.extend(
         check_energy_conservation(
             _prop_ec, _U0_ec,
-            z_list=np.linspace(0.0, 120.0 * bt.um, 9).tolist(),
+            z_list=np.linspace(0.0, 120.0 * BT_UM, 9).tolist(),
             tol=1e-10,
         )
     )
 
     # Gaussian diffraction with explicit propagator
-    _w0 = 8.0 * bt.um
-    _grid_gd = bt.make_xy_grid(512, 0.25 * bt.um)
+    _w0 = 8.0 * BT_UM
+    _grid_gd = make_xy_grid(512, 0.25 * BT_UM)
     _U0_gd = np.exp(-(_grid_gd["R"] ** 2) / _w0 ** 2)
-    _prop_gd = bt.make_bl_asm_propagator(_U0_gd, _grid_gd, _wavelength, n_medium=1.0, bandlimit=True)
+    _prop_gd = make_bl_asm_propagator(_U0_gd, _grid_gd, _wavelength, n_medium=1.0, bandlimit=True)
     _z_R = np.pi * _w0 ** 2 / _wavelength
     # We pass a lambda that wraps the propagator; check_gaussian_diffraction uses pixel coords
     # but we can also use check_gaussian_free_space_diffraction for the quantitative result.
@@ -781,8 +786,8 @@ def run_validation_suite(
         _I = np.abs(_prop_gd(float(_z))) ** 2
         _w_m = _gaussian_waist_m(_I, _grid_gd)
         _w_a = float(_w0 * np.sqrt(1.0 + (float(_z) / _z_R) ** 2))
-        _measured_w.append(_w_m / bt.um)
-        _analytic_w.append(_w_a / bt.um)
+        _measured_w.append(_w_m / BT_UM)
+        _analytic_w.append(_w_a / BT_UM)
         _rel_err_w.append(abs(_w_m - _w_a) / _w_a)
     _max_waist_err = float(np.max(_rel_err_w))
     all_rows.append(
@@ -793,14 +798,14 @@ def run_validation_suite(
             _max_waist_err,
             "<= 0.03 max relative waist error",
             "fraction",
-            {"z_um": (_z_gd / bt.um).round(3).tolist(), "measured_um": [round(v, 4) for v in _measured_w],
+            {"z_um": (_z_gd / BT_UM).round(3).tolist(), "measured_um": [round(v, 4) for v in _measured_w],
              "analytic_um": [round(v, 4) for v in _analytic_w], "tol": 0.03},
         )
     )
 
     # BG invariance with explicit volume
-    _kr_inv = 0.8 / bt.um
-    _waist_inv = 24.0 * bt.um
+    _kr_inv = 0.8 / BT_UM
+    _waist_inv = 24.0 * BT_UM
     _zmax_inv = (2.0 * np.pi / _wavelength) * _waist_inv / _kr_inv
     _z_inv = np.linspace(0.0, 1.3 * _zmax_inv, 30)
     _grid_inv, _stack_inv = _bg_stack(ell=3, kr_m_inv=_kr_inv, waist_m=_waist_inv, wavelength_m=_wavelength, z_m=_z_inv)
@@ -810,16 +815,16 @@ def run_validation_suite(
         "intensity_stack": _stack_inv,
         "crop_grid": _grid_inv,
     }
-    _zone_inv = bt.bessel_zone_metrics(_z_inv, _vol_inv["peak"], level=0.5)
-    _z_start_inv = float(_zone_inv["zone_start_um"]) * bt.um if np.isfinite(_zone_inv["zone_start_um"]) else 0.0
-    _z_end_inv = float(_zone_inv["zone_end_um"]) * bt.um if np.isfinite(_zone_inv["zone_end_um"]) else 0.8 * _zmax_inv
+    _zone_inv = _bt().bessel_zone_metrics(_z_inv, _vol_inv["peak"], level=0.5)
+    _z_start_inv = float(_zone_inv["zone_start_um"]) * BT_UM if np.isfinite(_zone_inv["zone_start_um"]) else 0.0
+    _z_end_inv = float(_zone_inv["zone_end_um"]) * BT_UM if np.isfinite(_zone_inv["zone_end_um"]) else 0.8 * _zmax_inv
     all_rows.extend(check_bg_invariance(_vol_inv, (_z_start_inv, _z_end_inv), tol=0.05, peak_tol=0.25))
 
     # ring_radius_vs_kr with explicit measure_fn
     def _measure_fn(intensity, grid):
-        return vbb_metrics.peak_plane_radial_metrics(intensity, grid, 3, 0.8 / bt.um,
+        return vbb_metrics.peak_plane_radial_metrics(intensity, grid, 3, 0.8 / BT_UM,
                                                       center_mode="origin", smoothing_sigma=0.0)
-    all_rows.extend(check_ring_radius_vs_kr(_measure_fn, l=3, k_r=0.8 / bt.um, tol=0.05))
+    all_rows.extend(check_ring_radius_vs_kr(_measure_fn, l=3, k_r=0.8 / BT_UM, tol=0.05))
 
     # --- Resolution convergence ---
     all_rows.extend(check_resolution_convergence(ell=3, kr_um=0.8, waist_um=24.0, tol=0.05))
