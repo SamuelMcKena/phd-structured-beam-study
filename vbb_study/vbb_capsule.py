@@ -17,7 +17,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import bessel_twin_core as bt
+from vbb_study.config import EPS as BT_EPS, PathKind, TwinConfig, nm as BT_NM, uJ as BT_UJ, um as BT_UM
+from vbb_study.design import compute_design_from_targets
+from vbb_study.facade import core as _bt
 from . import vbb_materials, vbb_metrics, vbb_style
 from .equations import capsule_geometry
 from .publication import capsule as capsule_schema
@@ -25,7 +27,7 @@ from .publication.tables import propagation_power_label
 
 
 def design_solver(
-    base_config: bt.TwinConfig,
+    base_config: TwinConfig,
     *,
     spot_range_um: tuple[float, float] = (2.0, 5.0),
     target_zone_um: float = 200.0,
@@ -59,13 +61,13 @@ def design_solver(
                     target=replace(
                         base_config.target,
                         ell=int(ell),
-                        target_core_diameter_m=float(spot_um) * bt.um,
-                        target_bessel_length_m=float(target_zone_um) * bt.um,
+                        target_core_diameter_m=float(spot_um) * BT_UM,
+                        target_bessel_length_m=float(target_zone_um) * BT_UM,
                     ),
-                    energy=replace(base_config.energy, pulse_energy_in_J=float(energy_uJ) * bt.uJ),
+                    energy=replace(base_config.energy, pulse_energy_in_J=float(energy_uJ) * BT_UJ),
                 )
-                design = bt.compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
-                refs = bt.analytic_references(cfg, design)
+                design = compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
+                refs = _bt().analytic_references(cfg, design)
                 feature_radius_um = (
                     float(refs["core_radius_2405_um"])
                     if int(ell) == 0
@@ -77,14 +79,14 @@ def design_solver(
                         "target_spot_um": float(spot_um),
                         "target_zone_um": float(target_zone_um),
                         "input_energy_uJ": float(energy_uJ),
-                        "wavelength_nm": float(cfg.laser.wavelength_m / bt.nm),
+                        "wavelength_nm": float(cfg.laser.wavelength_m / BT_NM),
                         "kr_m_inv": float(design.kr_sample_m_inv),
-                        "w0_sample_um": float(design.w0_sample_m / bt.um),
+                        "w0_sample_um": float(design.w0_sample_m / BT_UM),
                         "gamma_slm_deg": float(design.gamma_slm_deg),
                         "predicted_feature_radius_um": feature_radius_um,
                         "predicted_feature_diameter_um": 2.0 * feature_radius_um,
                         "predicted_zmax_um": float(refs["zmax_baliyan_um"]),
-                        "hardware_reachable": bool(bt._hardware_reachable(cfg, design)),
+                        "hardware_reachable": bool(_bt()._hardware_reachable(cfg, design)),
                         "config": cfg,
                         "design": design,
                     }
@@ -98,7 +100,7 @@ def design_solver(
 
 def _axial_gain_from_peak(peak: np.ndarray, strength: float) -> np.ndarray:
     peak_arr = np.maximum(np.asarray(peak, dtype=float), 0.0)
-    peak_norm = peak_arr / (float(np.max(peak_arr)) + bt.EPS)
+    peak_norm = peak_arr / (float(np.max(peak_arr)) + BT_EPS)
     gain = np.where(peak_norm > 0.0, peak_norm ** (-float(strength)), 0.0)
     return np.clip(gain, 0.0, 8.0)
 
@@ -165,7 +167,7 @@ def _absolute_centerline_fluence_xz(
     grid = volume["crop_grid"]
     peak_idx = int(volume.get("peak_index", int(np.argmax(volume.get("peak", [0.0])))))
     peak_idx = int(np.clip(peak_idx, 0, stack.shape[0] - 1))
-    denom = float(np.sum(stack[peak_idx]) * float(grid["dx"]) ** 2 + bt.EPS)
+    denom = float(np.sum(stack[peak_idx]) * float(grid["dx"]) ** 2 + BT_EPS)
     center_y = stack.shape[1] // 2
     return (float(pulse_energy_J) * stack[:, center_y, :] / denom / 1.0e4).T
 
@@ -198,23 +200,23 @@ def capsule_shape_metrics(
             "top_bottom_asymmetry": np.nan,
             "capsule_index": 0.0,
             "teardrop_index": 1.0,
-            "radius_by_z_um": radius_m / bt.um,
+            "radius_by_z_um": radius_m / BT_UM,
         }
     z = np.asarray(z_m, dtype=float)
     rv = radius_m[valid]
     zv = z[valid]
-    length_um = float((zv[-1] - zv[0]) / bt.um)
+    length_um = float((zv[-1] - zv[0]) / BT_UM)
     mean_radius = float(np.mean(rv))
-    mean_diameter_um = float(2.0 * mean_radius / bt.um)
-    diameter_cv = float(np.std(2.0 * rv) / (np.mean(2.0 * rv) + bt.EPS))
-    slope = float(np.polyfit(zv / bt.um, rv / bt.um, 1)[0])
+    mean_diameter_um = float(2.0 * mean_radius / BT_UM)
+    diameter_cv = float(np.std(2.0 * rv) / (np.mean(2.0 * rv) + BT_EPS))
+    slope = float(np.polyfit(zv / BT_UM, rv / BT_UM, 1)[0])
     taper_angle_deg = float(np.degrees(np.arctan(abs(slope))))
     sidewall_straightness = float(1.0 / (1.0 + 6.0 * diameter_cv + abs(slope)))
     edge_count = max(1, int(0.15 * len(rv)))
     start_radius = float(np.mean(rv[:edge_count]))
     end_radius = float(np.mean(rv[-edge_count:]))
-    asym = float(abs(start_radius - end_radius) / (mean_radius + bt.EPS))
-    end_round = float(np.clip(1.0 - 0.5 * (start_radius + end_radius) / (mean_radius + bt.EPS), 0.0, 1.0))
+    asym = float(abs(start_radius - end_radius) / (mean_radius + BT_EPS))
+    end_round = float(np.clip(1.0 - 0.5 * (start_radius + end_radius) / (mean_radius + BT_EPS), 0.0, 1.0))
     flat_score = float(1.0 / (1.0 + 8.0 * diameter_cv))
     symmetry_score = float(1.0 / (1.0 + 4.0 * asym))
     capsule = float(np.clip(0.55 * flat_score + 0.30 * sidewall_straightness + 0.15 * symmetry_score, 0.0, 1.0))
@@ -228,14 +230,14 @@ def capsule_shape_metrics(
         "top_bottom_asymmetry": asym,
         "capsule_index": capsule,
         "teardrop_index": float(1.0 - capsule),
-        "radius_by_z_um": radius_m / bt.um,
+        "radius_by_z_um": radius_m / BT_UM,
     }
 
 
 def simulate_capsule_case(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
-    path: bt.PathKind,
+    path: PathKind,
     case_id: str,
     apodization_strength: float,
     z_values_m: Sequence[float] | None = None,
@@ -243,12 +245,12 @@ def simulate_capsule_case(
     """Run one ideal or lab-realistic capsule case and measure shape metrics."""
 
     sample_config = replace(config, study_kind="full_source_to_sample")
-    result = bt.run_case(sample_config, preset=str(config.grid.label or "fast"), path=path, case_id=case_id, z_values_m=z_values_m)
+    result = _bt().run_case(sample_config, preset=str(config.grid.label or "fast"), path=path, case_id=case_id, z_values_m=z_values_m)
     shaped_volume = apply_axial_flatness_proxy(result["volume"], apodization_strength)
     shaped_result = dict(result)
     shaped_result["volume"] = shaped_volume
     metrics = dict(result.get("metrics", {}))
-    metrics.update(bt.extract_vortex_safe_metrics(shaped_result, sample_config))
+    metrics.update(_bt().extract_vortex_safe_metrics(shaped_result, sample_config))
     metrics["case_id"] = case_id
     metrics["path"] = str(path)
     shaped_result["metrics"] = metrics
@@ -278,7 +280,7 @@ def simulate_capsule_case(
         geom["threshold_J_cm2"],
     )
     peak = np.asarray(shaped_volume["peak"], dtype=float)
-    axial_cv = float(np.std(peak) / (np.mean(peak) + bt.EPS)) if peak.size else np.nan
+    axial_cv = float(np.std(peak) / (np.mean(peak) + BT_EPS)) if peak.size else np.nan
     axial_flatness = float(1.0 / (1.0 + axial_cv)) if np.isfinite(axial_cv) else np.nan
     shape["contour_capsule_index"] = float(shape["capsule_index"])
     shape["axial_flatness_score"] = axial_flatness
@@ -295,7 +297,7 @@ def simulate_capsule_case(
 
 
 def sweep_capsule_apodization(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     strengths: Sequence[float] = (0.0, 0.35, 0.70, 1.0),
     z_values_m: Sequence[float] | None = None,
@@ -443,8 +445,8 @@ def capsule_summary_from_cases(
         result = case["result"]
         metrics = dict(result.get("metrics", {}))
         volume = result["volume"]
-        x_um = np.asarray(volume["crop_grid"]["x"], dtype=float) / bt.um
-        z_um = np.asarray(volume["z"], dtype=float) / bt.um
+        x_um = np.asarray(volume["crop_grid"]["x"], dtype=float) / BT_UM
+        z_um = np.asarray(volume["z"], dtype=float) / BT_UM
         F_xz = np.asarray(geom["centerline_fluence_xz_J_cm2"], dtype=float)
         threshold = float(geom.get("threshold_J_cm2", geom.get("threshold_fluence_J_cm2", np.nan)))
         proxy_mask = F_xz >= threshold if np.isfinite(threshold) else np.zeros_like(F_xz, dtype=bool)
@@ -549,10 +551,10 @@ def plot_capsule_rz_pair(cases: Sequence[Mapping[str, Any]], output_path: str | 
         volume = case["result"]["volume"]
         grid = volume["crop_grid"]
         F = np.asarray(geom["centerline_fluence_xz_J_cm2"], dtype=float)
-        x_um = np.asarray(grid["x"], dtype=float) / bt.um
-        z_um = np.asarray(volume["z"], dtype=float) / bt.um
+        x_um = np.asarray(grid["x"], dtype=float) / BT_UM
+        z_um = np.asarray(volume["z"], dtype=float) / BT_UM
         artist = ax.imshow(
-            vbb_style.display_scale(F / (vmax + bt.EPS), gamma=0.55, normalise=False),
+            vbb_style.display_scale(F / (vmax + BT_EPS), gamma=0.55, normalise=False),
             origin="lower",
             aspect="auto",
             extent=[float(z_um[0]), float(z_um[-1]), float(x_um[0]), float(x_um[-1])],
