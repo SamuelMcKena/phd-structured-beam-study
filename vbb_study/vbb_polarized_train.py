@@ -22,7 +22,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import bessel_twin_core as bt
+from vbb_study.config import EPS as BT_EPS, nm as BT_NM, um as BT_UM
+from vbb_study.equations.fields import make_xy_grid
 
 from . import vbb_style
 
@@ -47,13 +48,13 @@ class PolarizedTrainConfig:
     """
 
     N: int = 320
-    dx_m: float = 0.18 * bt.um
-    wavelength_m: float = 1029.0 * bt.nm
+    dx_m: float = 0.18 * BT_UM
+    wavelength_m: float = 1029.0 * BT_NM
     n_medium: float = 1.0
     n_axicon: float = 1.46
     axicon_base_angle_deg: float = 32.0
-    ring_radius_m: float = 8.0 * bt.um
-    ring_width_m: float = 0.95 * bt.um
+    ring_radius_m: float = 8.0 * BT_UM
+    ring_width_m: float = 0.95 * BT_UM
     vortex_charge: int = 1
     vector_element: VectorElement = "segmented_ra"
     segment_count: int = 12
@@ -63,7 +64,7 @@ class PolarizedTrainConfig:
     uniform_hwp_angle_rad: float | None = None
     uniform_qwp_angle_rad: float | None = None
     qplate_charge: float = 0.5
-    z_max_m: float = 110.0 * bt.um
+    z_max_m: float = 110.0 * BT_UM
     z_points: int = 45
 
 
@@ -79,11 +80,11 @@ class LabRealism:
     segmented_seam_width_rad: float = np.deg2rad(1.2)
     segmented_seam_loss: float = 0.18
     segmented_angular_misregistration_rad: float = np.deg2rad(0.8)
-    qplate_central_defect_radius_m: float = 0.85 * bt.um
+    qplate_central_defect_radius_m: float = 0.85 * BT_UM
     qplate_conversion_efficiency: float = 0.94
     axicon_angle_error_deg: float = 0.25
     axicon_ar_loss: float = 0.025
-    axicon_tip_rounding_m: float = 0.40 * bt.um
+    axicon_tip_rounding_m: float = 0.40 * BT_UM
     transmission_ripple: float = 0.025
     phase_ripple_rad: float = 0.025
     quantization_bits: int = 8
@@ -254,7 +255,7 @@ class PresetTrainConfig:
     relay_transmission: float = 1.0
     first_order_efficiency: float = 1.0
     scalar_vortex_charge: int = 1
-    scalar_axicon_kr_m_inv: float = 1.2 / bt.um
+    scalar_axicon_kr_m_inv: float = 1.2 / BT_UM
     scalar_carrier_lpmm: float = 0.0
     include_two_slm_conjugate: bool = False
     inter_slm_z_m: float = 0.0
@@ -265,7 +266,7 @@ class PresetTrainConfig:
 def make_grid(config: PolarizedTrainConfig) -> dict[str, Any]:
     """Return the square sample grid used by the polarized train."""
 
-    return bt.make_xy_grid(int(config.N), float(config.dx_m))
+    return make_xy_grid(int(config.N), float(config.dx_m))
 
 
 def _angle_arrays(grid: Mapping[str, Any], orientation_rad: float = 0.0) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -542,7 +543,7 @@ def fresnel_sp_coefficients(n_axicon: float, n_medium: float, base_angle_deg: fl
     if abs(n1 - n2) < 1.0e-12:
         return 1.0 + 0j, 1.0 + 0j
     theta_i = np.deg2rad(float(base_angle_deg))
-    sin_t = n1 / max(n2, bt.EPS) * np.sin(theta_i)
+    sin_t = n1 / max(n2, BT_EPS) * np.sin(theta_i)
     if abs(sin_t) >= 1.0:
         # I keep the phase of total internal reflection but avoid a hard NaN in
         # planning scans near the critical angle.
@@ -550,9 +551,9 @@ def fresnel_sp_coefficients(n_axicon: float, n_medium: float, base_angle_deg: fl
     else:
         cos_t = np.sqrt(max(1.0 - sin_t * sin_t, 0.0))
     cos_i = np.cos(theta_i)
-    ts = 2.0 * n1 * cos_i / (n1 * cos_i + n2 * cos_t + bt.EPS)
-    tp = 2.0 * n1 * cos_i / (n2 * cos_i + n1 * cos_t + bt.EPS)
-    flux_factor = np.real(n2 * cos_t / (n1 * cos_i + bt.EPS))
+    ts = 2.0 * n1 * cos_i / (n1 * cos_i + n2 * cos_t + BT_EPS)
+    tp = 2.0 * n1 * cos_i / (n2 * cos_i + n1 * cos_t + BT_EPS)
+    flux_factor = np.real(n2 * cos_t / (n1 * cos_i + BT_EPS))
     flux_amp = np.sqrt(max(float(flux_factor), 0.0))
     return complex(tp * flux_amp), complex(ts * flux_amp)
 
@@ -590,8 +591,8 @@ def physical_axicon_vector_field(
     n_axicon = float(config.n_axicon if n_axicon_override is None else n_axicon_override)
     tp, ts = fresnel_sp_coefficients(n_axicon, config.n_medium, gamma)
 
-    envelope = np.exp(-0.5 * ((R - float(config.ring_radius_m)) / max(float(config.ring_width_m), bt.EPS)) ** 2)
-    envelope *= np.exp(-0.5 * (R / (0.48 * np.max(R) + bt.EPS)) ** 8)
+    envelope = np.exp(-0.5 * ((R - float(config.ring_radius_m)) / max(float(config.ring_width_m), BT_EPS)) ** 2)
+    envelope *= np.exp(-0.5 * (R / (0.48 * np.max(R) + BT_EPS)) ** 8)
     phase = np.exp(1j * int(config.vortex_charge) * np.arctan2(np.asarray(grid["Y"]), np.asarray(grid["X"])))
     if realism == "lab_realistic":
         ripple = 1.0 + float(lab.transmission_ripple) * np.cos(
@@ -610,7 +611,7 @@ def physical_axicon_vector_field(
         "ts": {"real": float(np.real(ts)), "imag": float(np.imag(ts))},
         "tp_abs": float(abs(tp)),
         "ts_abs": float(abs(ts)),
-        "fresnel_amplitude_contrast": float(abs(abs(tp) - abs(ts)) / max(0.5 * (abs(tp) + abs(ts)), bt.EPS)),
+        "fresnel_amplitude_contrast": float(abs(abs(tp) - abs(ts)) / max(0.5 * (abs(tp) + abs(ts)), BT_EPS)),
         "n_axicon": n_axicon,
         "n_medium": float(config.n_medium),
         "axicon_base_angle_deg": gamma,
@@ -659,13 +660,13 @@ def vector_angular_spectrum_propagate(
     Fy = np.where(propagating, Fy, 0.0)
     Fz = np.where(propagating, Fz, 0.0)
     dot = KX * Fx + KY * Fy + KZ * Fz
-    denom = k0n * k0n + bt.EPS
+    denom = k0n * k0n + BT_EPS
     Fx_t = Fx - KX * dot / denom
     Fy_t = Fy - KY * dot / denom
     Fz_t = Fz - KZ * dot / denom
 
     residual = KX * Fx_t + KY * Fy_t + KZ * Fz_t
-    norm = k0n * np.sqrt(np.mean(np.abs(Fx_t) ** 2 + np.abs(Fy_t) ** 2 + np.abs(Fz_t) ** 2)) + bt.EPS
+    norm = k0n * np.sqrt(np.mean(np.abs(Fx_t) ** 2 + np.abs(Fy_t) ** 2 + np.abs(Fz_t) ** 2)) + BT_EPS
     k_dot_e_rms = float(np.sqrt(np.mean(np.abs(residual) ** 2)) / norm)
 
     z_values = np.asarray(list(z_values_m), dtype=float)
@@ -695,9 +696,9 @@ def vector_angular_spectrum_propagate(
         "k_dot_e_rms": k_dot_e_rms,
         "ez_power_fraction": float(
             discrete_power(np.abs(first.Ez) ** 2, grid)
-            / max(discrete_power(total_intensity_3d(first), grid), bt.EPS)
+            / max(discrete_power(total_intensity_3d(first), grid), BT_EPS)
         ),
-        "power_drift_rel": float((np.max(powers) - np.min(powers)) / max(power0, bt.EPS)),
+        "power_drift_rel": float((np.max(powers) - np.min(powers)) / max(power0, BT_EPS)),
         "powers": powers,
     }
 
@@ -754,9 +755,9 @@ def apply_fourier_relay_filter(
     kx = 2.0 * np.pi * np.fft.fftfreq(N, d=dx)
     KX, KY = np.meshgrid(kx, kx)
     KR = np.hypot(KX, KY)
-    radius = max(float(element.radius_m_inv), bt.EPS)
+    radius = max(float(element.radius_m_inv), BT_EPS)
     if realism == "lab_realistic":
-        softness = max(float(lab.filter_edge_softness_fraction) * radius, bt.EPS)
+        softness = max(float(lab.filter_edge_softness_fraction) * radius, BT_EPS)
         filt = 1.0 / (1.0 + np.exp((KR - radius) / softness))
         transmission = float(element.relay_transmission) * float(lab.relay_transmission)
         transmission *= float(element.first_order_efficiency) * float(lab.first_order_efficiency)
@@ -924,7 +925,7 @@ def apply_optical_element(
         if realism == "lab_realistic":
             axis = axis + float(lab.segmented_angular_misregistration_rad) + float(lab.axis_error_rad)
             retardance += float(lab.retardance_error_rad)
-            width = max(float(lab.segmented_seam_width_rad), bt.EPS)
+            width = max(float(lab.segmented_seam_width_rad), BT_EPS)
             seam_loss = float(lab.segmented_seam_loss) * np.exp(-0.5 * (seam_distance / width) ** 2)
             transmission_map = np.sqrt(np.clip(transmission * (1.0 - seam_loss), 0.0, None))
         else:
@@ -1328,7 +1329,7 @@ def analyzer_maps_from_state(
 
 
 def _weighted_mean(values: np.ndarray, weights: np.ndarray) -> float:
-    return float(np.sum(np.asarray(values, dtype=float) * weights) / max(float(np.sum(weights)), bt.EPS))
+    return float(np.sum(np.asarray(values, dtype=float) * weights) / max(float(np.sum(weights)), BT_EPS))
 
 
 def _headless_angle_mean(psi: np.ndarray, weights: np.ndarray) -> float:
@@ -1341,7 +1342,7 @@ def _frame_correlation(a: np.ndarray, b: np.ndarray) -> float:
     bv = np.asarray(b, dtype=float).ravel()
     av = av - np.mean(av)
     bv = bv - np.mean(bv)
-    return float(np.dot(av, bv) / (np.linalg.norm(av) * np.linalg.norm(bv) + bt.EPS))
+    return float(np.dot(av, bv) / (np.linalg.norm(av) * np.linalg.norm(bv) + BT_EPS))
 
 
 def _radial_feature_metrics(intensity: np.ndarray, grid: Mapping[str, Any]) -> dict[str, float]:
@@ -1365,9 +1366,9 @@ def _radial_feature_metrics(intensity: np.ndarray, grid: Mapping[str, Any]) -> d
     else:
         width = np.nan
     return {
-        "feature_radius_um": radius / bt.um,
-        "feature_diameter_um": 2.0 * radius / bt.um,
-        "feature_width_um": width / bt.um if np.isfinite(width) else np.nan,
+        "feature_radius_um": radius / BT_UM,
+        "feature_diameter_um": 2.0 * radius / BT_UM,
+        "feature_width_um": width / BT_UM if np.isfinite(width) else np.nan,
     }
 
 
@@ -1393,7 +1394,7 @@ def _zone_metric_from_state(
         return {"zone_um": np.nan, "zone_start_um": np.nan, "zone_end_um": np.nan}
     start = float(z_values[above[0]])
     end = float(z_values[above[-1]])
-    return {"zone_um": (end - start) / bt.um, "zone_start_um": start / bt.um, "zone_end_um": end / bt.um}
+    return {"zone_um": (end - start) / BT_UM, "zone_start_um": start / BT_UM, "zone_end_um": end / BT_UM}
 
 
 def fair_case_metrics(
@@ -1416,21 +1417,21 @@ def fair_case_metrics(
         **radial,
         "peak_fluence_proxy_au": float(np.max(intensity)),
         "contrast": float(ring["angular_contrast"]),
-        "throughput": float(power / max(float(input_power_au_m2), bt.EPS)),
+        "throughput": float(power / max(float(input_power_au_m2), BT_EPS)),
         "total_power_au_m2": power,
         "vector_case": bool(vector_case),
     }
     if vector_case:
         stokes = stokes_from_state(state)
         S0 = np.asarray(stokes["S0"], dtype=float)
-        weights = S0 / max(float(np.max(S0)), bt.EPS)
+        weights = S0 / max(float(np.max(S0)), BT_EPS)
         mask = weights > 0.05
         if not np.any(mask):
             mask = np.ones_like(weights, dtype=bool)
         psi = 0.5 * np.arctan2(stokes["S2"], stokes["S1"])
-        chi = 0.5 * np.arcsin(np.clip(stokes["S3"] / (S0 + bt.EPS), -1.0, 1.0))
+        chi = 0.5 * np.arcsin(np.clip(stokes["S3"] / (S0 + BT_EPS), -1.0, 1.0))
         for key in ("S1", "S2", "S3"):
-            out[f"{key}_over_S0_weighted_mean"] = _weighted_mean(stokes[key][mask] / (S0[mask] + bt.EPS), weights[mask])
+            out[f"{key}_over_S0_weighted_mean"] = _weighted_mean(stokes[key][mask] / (S0[mask] + BT_EPS), weights[mask])
         out["psi_weighted_mean_rad"] = _headless_angle_mean(psi[mask], weights[mask])
         out["chi_field_only_weighted_mean_rad"] = _weighted_mean(chi[mask], weights[mask])
         frames = analyzer_maps_from_state(state)
@@ -1499,7 +1500,7 @@ def run_fair_preset_comparison(
         "fair_same_train_assertion": True,
         "element_order": " -> ".join(type(e).__name__ for e in elements),
         "grid_N": int(train_config.N),
-        "grid_dx_um": float(train_config.dx_m / bt.um),
+        "grid_dx_um": float(train_config.dx_m / BT_UM),
         "vector_case": vector_case,
         "psi_lab_observable": bool(ideal_metrics["psi_lab_observable"]),
         "S3_lab_observable": bool(ideal_metrics["S3_lab_observable"]),
@@ -1536,7 +1537,7 @@ def run_fair_preset_comparison(
         row[f"lab_{name}"] = l_val
         if isinstance(i_val, (int, float, np.floating)) and isinstance(l_val, (int, float, np.floating)):
             row[f"delta_{name}"] = float(l_val) - float(i_val)
-            row[f"ratio_{name}"] = float(l_val) / (float(i_val) + bt.EPS)
+            row[f"ratio_{name}"] = float(l_val) / (float(i_val) + BT_EPS)
     if vector_case:
         ideal_frames = analyzer_maps_from_state(ideal_state)
         lab_frames = analyzer_maps_from_state(lab_state)
@@ -1591,9 +1592,9 @@ def _element_settings_rows(elements: Iterable[Any], lab: LabRealism) -> list[dic
         elif isinstance(element, SegmentedWaveplateElement):
             lab_setting += f"seam width {lab.segmented_seam_width_rad:.3g} rad, seam loss {lab.segmented_seam_loss:.3g}, angular misregistration {lab.segmented_angular_misregistration_rad:.3g} rad"
         elif isinstance(element, QPlateElement):
-            lab_setting += f"retardance + {lab.retardance_error_rad:.3g} rad, central defect {lab.qplate_central_defect_radius_m / bt.um:.3g} um, conversion {lab.qplate_conversion_efficiency:.3g}"
+            lab_setting += f"retardance + {lab.retardance_error_rad:.3g} rad, central defect {lab.qplate_central_defect_radius_m / BT_UM:.3g} um, conversion {lab.qplate_conversion_efficiency:.3g}"
         elif isinstance(element, PhysicalAxiconElement):
-            lab_setting += f"angle + {lab.axicon_angle_error_deg:.3g} deg, AR loss {lab.axicon_ar_loss:.3g}, tip rounding {lab.axicon_tip_rounding_m / bt.um:.3g} um"
+            lab_setting += f"angle + {lab.axicon_angle_error_deg:.3g} deg, AR loss {lab.axicon_ar_loss:.3g}, tip rounding {lab.axicon_tip_rounding_m / BT_UM:.3g} um"
         elif isinstance(element, FourierRelayFilterElement):
             lab_setting += f"relay transmission x {lab.relay_transmission:.3g}, first-order efficiency x {lab.first_order_efficiency:.3g}, soft filter edge {lab.filter_edge_softness_fraction:.3g} radius"
         elif isinstance(element, FreeSpacePropagationElement):
@@ -1702,24 +1703,24 @@ def sixfold_ring_metrics(
     amplitudes = np.abs(fft)
     order = int(config.symmetry_order)
     order_amp = float(amplitudes[order]) if order < amplitudes.size else 0.0
-    non_dc = float(np.sum(amplitudes[1:]) + bt.EPS)
-    contrast = float((np.percentile(values, 95.0) - np.percentile(values, 5.0)) / max(np.percentile(values, 95.0), bt.EPS))
+    non_dc = float(np.sum(amplitudes[1:]) + BT_EPS)
+    contrast = float((np.percentile(values, 95.0) - np.percentile(values, 5.0)) / max(np.percentile(values, 95.0), BT_EPS))
     core = float(I[I.shape[0] // 2, I.shape[1] // 2])
     ring_peak = float(np.percentile(values, 98.0))
     R, _, _ = _angle_arrays(grid)
     outside = I[R > 1.8 * float(config.ring_radius_m)]
     inside = I[R < 1.45 * float(config.ring_radius_m)]
-    localisation = float(np.sum(inside) / max(np.sum(I), bt.EPS))
-    lattice_side_peak = float(np.mean(outside) / max(np.mean(inside), bt.EPS)) if outside.size else 0.0
+    localisation = float(np.sum(inside) / max(np.sum(I), BT_EPS))
+    lattice_side_peak = float(np.mean(outside) / max(np.mean(inside), BT_EPS)) if outside.size else 0.0
     return {
         "order": order,
         "order_fidelity": float(order_amp / non_dc),
         "angular_contrast": contrast,
-        "core_null_depth": float(core / max(ring_peak, bt.EPS)),
+        "core_null_depth": float(core / max(ring_peak, BT_EPS)),
         "localization_fraction": localisation,
         "lattice_periodicity_proxy": lattice_side_peak,
         "sixfold_visible": bool(order_amp / non_dc > 0.28 and contrast > 0.05),
-        "dark_core_pass": bool(core / max(ring_peak, bt.EPS) < 0.08),
+        "dark_core_pass": bool(core / max(ring_peak, BT_EPS) < 0.08),
         "localized_pass": bool(localisation > 0.88 and lattice_side_peak < 0.08),
     }
 
@@ -1809,8 +1810,8 @@ def run_hexagon_mechanism_gate(config: PolarizedTrainConfig | None = None) -> di
     matched_metric = float(matched["metrics"]["angular_contrast"])
     contrast_order = float(contrast["metrics"]["order_fidelity"])
     matched_order = float(matched["metrics"]["order_fidelity"])
-    vanish_ratio = matched_metric / max(contrast_metric, bt.EPS)
-    order_ratio = matched_order / max(contrast_order, bt.EPS)
+    vanish_ratio = matched_metric / max(contrast_metric, BT_EPS)
+    order_ratio = matched_order / max(contrast_order, BT_EPS)
     vectorial = bool(vanish_ratio < 0.35 and order_ratio < 0.50)
     verdict = (
         "vectorial_fresnel_axicon"
@@ -1915,9 +1916,9 @@ def _imshow_intensity(
     intensity_key: str = "intensity",
 ) -> Any:
     grid = case["grid"]
-    x_um = np.asarray(grid["x"], dtype=float) / bt.um
+    x_um = np.asarray(grid["x"], dtype=float) / BT_UM
     I = np.asarray(case[intensity_key], dtype=float)
-    scale = I / max(float(vmax if vmax is not None else np.max(I)), bt.EPS)
+    scale = I / max(float(vmax if vmax is not None else np.max(I)), BT_EPS)
     artist = ax.imshow(
         vbb_style.display_scale(scale, gamma=0.45, normalise=False),
         origin="lower",
@@ -1965,10 +1966,10 @@ def plot_ideal_lab_comparison(comparison: Mapping[str, Any], output_path: str | 
     _imshow_intensity(axes[0, 1], lab, "lab-realistic x-y", vmax=vmax)
     for ax, case, title in ((axes[1, 0], ideal, "ideal x-z"), (axes[1, 1], lab, "lab-realistic x-z")):
         grid = case["grid"]
-        x_um = np.asarray(grid["x"], dtype=float) / bt.um
-        z_um = np.asarray(case["propagation"]["z_values_m"], dtype=float) / bt.um
+        x_um = np.asarray(grid["x"], dtype=float) / BT_UM
+        z_um = np.asarray(case["propagation"]["z_values_m"], dtype=float) / BT_UM
         xz = np.asarray(case["propagation"]["xz"], dtype=float)
-        scale = xz / max(vmax, bt.EPS)
+        scale = xz / max(vmax, BT_EPS)
         im = ax.imshow(
             vbb_style.display_scale(scale, gamma=0.45, normalise=False),
             origin="lower",
