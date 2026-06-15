@@ -1,3 +1,3 @@
 # Stage 2 Blockers
 
-No blockers encountered yet.
+No moves were reverted and no characterisation-lock blockers were encountered.
