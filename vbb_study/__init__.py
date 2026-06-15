@@ -16,6 +16,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 _SUBMODULES = [
+    "config",
     "equations",
     "setup_study",
     "study_taxonomy",
