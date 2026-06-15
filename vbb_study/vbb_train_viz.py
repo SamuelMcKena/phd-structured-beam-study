@@ -11,8 +11,12 @@ import numpy as np
 import pandas as pd
 from matplotlib.colors import BoundaryNorm, ListedColormap
 
-import bessel_twin_core as bt
 from . import vbb_axicon, vbb_polarized_train, vbb_regime, vbb_studies, vbb_style
+from vbb_study.config import BeamDesign, EPS as BT_EPS, PathKind, TWOPI as BT_TWOPI, TwinConfig, um as BT_UM
+from vbb_study.design import compute_design_from_targets
+from vbb_study.equations.fields import gaussian_amplitude, make_xy_grid, phase_wrap
+from vbb_study.equations.propagation import focus_to_focal_plane, make_bl_asm_propagator
+from vbb_study.facade import core as _bt
 
 Method = Literal["holographic", "physical"]
 
@@ -36,8 +40,8 @@ def _phase(field: np.ndarray) -> np.ndarray:
 
 
 def _extent_um(grid: dict[str, Any]) -> list[float]:
-    x = np.asarray(grid["x"], dtype=float) / bt.um
-    y = np.asarray(grid.get("y", grid["x"]), dtype=float) / bt.um
+    x = np.asarray(grid["x"], dtype=float) / BT_UM
+    y = np.asarray(grid.get("y", grid["x"]), dtype=float) / BT_UM
     return [float(x[0]), float(x[-1]), float(y[0]), float(y[-1])]
 
 
@@ -55,15 +59,15 @@ def _crop_center(arr: np.ndarray, grid: dict[str, Any], max_pixels: int = 192) -
     return cropped, {"x": x, "y": y, "X": X, "Y": Y, "R": np.hypot(X, Y), "PHI": np.arctan2(Y, X), "dx": grid["dx"], "N": size}
 
 
-def _air_config_and_design(config: bt.TwinConfig) -> tuple[bt.TwinConfig, bt.BeamDesign]:
+def _air_config_and_design(config: TwinConfig) -> tuple[TwinConfig, BeamDesign]:
     air = vbb_studies.beam_air_config(config)
-    design = bt.compute_design_from_targets(air.laser, air.target, air.material)
+    design = compute_design_from_targets(air.laser, air.target, air.material)
     return air, design
 
 
-def holographic_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tuple[list[TrainFrame], dict[str, Any]]:
+def holographic_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list[TrainFrame], dict[str, Any]]:
     air, design = _air_config_and_design(replace(config, generation_method="holographic"))
-    slm = bt.build_realistic_slm_field(
+    slm = _bt().build_realistic_slm_field(
         air,
         design,
         include_quantization=lab,
@@ -72,12 +76,12 @@ def holographic_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tupl
         include_blaze=air.include_blaze,
     )
     grid = slm["grid"]
-    amp0 = bt.gaussian_amplitude(grid["R"], air.laser.beam_radius_on_slm_m)
+    amp0 = gaussian_amplitude(grid["R"], air.laser.beam_radius_on_slm_m)
     frames = [TrainFrame("input Gaussian on SLM", amp0.astype(complex), grid, {"plane": "SLM"})]
     frames.append(TrainFrame("after SLM1 hologram", slm["U"], grid, {"plane": "SLM", "lab": lab}))
     if air.include_first_order_isolation and air.include_blaze:
-        filter_geometry = bt.first_order_filter_geometry(grid, air.slm, design)
-        order = bt.isolate_first_order(
+        filter_geometry = _bt().first_order_filter_geometry(grid, air.slm, design)
+        order = _bt().isolate_first_order(
             slm["U"],
             grid,
             air.slm,
@@ -92,7 +96,7 @@ def holographic_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tupl
     pupil = (grid["R"] <= air.objective.pupil_radius_m).astype(float)
     U_pupil = U * pupil
     frames.append(TrainFrame("objective pupil", U_pupil, grid, {"plane": "pupil"}))
-    U_focus, focal_grid = bt.focus_to_focal_plane(U_pupil, grid, air.laser, air.objective)
+    U_focus, focal_grid = focus_to_focal_plane(U_pupil, grid, air.laser, air.objective)
     frames.append(TrainFrame("focused surface seed", U_focus, focal_grid, {"plane": "surface_in_air"}))
     mask = {
         "slm1_phase": np.asarray(slm["phase"], dtype=float),
@@ -105,13 +109,13 @@ def holographic_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tupl
     return frames, mask
 
 
-def physical_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tuple[list[TrainFrame], dict[str, Any]]:
+def physical_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list[TrainFrame], dict[str, Any]]:
     physical_cfg = config.physical_axicon
     if not lab:
         physical_cfg = replace(physical_cfg, slm2_stroke_levels=None, slm2_conjugate_mode="full")
     air, design = _air_config_and_design(replace(config, generation_method="physical", physical_axicon=physical_cfg))
-    grid = bt.make_xy_grid(int(air.grid.ideal_N), float(air.grid.ideal_dx_m))
-    amp = np.exp(-(grid["R"] ** 2) / max(float(design.w0_sample_m), bt.EPS) ** 2)
+    grid = make_xy_grid(int(air.grid.ideal_N), float(air.grid.ideal_dx_m))
+    amp = np.exp(-(grid["R"] ** 2) / max(float(design.w0_sample_m), BT_EPS) ** 2)
     frames = [TrainFrame("input Gaussian on SLM1", amp.astype(complex), grid, {"plane": "SLM1"})]
     charge = int(design.ell if physical_cfg.slm1_vortex_charge is None else physical_cfg.slm1_vortex_charge)
     slm1_phase = charge * grid["PHI"]
@@ -125,10 +129,10 @@ def physical_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tuple[l
         )
     )
     z = float(physical_cfg.inter_slm_z_m)
-    if abs(z) <= bt.EPS:
+    if abs(z) <= BT_EPS:
         U2 = U1.copy()
     else:
-        prop = bt.make_bl_asm_propagator(U1, grid, air.laser.wavelength_m, n_medium=float(physical_cfg.inter_slm_n), bandlimit=True)
+        prop = make_bl_asm_propagator(U1, grid, air.laser.wavelength_m, n_medium=float(physical_cfg.inter_slm_n), bandlimit=True)
         U2 = prop(z)
     frames.append(TrainFrame("before SLM2", U2, grid, {"inter_slm_z_m": z}))
     U2_flat, diag = vbb_axicon.slm2_conjugate(
@@ -137,7 +141,7 @@ def physical_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tuple[l
         stroke_levels=physical_cfg.slm2_stroke_levels,
         return_diagnostics=True,
     )
-    slm2_phase = np.angle(U2_flat / (U2 + bt.EPS))
+    slm2_phase = np.angle(U2_flat / (U2 + BT_EPS))
     frames.append(
         TrainFrame(
             "SLM2 correction mask",
@@ -170,7 +174,7 @@ def physical_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tuple[l
     k_r = float(design.kr_sample_m_inv)
     if physical_cfg.axicon_base_angle_deg is None:
         denom = air.laser.k0 * (n_axicon - axicon_medium_n)
-        gamma_rad = np.arctan(k_r / max(abs(denom), bt.EPS))
+        gamma_rad = np.arctan(k_r / max(abs(denom), BT_EPS))
         if denom < 0.0:
             gamma_rad = -gamma_rad
         gamma_deg = float(np.rad2deg(gamma_rad))
@@ -209,15 +213,15 @@ def physical_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tuple[l
         )
     )
     mask = {
-        "slm1_phase": bt.phase_wrap(slm1_phase),
+        "slm1_phase": phase_wrap(slm1_phase),
         "slm1_grid": grid,
         "slm1_phase_components": ("vortex",),
         "slm1_contains_axicon": False,
-        "slm2_phase": bt.phase_wrap(slm2_phase),
+        "slm2_phase": phase_wrap(slm2_phase),
         "slm2_grid": grid,
         "slm2_phase_components": ("conjugate_flattening", "optional_amplitude_correction"),
         "slm2_contains_axicon": False,
-        "axicon_phase": bt.phase_wrap(axicon_phase),
+        "axicon_phase": phase_wrap(axicon_phase),
         "axicon_grid": grid,
         "axicon_phase_components": ("continuous_conical", "fresnel_sp"),
         "axicon_phase_is_pixelated": False,
@@ -228,7 +232,7 @@ def physical_train_frames(config: bt.TwinConfig, *, lab: bool = True) -> tuple[l
     return frames, mask
 
 
-def build_train_frames(config: bt.TwinConfig, *, method: Method = "holographic", lab: bool = True) -> tuple[list[TrainFrame], dict[str, Any]]:
+def build_train_frames(config: TwinConfig, *, method: Method = "holographic", lab: bool = True) -> tuple[list[TrainFrame], dict[str, Any]]:
     if method == "holographic":
         return holographic_train_frames(config, lab=lab)
     if method == "physical":
@@ -237,7 +241,7 @@ def build_train_frames(config: bt.TwinConfig, *, method: Method = "holographic",
 
 
 def plot_train_visualiser(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     method: Method = "holographic",
     output_dir: str | Path = "Publication_Study/outputs/figures/stage_c",
@@ -292,10 +296,10 @@ def plot_air_axial_trace(
     metrics = result["metrics"]
     volume = result["volume"]
     design = result["design"]
-    z_um = np.asarray(volume["z"], dtype=float) / bt.um
+    z_um = np.asarray(volume["z"], dtype=float) / BT_UM
     trace = np.asarray(volume["peak"], dtype=float)
-    trace_n = trace / (float(np.max(trace)) + bt.EPS)
-    surface_um = float(result["surface_field"].z_surface_m / bt.um)
+    trace_n = trace / (float(np.max(trace)) + BT_EPS)
+    surface_um = float(result["surface_field"].z_surface_m / BT_UM)
     focus_um = float(z_um[int(volume["peak_index"])])
     fig, ax = plt.subplots(figsize=(7.0, 4.2), constrained_layout=True)
     ax.plot(z_um, trace_n, color="#0072B2", lw=2.0)
@@ -331,19 +335,19 @@ def _zero_order_leakage_from_order(
         return float("nan"), float("nan")
     A = np.asarray(order["A"])
     P = np.abs(A) ** 2
-    total = float(np.sum(P)) + bt.EPS
+    total = float(np.sum(P)) + BT_EPS
     grid = result["pupil_grid"]
     FX = np.asarray(grid["FX"], dtype=float)
     FY = np.asarray(grid["FY"], dtype=float)
     selected = np.asarray(order["order_mask"], dtype=bool)
     dc = np.hypot(FX, FY) <= float(dc_window_lpmm) * 1.0e3
     leaked = float(np.sum(P[selected & dc]))
-    dc_power = float(np.sum(P[dc])) + bt.EPS
+    dc_power = float(np.sum(P[dc])) + BT_EPS
     return float(leaked / total), float(leaked / dc_power)
 
 
 def holographic_carrier_filter_sweep(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     blaze_period_px_values: Sequence[int] = (12, 14, 16, 18, 20, 22, 24, 28, 32),
     filter_radius_lpmm_values: Sequence[float] = (2.5, 4.0, 5.25, 6.0),
@@ -358,7 +362,7 @@ def holographic_carrier_filter_sweep(
         for radius_lpmm in filter_radius_lpmm_values:
             slm = replace(base.slm, blaze_period_px=int(period_px), first_order_filter_radius_lpmm=float(radius_lpmm))
             cfg = replace(base, slm=slm)
-            result = bt.run_case(cfg, preset=str(cfg.grid.label or "fast"), path="realistic", case_id=f"carrier_p{period_px}_r{radius_lpmm:g}")
+            result = _bt().run_case(cfg, preset=str(cfg.grid.label or "fast"), path="realistic", case_id=f"carrier_p{period_px}_r{radius_lpmm:g}")
             metrics = result["metrics"]
             leak_total, leak_dc = _zero_order_leakage_from_order(result, dc_window_lpmm=zero_order_window_lpmm)
             rows.append(
@@ -401,7 +405,7 @@ def holographic_carrier_filter_sweep(
 
 def plot_holographic_carrier_filter_tradeoff(
     table: pd.DataFrame,
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     output_dir: str | Path = "Publication_Study/outputs/figures/stage_c",
     zero_order_leakage_threshold: float = 1.0e-4,
@@ -424,10 +428,10 @@ def plot_holographic_carrier_filter_tradeoff(
         for ax in axes:
             ax.axvline(xopt, color="#009E73", lw=1.4, ls="--", label="chosen optimum" if ax is axes[0] else None)
     air = vbb_studies.beam_air_config(config)
-    design = bt.compute_design_from_targets(air.laser, air.target, air.material)
+    design = compute_design_from_targets(air.laser, air.target, air.material)
     dx_eff = air.slm.pixel_pitch_m * max(1, int(air.grid.device_downsample))
-    simulation_carrier_wall = 1.0 / (2.0 * dx_eff) / 1.0e3 - abs(design.kr_slm_m_inv) / bt.TWOPI / 1.0e3
-    slm_carrier_wall = 1.0 / (2.0 * air.slm.pixel_pitch_m) / 1.0e3 - abs(design.kr_slm_m_inv) / bt.TWOPI / 1.0e3
+    simulation_carrier_wall = 1.0 / (2.0 * dx_eff) / 1.0e3 - abs(design.kr_slm_m_inv) / BT_TWOPI / 1.0e3
+    slm_carrier_wall = 1.0 / (2.0 * air.slm.pixel_pitch_m) / 1.0e3 - abs(design.kr_slm_m_inv) / BT_TWOPI / 1.0e3
     for ax in axes:
         ax.axvline(simulation_carrier_wall, color="#D55E00", lw=1.1, ls=":", label="simulation Nyquist wall" if ax is axes[0] else None)
         ax.axvline(slm_carrier_wall, color="0.35", lw=1.0, ls="-.", label="SLM pixel Nyquist wall" if ax is axes[0] else None)
@@ -454,11 +458,11 @@ def plot_holographic_carrier_filter_tradeoff(
 
 
 def method_comparison_table(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     regimes: Sequence[str] = ("general", "limits"),
     methods: Sequence[Method] = ("holographic", "physical"),
-    path: bt.PathKind = "realistic",
+    path: PathKind = "realistic",
 ) -> pd.DataFrame:
     rows: list[dict[str, Any]] = []
     for regime_name in regimes:
@@ -466,7 +470,7 @@ def method_comparison_table(
         for method in methods:
             cfg = replace(cfg_reg, generation_method=method)
             actual_path = path if method == "holographic" else "ideal"
-            result = bt.run_case(cfg, preset=str(cfg.grid.label or "fast"), path=actual_path, case_id=f"{regime_name}_{method}")
+            result = _bt().run_case(cfg, preset=str(cfg.grid.label or "fast"), path=actual_path, case_id=f"{regime_name}_{method}")
             meta = result.get("axicon_metadata", {})
             rows.append(
                 {
@@ -488,7 +492,7 @@ def method_comparison_table(
 
 
 def plot_sampling_qa(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     output_dir: str | Path = "Publication_Study/outputs/figures/stage_c",
 ) -> Path:
