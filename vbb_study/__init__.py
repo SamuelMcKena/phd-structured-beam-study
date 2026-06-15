@@ -19,6 +19,7 @@ _SUBMODULES = [
     "config",
     "design",
     "equations",
+    "facade",
     "setup_study",
     "study_taxonomy",
     "vbb_axicon",
