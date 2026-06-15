@@ -25,6 +25,7 @@ What this module does NOT own:
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -32,8 +33,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-import bessel_twin_core as bt
 from vbb_study import study_taxonomy
+from vbb_study.config import PathKind, um
+from vbb_study.design import default_config
+from vbb_study.facade import core as _bt
 from vbb_study.publication.tables import (
     SCALAR_OUTPUT_SCHEMA_VERSION,
     SCALAR_SUMMARY_COLUMNS,
@@ -74,7 +77,7 @@ def run_scalar_case(
     core_um: float,
     length_um: float,
     preset: str = "fast",
-    path: bt.PathKind = "realistic",
+    path: PathKind = "realistic",
     run_id: str | None = None,
     qa_status: str = "exploratory",
 ) -> dict[str, Any]:
@@ -103,17 +106,17 @@ def run_scalar_case(
     """
 
     case_id = _case_id(ell, core_um, length_um)
-    cfg = bt.default_config(preset)
-    cfg = bt.replace(
+    cfg = default_config(preset)
+    cfg = replace(
         cfg,
-        target=bt.replace(
+        target=replace(
             cfg.target,
             ell=ell,
-            target_core_diameter_m=core_um * bt.um,
-            target_bessel_length_m=length_um * bt.um,
+            target_core_diameter_m=core_um * um,
+            target_bessel_length_m=length_um * um,
         ),
     )
-    result = bt.run_case(cfg, preset=preset, path=path, case_id=case_id)
+    result = _bt().run_case(cfg, preset=preset, path=path, case_id=case_id)
     metrics = dict(result["metrics"])
     # Stamp with schema metadata and required provenance fields.
     metrics["preset"] = preset
@@ -132,7 +135,7 @@ def run_shortlist(
     cases: list[dict[str, Any]] | None = None,
     *,
     preset: str = "fast",
-    path: bt.PathKind = "realistic",
+    path: PathKind = "realistic",
     run_id: str | None = None,
     qa_status: str = "exploratory",
     continue_on_error: bool = False,
