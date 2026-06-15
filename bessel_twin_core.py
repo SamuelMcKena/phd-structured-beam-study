@@ -646,69 +646,11 @@ def inverse_design_round_trip(config: TwinConfig, rtol: float = 0.03) -> Dict[st
 # ---------------------------------------------------------------------------
 
 
-def interface_aberration_pupil(
-    grid: Dict[str, Any],
-    laser: LaserConfig,
-    objective: ObjectiveConfig,
-    material: MaterialConfig,
-    depth_m: Optional[float] = None,
-    n1: Optional[float] = None,
-) -> np.ndarray:
-    """Planar air-to-crystal pupil phase in radians, with piston removed."""
-
-    R = grid["R"]
-    R_pupil = objective.pupil_radius_m
-    n_in = objective.immersion_n if n1 is None else float(n1)
-    n2 = float(material.refractive_index)
-    depth = float(material.write_depth_m if depth_m is None else depth_m)
-
-    rho = np.clip(R / max(R_pupil, EPS), 0.0, 1.0)
-    sin1 = np.clip(objective.NA * rho / max(n_in, EPS), 0.0, 0.999999)
-    cos1 = np.sqrt(1.0 - sin1**2)
-    sin2 = np.clip(n_in * sin1 / max(n2, EPS), 0.0, 0.999999)
-    cos2 = np.sqrt(1.0 - sin2**2)
-    W = laser.k0 * depth * (n2 * cos2 - n_in * cos1)
-    mask = R <= R_pupil
-    if np.any(mask):
-        W = W - float(np.mean(W[mask]))
-    return np.where(mask, W, 0.0)
-
-
-def interface_correction_phase(
-    grid: Dict[str, Any],
-    laser: LaserConfig,
-    objective: ObjectiveConfig,
-    material: MaterialConfig,
-    depth_m: Optional[float] = None,
-) -> np.ndarray:
-    """SLM conjugate phase for the planar interface aberration."""
-
-    return -interface_aberration_pupil(grid, laser, objective, material, depth_m=depth_m)
-
-
-def fit_interface_zernike_terms(
-    grid: Dict[str, Any],
-    phase: np.ndarray,
-    pupil_radius_m: float,
-) -> Dict[str, float]:
-    """Least-squares fit to piston, defocus, and primary spherical terms."""
-
-    rho = grid["R"] / max(float(pupil_radius_m), EPS)
-    mask = rho <= 1.0
-    r = rho[mask].ravel()
-    y = np.asarray(phase, float)[mask].ravel()
-    A = np.vstack([np.ones_like(r), 2.0 * r**2 - 1.0, 6.0 * r**4 - 6.0 * r**2 + 1.0]).T
-    coeff, *_ = np.linalg.lstsq(A, y, rcond=None)
-    fit = A @ coeff
-    rms = float(np.sqrt(np.mean((y - fit) ** 2))) if y.size else np.nan
-    return {
-        "piston_rad": float(coeff[0]),
-        "defocus_rad": float(coeff[1]),
-        "spherical_rad": float(coeff[2]),
-        "residual_rms_rad": rms,
-        "defocus_waves": float(coeff[1] / TWOPI),
-        "spherical_waves": float(coeff[2] / TWOPI),
-    }
+from vbb_study.equations.interface import (
+    fit_interface_zernike_terms,
+    interface_aberration_pupil,
+    interface_correction_phase,
+)
 
 
 # ---------------------------------------------------------------------------
