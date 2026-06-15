@@ -9,7 +9,8 @@ from typing import Any, Literal, Sequence
 import numpy as np
 import pandas as pd
 
-import bessel_twin_core as bt
+from vbb_study.config import BeamDesign, EPS, TWOPI, TwinConfig, um
+from vbb_study.design import axial_scan_values, compute_design_from_targets
 
 RegimeName = Literal["general", "limits"]
 ViolationAction = Literal["flag", "raise"]
@@ -56,25 +57,25 @@ def regime_preset(regime: str | RegimePreset = "general") -> RegimePreset:
 
 
 def config_for_regime(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     regime: str | RegimePreset = "general",
     *,
     core_um: float | None = None,
     zone_um: float | None = None,
-) -> bt.TwinConfig:
+) -> TwinConfig:
     preset = regime_preset(regime)
     return replace(
         config,
         regime=preset.name,
         target=replace(
             config.target,
-            target_core_diameter_m=float(preset.nominal_core_um if core_um is None else core_um) * bt.um,
-            target_bessel_length_m=float(preset.nominal_zone_um if zone_um is None else zone_um) * bt.um,
+            target_core_diameter_m=float(preset.nominal_core_um if core_um is None else core_um) * um,
+            target_bessel_length_m=float(preset.nominal_zone_um if zone_um is None else zone_um) * um,
         ),
     )
 
 
-def _actual_output_dx_m(config: bt.TwinConfig, result: dict[str, Any] | None) -> float:
+def _actual_output_dx_m(config: TwinConfig, result: dict[str, Any] | None) -> float:
     if result is not None and "volume" in result:
         volume = result["volume"]
         peak_index = int(volume.get("peak_index", 0))
@@ -85,12 +86,12 @@ def _actual_output_dx_m(config: bt.TwinConfig, result: dict[str, Any] | None) ->
         if isinstance(crop_grid, dict) and "dx" in crop_grid:
             return float(crop_grid["dx"])
     dx_p = config.slm.pixel_pitch_m * max(1, int(config.grid.device_downsample))
-    return float(config.laser.wavelength_m * config.objective.f_eff_m / max(config.grid.N * dx_p, bt.EPS))
+    return float(config.laser.wavelength_m * config.objective.f_eff_m / max(config.grid.N * dx_p, EPS))
 
 
 def sampling_validity(
-    config: bt.TwinConfig,
-    design: bt.BeamDesign | None = None,
+    config: TwinConfig,
+    design: BeamDesign | None = None,
     result: dict[str, Any] | None = None,
     *,
     min_samples_per_feature: float = 2.0,
@@ -99,22 +100,22 @@ def sampling_validity(
 ) -> dict[str, Any]:
     """Return a Nyquist-style validity report for the current regime/case."""
 
-    design = design or bt.compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_targets(config.laser, config.target, config.material)
     dx = _actual_output_dx_m(config, result)
-    radial_period_m = bt.TWOPI / max(abs(float(design.kr_sample_m_inv)), bt.EPS)
+    radial_period_m = TWOPI / max(abs(float(design.kr_sample_m_inv)), EPS)
     target_zone_m = float(design.target_bessel_length_m)
     if result is not None and "volume" in result:
         z = np.asarray(result["volume"].get("z", []), dtype=float)
         axial_dz_m = float(np.nanmedian(np.abs(np.diff(z)))) if z.size > 1 else np.nan
     else:
-        z = bt.axial_scan_values(config, design)
+        z = axial_scan_values(config, design)
         axial_dz_m = float(np.nanmedian(np.diff(z))) if z.size > 1 else np.nan
 
     # Legacy feature scale: target_core_diameter_m is the equivalent ell=0
     # first-zero diameter. Vortex runs also report the realised ring diameter.
-    samples_per_feature = float(design.target_core_diameter_m / max(dx, bt.EPS))
-    samples_per_radial_period = float(radial_period_m / max(dx, bt.EPS))
-    samples_per_axial_zone = float(target_zone_m / max(axial_dz_m, bt.EPS)) if np.isfinite(axial_dz_m) else float("inf")
+    samples_per_feature = float(design.target_core_diameter_m / max(dx, EPS))
+    samples_per_radial_period = float(radial_period_m / max(dx, EPS))
+    samples_per_axial_zone = float(target_zone_m / max(axial_dz_m, EPS)) if np.isfinite(axial_dz_m) else float("inf")
     violations: list[str] = []
     if samples_per_feature < float(min_samples_per_feature):
         violations.append("transverse_feature_nyquist")
@@ -130,8 +131,8 @@ def sampling_validity(
         "samples_per_feature": samples_per_feature,
         "samples_per_radial_period": samples_per_radial_period,
         "samples_per_axial_zone": samples_per_axial_zone,
-        "output_dx_um": float(dx / bt.um),
-        "axial_dz_um": float(axial_dz_m / bt.um) if np.isfinite(axial_dz_m) else np.nan,
+        "output_dx_um": float(dx / um),
+        "axial_dz_um": float(axial_dz_m / um) if np.isfinite(axial_dz_m) else np.nan,
         "min_samples_per_feature": float(min_samples_per_feature),
         "min_samples_per_radial_period": float(min_samples_per_radial_period),
         "min_axial_samples_per_zone": float(min_axial_samples_per_zone),
@@ -153,7 +154,7 @@ def enforce_validity(report: dict[str, Any], on_violation: ViolationAction | Non
 
 
 def validity_map(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     regime: str | RegimePreset = "limits",
     *,
     core_um_values: Sequence[float] | None = None,
@@ -168,7 +169,7 @@ def validity_map(
     for core_um in cores:
         for zone_um in zones:
             cfg = config_for_regime(config, preset, core_um=float(core_um), zone_um=float(zone_um))
-            design = bt.compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
+            design = compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
             report = sampling_validity(cfg, design)
             rows.append(
                 {
