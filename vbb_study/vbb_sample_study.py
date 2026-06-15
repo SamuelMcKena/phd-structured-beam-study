@@ -8,7 +8,12 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-import bessel_twin_core as bt
+from vbb_study.config import BeamDesign, EPS as BT_EPS, LaserConfig, TWOPI as BT_TWOPI, TwinConfig, uJ as BT_UJ, um as BT_UM
+from vbb_study.design import compute_design_from_targets
+from vbb_study.equations.fields import fft2c, ifft2c, quantize_phase
+from vbb_study.equations.interface import fit_interface_zernike_terms, interface_aberration_pupil
+from vbb_study.equations.propagation import make_bl_asm_propagator
+from vbb_study.facade import core as _bt
 
 
 @dataclass
@@ -68,11 +73,11 @@ def _apply_scalar(fields: Sequence[np.ndarray], scale: float) -> list[np.ndarray
     return [np.asarray(field_i, dtype=complex) * amp for field_i in fields]
 
 
-def _grid_like_surface_pupil(grid: Mapping[str, Any], config: bt.TwinConfig) -> dict[str, Any]:
+def _grid_like_surface_pupil(grid: Mapping[str, Any], config: TwinConfig) -> dict[str, Any]:
     """Map surface angular spectrum samples back onto the objective pupil radius."""
 
-    kt = bt.TWOPI * np.hypot(np.asarray(grid["FX"], dtype=float), np.asarray(grid["FY"], dtype=float))
-    kt_edge = max(config.laser.k0 * float(config.objective.NA), bt.EPS)
+    kt = BT_TWOPI * np.hypot(np.asarray(grid["FX"], dtype=float), np.asarray(grid["FY"], dtype=float))
+    kt_edge = max(config.laser.k0 * float(config.objective.NA), BT_EPS)
     rho = kt / kt_edge
     pupil_R = rho * float(config.objective.pupil_radius_m)
     scale = float(config.objective.pupil_radius_m) / kt_edge
@@ -80,8 +85,8 @@ def _grid_like_surface_pupil(grid: Mapping[str, Any], config: bt.TwinConfig) -> 
         "N": int(grid["N"]),
         "dx": float(grid["dx"]),
         "x": np.asarray(grid["x"], dtype=float),
-        "X": bt.TWOPI * np.asarray(grid["FX"], dtype=float) * scale,
-        "Y": bt.TWOPI * np.asarray(grid["FY"], dtype=float) * scale,
+        "X": BT_TWOPI * np.asarray(grid["FX"], dtype=float) * scale,
+        "Y": BT_TWOPI * np.asarray(grid["FY"], dtype=float) * scale,
         "R": pupil_R,
         "PHI": np.arctan2(np.asarray(grid["FY"], dtype=float), np.asarray(grid["FX"], dtype=float)),
         "FX": np.asarray(grid["FX"], dtype=float),
@@ -90,7 +95,7 @@ def _grid_like_surface_pupil(grid: Mapping[str, Any], config: bt.TwinConfig) -> 
 
 
 def _angular_spectrum_phase(field: np.ndarray, phase: np.ndarray) -> np.ndarray:
-    return bt.ifft2c(bt.fft2c(np.asarray(field, dtype=complex)) * np.exp(1j * np.asarray(phase, dtype=float)))
+    return ifft2c(fft2c(np.asarray(field, dtype=complex)) * np.exp(1j * np.asarray(phase, dtype=float)))
 
 
 def _apply_angular_phase(fields: Sequence[np.ndarray], phase: np.ndarray) -> list[np.ndarray]:
@@ -101,12 +106,12 @@ def _signed_wrapped_phase(phase: np.ndarray) -> np.ndarray:
     return np.angle(np.exp(1j * np.asarray(phase, dtype=float)))
 
 
-def _interface_correction_mask(interface_phase: np.ndarray, config: bt.TwinConfig) -> tuple[np.ndarray, dict[str, Any]]:
+def _interface_correction_mask(interface_phase: np.ndarray, config: TwinConfig) -> tuple[np.ndarray, dict[str, Any]]:
     """Return the phase-only conjugate mask actually applied upstream."""
 
     ideal = -np.asarray(interface_phase, dtype=float)
     if bool(getattr(config, "include_quantization", True)):
-        applied = bt.quantize_phase(ideal, int(config.slm.phase_bits))
+        applied = quantize_phase(ideal, int(config.slm.phase_bits))
         model = f"{int(config.slm.phase_bits)}bit_phase_mask"
     else:
         applied = ideal
@@ -123,16 +128,16 @@ def _interface_correction_mask(interface_phase: np.ndarray, config: bt.TwinConfi
 
 def _axial_target_phase(
     grid: Mapping[str, Any],
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     n_medium: float,
     target_depth_m: float,
 ) -> np.ndarray:
     """Phase-only defocus term that places the clean reference at target depth."""
 
-    k = bt.TWOPI * float(n_medium) / float(config.laser.wavelength_m)
-    kx = bt.TWOPI * np.asarray(grid["FX"], dtype=float)
-    ky = bt.TWOPI * np.asarray(grid["FY"], dtype=float)
+    k = BT_TWOPI * float(n_medium) / float(config.laser.wavelength_m)
+    kx = BT_TWOPI * np.asarray(grid["FX"], dtype=float)
+    ky = BT_TWOPI * np.asarray(grid["FY"], dtype=float)
     kz = np.sqrt(np.maximum(k**2 - kx**2 - ky**2, 0.0))
     phase = -kz * float(target_depth_m)
     phase = phase - float(np.mean(phase[np.isfinite(phase)]))
@@ -180,13 +185,13 @@ def _combine_component_volumes(volumes: Sequence[dict[str, Any]]) -> dict[str, A
 def _propagate_components(
     fields: Sequence[np.ndarray],
     grid: Mapping[str, Any],
-    config: bt.TwinConfig,
+    config: TwinConfig,
     z_axis_m: np.ndarray,
     *,
     n_medium: float,
 ) -> dict[str, Any]:
     volumes = [
-        bt.propagate_volume(
+        _bt().propagate_volume(
             field_i,
             dict(grid),
             config.laser.wavelength_m,
@@ -202,7 +207,7 @@ def _propagate_components(
     return _combine_component_volumes(volumes)
 
 
-def _default_sample_z_values(config: bt.TwinConfig) -> np.ndarray:
+def _default_sample_z_values(config: TwinConfig) -> np.ndarray:
     target = float(config.target.target_bessel_length_m)
     depth = float(config.material.write_depth_m)
     z_max = max(depth + 1.25 * target, 2.0 * target, float(config.grid.axial_range_m))
@@ -213,11 +218,11 @@ def _default_sample_z_values(config: bt.TwinConfig) -> np.ndarray:
 def _rel_l2(a: np.ndarray, b: np.ndarray) -> float:
     aa = np.asarray(a, dtype=complex)
     bb = np.asarray(b, dtype=complex)
-    return float(np.linalg.norm((aa - bb).ravel()) / (np.linalg.norm(bb.ravel()) + bt.EPS))
+    return float(np.linalg.norm((aa - bb).ravel()) / (np.linalg.norm(bb.ravel()) + BT_EPS))
 
 
-def _field_at_z(field: np.ndarray, grid: Mapping[str, Any], config: bt.TwinConfig, z_m: float, *, n_medium: float) -> np.ndarray:
-    prop = bt.make_bl_asm_propagator(
+def _field_at_z(field: np.ndarray, grid: Mapping[str, Any], config: TwinConfig, z_m: float, *, n_medium: float) -> np.ndarray:
+    prop = make_bl_asm_propagator(
         np.asarray(field, dtype=complex),
         dict(grid),
         config.laser.wavelength_m,
@@ -229,8 +234,8 @@ def _field_at_z(field: np.ndarray, grid: Mapping[str, Any], config: bt.TwinConfi
 
 def _sample_metrics(
     volume: dict[str, Any],
-    design: bt.BeamDesign,
-    config: bt.TwinConfig,
+    design: BeamDesign,
+    config: TwinConfig,
     *,
     n_medium: float,
     correction: str,
@@ -240,15 +245,15 @@ def _sample_metrics(
 ) -> dict[str, Any]:
     plane = np.asarray(volume["planes"]["peak"], dtype=float)
     cgrid = volume["crop_grid"]
-    radial = bt.extract_radial_metrics(plane, cgrid, design.ell, design.kr_sample_m_inv)
-    zone = bt.bessel_zone_metrics(volume["z"], volume["peak"], level=0.5)
-    strict_region = bt.bessel_region_metrics(volume, design)
+    radial = _bt().extract_radial_metrics(plane, cgrid, design.ell, design.kr_sample_m_inv)
+    zone = _bt().bessel_zone_metrics(volume["z"], volume["peak"], level=0.5)
+    strict_region = _bt().bessel_region_metrics(volume, design)
     pulse_energy = float(config.energy.pulse_energy_at_surface_air_J) * float(config.energy.sample_surface_transmission)
-    fluence = bt.fluence_metrics(plane, cgrid, radial, config, pulse_energy_J=pulse_energy)
-    mod = bt.modification_proxy_metrics(volume, config, pulse_energy_J=pulse_energy)
+    fluence = _bt().fluence_metrics(plane, cgrid, radial, config, pulse_energy_J=pulse_energy)
+    mod = _bt().modification_proxy_metrics(volume, config, pulse_energy_J=pulse_energy)
     peak_idx = int(volume.get("peak_index", int(np.nanargmax(volume["peak"]))))
     zone_center_um = 0.5 * (float(zone["zone_start_um"]) + float(zone["zone_end_um"]))
-    target_depth_um = float(target_depth_m / bt.um)
+    target_depth_um = float(target_depth_m / BT_UM)
     correction_kind = (
         "ideal_numerical_correction"
         if correction == "ideal_numerical_correction"
@@ -271,18 +276,18 @@ def _sample_metrics(
         ),
         "ell": int(design.ell),
         "kr_sample_m_inv": float(design.kr_sample_m_inv),
-        "ring_radius_um": float(radial["ring_radius_m"] / bt.um),
-        "ring_diameter_um": float(radial["ring_diameter_m"] / bt.um),
-        "core_radius_um": float(radial["core_radius_m"] / bt.um),
+        "ring_radius_um": float(radial["ring_radius_m"] / BT_UM),
+        "ring_diameter_um": float(radial["ring_diameter_m"] / BT_UM),
+        "core_radius_um": float(radial["core_radius_m"] / BT_UM),
         "core_radius_definition": str(radial["core_radius_definition"]),
-        "core_hwhm_radius_um": float(radial["core_hwhm_radius_m"] / bt.um) if np.isfinite(radial["core_hwhm_radius_m"]) else np.nan,
-        "core_first_zero_radius_um": float(radial["core_first_zero_radius_m"] / bt.um),
-        "feature_radius_um": float(radial["feature_radius_m"] / bt.um),
-        "feature_diameter_um": float(radial["feature_diameter_m"] / bt.um),
-        "ring_width_um": float(radial["ring_width_m"] / bt.um),
+        "core_hwhm_radius_um": float(radial["core_hwhm_radius_m"] / BT_UM) if np.isfinite(radial["core_hwhm_radius_m"]) else np.nan,
+        "core_first_zero_radius_um": float(radial["core_first_zero_radius_m"] / BT_UM),
+        "feature_radius_um": float(radial["feature_radius_m"] / BT_UM),
+        "feature_diameter_um": float(radial["feature_diameter_m"] / BT_UM),
+        "ring_width_um": float(radial["ring_width_m"] / BT_UM),
         "peak_in_plane": float(np.max(volume["peak"])),
         "peak_onaxis": float(np.max(volume["onaxis"])),
-        "peak_z_um": float(volume["z"][peak_idx] / bt.um),
+        "peak_z_um": float(volume["z"][peak_idx] / BT_UM),
         "target_write_depth_um": target_depth_um,
         "zone_center_um": float(zone_center_um),
         "zone_center_error_um": float(zone_center_um - target_depth_um),
@@ -291,8 +296,8 @@ def _sample_metrics(
         "canonical_zone_start_um": float(zone["zone_start_um"]),
         "canonical_zone_end_um": float(zone["zone_end_um"]),
         "strict_bessel_region_um": float(strict_region["bessel_region_um"]),
-        "pulse_energy_at_surface_air_uJ": float(config.energy.pulse_energy_at_surface_air_J / bt.uJ),
-        "pulse_energy_in_medium_uJ": float(pulse_energy / bt.uJ),
+        "pulse_energy_at_surface_air_uJ": float(config.energy.pulse_energy_at_surface_air_J / BT_UJ),
+        "pulse_energy_in_medium_uJ": float(pulse_energy / BT_UJ),
         **zone,
         **strict_region,
         **fluence,
@@ -327,14 +332,14 @@ def refract_surface_field(surface: Any, n_medium: float = 2.44, wavelength_m: fl
     if float(surface.medium_before) != 1.0:
         raise ValueError("SurfaceField.medium_before must be air (n=1) before refraction.")
     grid = _as_grid(surface)
-    wavelength = float(bt.LaserConfig().wavelength_m if wavelength_m is None else wavelength_m)
-    k_medium = bt.TWOPI * float(n_medium) / wavelength
-    kt = bt.TWOPI * np.hypot(np.asarray(grid["FX"], dtype=float), np.asarray(grid["FY"], dtype=float))
+    wavelength = float(LaserConfig().wavelength_m if wavelength_m is None else wavelength_m)
+    k_medium = BT_TWOPI * float(n_medium) / wavelength
+    kt = BT_TWOPI * np.hypot(np.asarray(grid["FX"], dtype=float), np.asarray(grid["FY"], dtype=float))
     propagating = kt <= k_medium
     prop_fraction = float(np.count_nonzero(propagating) / max(propagating.size, 1))
 
     fields = _component_list(surface.Ex, surface.Ey, surface.Ez)
-    filtered = [bt.ifft2c(bt.fft2c(field_i) * propagating) for field_i in fields]
+    filtered = [ifft2c(fft2c(field_i) * propagating) for field_i in fields]
     metadata = dict(getattr(surface, "metadata", {}) or {})
     metadata.update(
         {
@@ -359,7 +364,7 @@ def refract_surface_field(surface: Any, n_medium: float = 2.44, wavelength_m: fl
 
 def run_through_sample(
     surface: Any,
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     correct_interface: bool = False,
     write_depth_m: float | None = None,
@@ -390,7 +395,7 @@ def run_through_sample(
         raise ValueError("write_depth_m must be non-negative and measured from the sample surface.")
 
     pupil_grid = _grid_like_surface_pupil(grid, config)
-    interface_phase = bt.interface_aberration_pupil(
+    interface_phase = interface_aberration_pupil(
         pupil_grid,
         config.laser,
         config.objective,
@@ -413,7 +418,7 @@ def run_through_sample(
         "uncorrected_input_power": _field_power(uncorrected_fields, grid),
         "corrected_input_power": _field_power(corrected_fields, grid),
     }
-    ideal_power = max(float(powers["no_interface_input_power"]), bt.EPS)
+    ideal_power = max(float(powers["no_interface_input_power"]), BT_EPS)
     phase_rel_error = max(
         abs(float(powers["uncorrected_input_power"]) - ideal_power),
         abs(float(powers["corrected_input_power"]) - ideal_power),
@@ -421,8 +426,8 @@ def run_through_sample(
     if phase_rel_error > 1e-6:
         raise RuntimeError(f"Phase-only interface correction changed total power by {phase_rel_error:.3e}.")
 
-    zern_before = bt.fit_interface_zernike_terms(pupil_grid, interface_phase, config.objective.pupil_radius_m)
-    zern_after = bt.fit_interface_zernike_terms(pupil_grid, residual_phase, config.objective.pupil_radius_m)
+    zern_before = fit_interface_zernike_terms(pupil_grid, interface_phase, config.objective.pupil_radius_m)
+    zern_after = fit_interface_zernike_terms(pupil_grid, residual_phase, config.objective.pupil_radius_m)
 
     check_z = target_depth
     ideal_at_depth = _field_at_z(ideal_fields[0], grid, config, check_z, n_medium=n_medium)
@@ -440,11 +445,11 @@ def run_through_sample(
     z_axis = _default_sample_z_values(config) if z_values_m is None else np.asarray(z_values_m, dtype=float)
     if z_axis.ndim != 1 or z_axis.size == 0:
         raise ValueError("z_values_m must be a non-empty 1D sequence.")
-    if np.nanmin(z_axis) < -bt.EPS:
+    if np.nanmin(z_axis) < -BT_EPS:
         raise ValueError("Through-sample z_axis_m is measured from the surface and must be non-negative.")
 
     volume = _propagate_components(selected_fields, grid, config, z_axis, n_medium=n_medium)
-    design = bt.compute_design_from_targets(config.laser, config.target, config.material)
+    design = compute_design_from_targets(config.laser, config.target, config.material)
     correction_label = "ideal_numerical_correction" if bool(correct_interface) else "uncorrected_interface"
     energy_report = {
         "surface_power_air": surface_power,
@@ -455,7 +460,7 @@ def run_through_sample(
         "volume_power_min": float(np.nanmin(volume["total_power"])),
         "volume_power_max": float(np.nanmax(volume["total_power"])),
         "volume_power_drift_fraction": float(
-            (np.nanmax(volume["total_power"]) - np.nanmin(volume["total_power"])) / (np.nanmean(volume["total_power"]) + bt.EPS)
+            (np.nanmax(volume["total_power"]) - np.nanmin(volume["total_power"])) / (np.nanmean(volume["total_power"]) + BT_EPS)
         ),
         "power_check_pass": bool(phase_rel_error <= 1e-6),
     }
@@ -515,16 +520,16 @@ def plot_sample_result_comparison(
     vbb_style.apply_style()
     results = [uncorrected, corrected]
     labels = ["uncorrected interface", "ideal numerical correction"]
-    xy_max = max(float(np.nanmax(r.volume_result["planes"]["peak"])) for r in results) + bt.EPS
-    xz_max = max(float(np.nanmax(r.volume_result["xz"])) for r in results) + bt.EPS
+    xy_max = max(float(np.nanmax(r.volume_result["planes"]["peak"])) for r in results) + BT_EPS
+    xz_max = max(float(np.nanmax(r.volume_result["xz"])) for r in results) + BT_EPS
     fig, axes = plt.subplots(2, 3, figsize=(12.5, 7.0), constrained_layout=True)
     xy_artist = None
     xz_artist = None
     for col, (result, label) in enumerate(zip(results, labels, strict=True)):
         volume = result.volume_result
         grid = volume["crop_grid"]
-        x = np.asarray(grid["x"], dtype=float) / bt.um
-        z = np.asarray(volume["z"], dtype=float) / bt.um
+        x = np.asarray(grid["x"], dtype=float) / BT_UM
+        z = np.asarray(volume["z"], dtype=float) / BT_UM
         xy_artist = axes[0, col].imshow(
             vbb_style.display_scale(np.asarray(volume["planes"]["peak"], dtype=float) / xy_max, gamma=0.45, normalise=False),
             origin="lower",
@@ -561,7 +566,7 @@ def plot_sample_result_comparison(
             reference_index=int(volume.get("peak_index", 0)),
         )
         radius_key = "core_radius_m" if int(result.metrics["ell"]) == 0 else "ring_radius_m"
-        radius_um = np.asarray(per_z[radius_key], dtype=float) / bt.um
+        radius_um = np.asarray(per_z[radius_key], dtype=float) / BT_UM
         axes[1, col].plot(z, radius_um, color="white", lw=0.9, alpha=0.85)
         axes[1, col].plot(z, -radius_um, color="white", lw=0.9, alpha=0.85)
         axes[1, col].set_title(f"{label} XZ from surface")
@@ -570,9 +575,9 @@ def plot_sample_result_comparison(
 
     for result, label in zip(results, labels, strict=True):
         volume = result.volume_result
-        z = np.asarray(volume["z"], dtype=float) / bt.um
+        z = np.asarray(volume["z"], dtype=float) / BT_UM
         peak = np.asarray(volume["peak"], dtype=float)
-        peak_norm = peak / (float(np.nanmax(peak)) + bt.EPS)
+        peak_norm = peak / (float(np.nanmax(peak)) + BT_EPS)
         axes[0, 2].plot(z, peak_norm, label=f"{label} peak")
         if int(result.metrics["ell"]) == 0:
             trace = np.asarray(volume["onaxis"], dtype=float)
@@ -580,7 +585,7 @@ def plot_sample_result_comparison(
         else:
             trace = peak
             trace_label = f"{label} ring peak"
-        axes[0, 2].plot(z, trace / (float(np.nanmax(trace)) + bt.EPS), ls="--", label=trace_label)
+        axes[0, 2].plot(z, trace / (float(np.nanmax(trace)) + BT_EPS), ls="--", label=trace_label)
         axes[0, 2].axvspan(
             float(result.metrics["zone_start_um"]),
             float(result.metrics["zone_end_um"]),
