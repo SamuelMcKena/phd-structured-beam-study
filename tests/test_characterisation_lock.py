@@ -22,6 +22,7 @@ from vbb_study import vbb_regime
 
 
 BASELINE_DIR = ROOT / "baselines"
+NON_CASE_BASELINE_JSON = {"ENVIRONMENT.json", "PROVENANCE.json"}
 EXPECTED_CASES = {
     "general_holographic_ideal",
     "general_holographic_lab",
@@ -38,7 +39,7 @@ def _baseline_files() -> list[Path]:
     return sorted(
         path
         for path in BASELINE_DIR.glob("*.json")
-        if path.name != "ENVIRONMENT.json"
+        if path.name not in NON_CASE_BASELINE_JSON
     )
 
 

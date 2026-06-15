@@ -259,6 +259,21 @@ def code_version(root: str | Path | None = None) -> str | None:
     return commit or None
 
 
+def stage1_engine_git_fields(root: str | Path | None = None) -> dict[str, str | None]:
+    """Return Stage 1 baseline provenance fields for future captures."""
+
+    commit = code_version(root)
+    if commit:
+        return {
+            "engine_git_commit": commit,
+            "engine_git_commit_note": "recorded from git rev-parse HEAD",
+        }
+    return {
+        "engine_git_commit": None,
+        "engine_git_commit_note": "unavailable: git rev-parse HEAD returned no commit",
+    }
+
+
 def run_manifest(
     *,
     config: Any = None,
@@ -313,6 +328,7 @@ __all__ = [
     "config_hash",
     "find_repo_root",
     "run_manifest",
+    "stage1_engine_git_fields",
     "validate_workspace",
     "write_run_manifest",
 ]
