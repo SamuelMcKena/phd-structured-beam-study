@@ -17,6 +17,7 @@ if str(ROOT) not in sys.path:
 
 _SUBMODULES = [
     "config",
+    "design",
     "equations",
     "setup_study",
     "study_taxonomy",

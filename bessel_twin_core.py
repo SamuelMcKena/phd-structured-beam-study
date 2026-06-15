@@ -88,84 +88,13 @@ from vbb_study.config import (
     uJ,
     um,
 )
-
-
-def get_preset(name: str = "fast") -> SimulationPreset:
-    """Return a deterministic grid preset."""
-
-    key = str(name).lower().strip()
-    if key == "paper":
-        return SimulationPreset(
-            name="paper",
-            grid=GridConfig(
-                N=2048,
-                device_downsample=1,
-                axial_range_m=360.0 * um,
-                axial_points=181,
-                axial_target_factor=3.0,
-                crop_pixels=512,
-                coarse_scan_points=41,
-                ideal_N=1024,
-                ideal_dx_m=0.18 * um,
-                label="paper",
-            ),
-        )
-    if key in {"publication", "study"}:
-        return SimulationPreset(
-            name="publication",
-            grid=GridConfig(
-                N=1024,
-                device_downsample=2,
-                axial_range_m=300.0 * um,
-                axial_points=91,
-                axial_target_factor=2.6,
-                crop_pixels=256,
-                coarse_scan_points=43,
-                ideal_N=768,
-                ideal_dx_m=0.20 * um,
-                label="publication",
-            ),
-        )
-    if key == "balanced":
-        return SimulationPreset(
-            name="balanced",
-            grid=GridConfig(
-                N=1024,
-                device_downsample=2,
-                axial_range_m=240.0 * um,
-                axial_points=81,
-                axial_target_factor=2.2,
-                crop_pixels=288,
-                coarse_scan_points=31,
-                ideal_N=768,
-                ideal_dx_m=0.22 * um,
-                label="balanced",
-            ),
-        )
-    return SimulationPreset(name="fast", grid=GridConfig())
-
-
-def default_config(preset: str = "fast") -> TwinConfig:
-    """Build the default Cr:ZnSe PHAROS+SLM twin configuration."""
-
-    return TwinConfig(grid=get_preset(preset).grid)
-
-
-def axial_scan_values(config: TwinConfig, design: BeamDesign, *, z_anchor_m: float = 0.0) -> np.ndarray:
-    """Return the forward z samples used for Bessel-region measurements.
-
-    I intentionally make the scan longer than the requested design length. The
-    old notebooks often clipped the half-maximum zone at the right edge of the
-    scan, which made the heatmaps look artificially short. The target-factor
-    term lets the scan follow long Bessel targets, while the absolute
-    `axial_range_m` term keeps short targets from being under-sampled.
-    """
-
-    span = float(config.grid.axial_range_m)
-    target = float(design.target_bessel_length_m)
-    target_factor = max(1.0, float(getattr(config.grid, "axial_target_factor", 1.8)))
-    z_max = max(2.0 * span, float(z_anchor_m) + span, target_factor * target)
-    return np.linspace(0.0, z_max, int(config.grid.axial_points))
+from vbb_study.design import (
+    axial_scan_values,
+    compute_design_from_targets,
+    default_config,
+    get_preset,
+    objective_map_from_config,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -207,91 +136,6 @@ def apply_orientation(gray: np.ndarray, slm: SLMConfig) -> np.ndarray:
 
 
 from vbb_study.equations.objective_pupil import headline_length_tags, objective_map_from_design_inputs
-
-
-def compute_design_from_targets(
-    laser: LaserConfig,
-    target: BeamTarget,
-    material: MaterialConfig,
-    beam_radius_on_slm_m: Optional[float] = None,
-) -> BeamDesign:
-    """Inverse-design SLM cone strength from target scale and length.
-
-    The legacy input name ``target_core_diameter_m`` is interpreted as the
-    equivalent ell=0 first-zero diameter. For ``ell > 0`` the actual vortex
-    ring diameter is computed from the first zero of ``J'_ell`` and reported
-    separately on the design.
-    """
-
-    D = max(float(target.target_core_diameter_m), EPS)
-    L = max(float(target.target_bessel_length_m), EPS)
-    k_medium = laser.k0 * float(material.refractive_index)
-
-    # Do not read D as a vortex-ring diameter. It is the J0 first-zero
-    # diameter that would give the same transverse wavevector for ell=0.
-    kr_sample = 2.0 * 2.405 / D
-    w0_sample = L * kr_sample / max(k_medium, EPS)
-    objective_map = objective_map_from_design_inputs(laser, target, material, beam_radius_on_slm_m=beam_radius_on_slm_m)
-    M = float(objective_map.demag)
-    kr_slm = objective_map.sample_to_pre_spatial_frequency_m_inv(kr_sample)
-
-    denom = laser.k0 * (float(target.n_axicon) - float(target.hologram_medium_n))
-    gamma = math.atan(kr_slm / max(denom, EPS))
-    ell_abs = abs(int(target.ell))
-    first_zero_r = float(2.405 / kr_sample)
-    first_zero_d = float(2.0 * first_zero_r)
-    ring_r = 0.0 if ell_abs == 0 else float(sp.jnp_zeros(ell_abs, 1)[0] / kr_sample)
-
-    return BeamDesign(
-        ell=int(target.ell),
-        target_core_diameter_m=D,
-        target_scale_definition="equivalent_l0_first_zero_diameter",
-        target_equivalent_l0_core_diameter_m=float(D),
-        target_bessel_length_m=L,
-        n_axicon=float(target.n_axicon),
-        hologram_medium_n=float(target.hologram_medium_n),
-        sample_medium_n=float(material.refractive_index),
-        kr_sample_m_inv=float(kr_sample),
-        kr_slm_m_inv=float(kr_slm),
-        gamma_slm_rad=float(gamma),
-        gamma_slm_deg=float(math.degrees(gamma)),
-        magnification_to_sample=float(M),
-        w0_sample_m=float(w0_sample),
-        equivalent_l0_core_radius_m=first_zero_r,
-        equivalent_l0_core_diameter_m=first_zero_d,
-        equivalent_l0_first_zero_radius_m=first_zero_r,
-        equivalent_l0_first_zero_diameter_m=first_zero_d,
-        vortex_main_ring_radius_m=float(ring_r),
-        vortex_main_ring_diameter_m=float(2.0 * ring_r),
-        signum_pi_flip=bool(target.signum_pi_flip),
-    )
-
-
-def objective_map_from_config(config: TwinConfig, design: Optional[BeamDesign] = None):
-    """Return the optics-derived pre-objective to focused-plane map."""
-
-    from vbb_study import vbb_planes
-
-    if config.relay.magnification_to_sample is not None:
-        return vbb_planes.ObjectiveMap(
-            demag=float(config.relay.magnification_to_sample),
-            n_sample=float(config.material.refractive_index),
-            source="RelayConfig.magnification_to_sample",
-        )
-    relay_f = float(getattr(config.relay, "effective_relay_f_m", 0.0))
-    if relay_f > EPS:
-        return vbb_planes.ObjectiveMap(
-            demag=float(config.objective.f_eff_m) / relay_f,
-            n_sample=float(config.material.refractive_index),
-            source="objective_f_eff_over_effective_relay_f",
-        )
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
-    return vbb_planes.objective_map_from_waists(
-        pre_objective_radius_m=float(config.laser.beam_radius_on_slm_m),
-        sample_radius_m=float(design.w0_sample_m),
-        n_sample=float(config.material.refractive_index),
-        source="target_matched_bessel_gauss_waist_audit",
-    )
 
 
 def analytic_references(config: TwinConfig, design: Optional[BeamDesign] = None) -> Dict[str, float]:
