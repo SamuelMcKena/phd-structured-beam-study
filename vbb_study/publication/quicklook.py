@@ -19,7 +19,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
-import bessel_twin_core as bt
+from vbb_study.config import TwinConfig, fs as BT_FS, kHz as BT_KHZ, mm as BT_MM, nm as BT_NM, uJ as BT_UJ, um as BT_UM
+from vbb_study.design import compute_design_from_targets as _compute_design_from_targets, default_config as _default_twin_config
+from vbb_study.equations.fields import gaussian_amplitude, make_xy_grid
+from vbb_study.equations.scalar_bessel import build_bessel_gauss_field_ideal
+from vbb_study.facade import core as _bt
 from vbb_study import vbb_sample_study, vbb_studies, vbb_style
 from vbb_study.publication import figure_registry, visuals
 
@@ -384,12 +388,12 @@ def make_twin_config(
     *,
     effective_ell: int | None = None,
     nominal_ell: int | None = None,
-) -> bt.TwinConfig:
+) -> TwinConfig:
     """Build a locked-engine ``TwinConfig`` from quick-look settings."""
 
     config = resolve_config(config)
     preset = _mode_preset(config)
-    base = bt.default_config(preset)
+    base = _default_twin_config(preset)
     ell = int(config.vortex_charge if (config.vortex_phase_on and config.include_vortex and not config.flatten_phase_before_axicon) else 0)
     if effective_ell is not None:
         ell = int(effective_ell)
@@ -400,31 +404,31 @@ def make_twin_config(
         N=grid_size,
         ideal_N=grid_size,
         device_downsample=max(_device_downsample(config), int(getattr(base.grid, "device_downsample", 1))),
-        axial_range_m=float(config.axial_range_um) * bt.um,
+        axial_range_m=float(config.axial_range_um) * BT_UM,
         axial_points=int(config.axial_points),
         crop_pixels=min(int(config.crop_pixels), grid_size),
         label=str(config.computational_mode),
     )
     laser = replace(
         base.laser,
-        wavelength_m=float(config.wavelength_nm) * bt.nm,
-        pulse_duration_s=float(config.pulse_duration_fs) * bt.fs,
-        input_pulse_energy_J=float(config.pulse_energy_uJ) * bt.uJ,
-        rep_rate_Hz=float(config.rep_rate_kHz) * bt.kHz,
-        beam_radius_on_slm_m=float(config.beam_radius_on_slm_mm) * bt.mm,
+        wavelength_m=float(config.wavelength_nm) * BT_NM,
+        pulse_duration_s=float(config.pulse_duration_fs) * BT_FS,
+        input_pulse_energy_J=float(config.pulse_energy_uJ) * BT_UJ,
+        rep_rate_Hz=float(config.rep_rate_kHz) * BT_KHZ,
+        beam_radius_on_slm_m=float(config.beam_radius_on_slm_mm) * BT_MM,
     )
-    energy = replace(base.energy, pulse_energy_in_J=float(config.pulse_energy_uJ) * bt.uJ)
+    energy = replace(base.energy, pulse_energy_in_J=float(config.pulse_energy_uJ) * BT_UJ)
     target = replace(
         base.target,
         ell=ell,
-        target_core_diameter_m=float(config.target_core_diameter_um) * bt.um,
-        target_bessel_length_m=float(config.target_bessel_length_um) * bt.um,
+        target_core_diameter_m=float(config.target_core_diameter_um) * BT_UM,
+        target_bessel_length_m=float(config.target_bessel_length_um) * BT_UM,
         n_axicon=float(config.axicon_index),
     )
     objective = replace(
         base.objective,
         NA=float(config.objective_na),
-        f_eff_m=float(config.objective_f_eff_mm) * bt.mm,
+        f_eff_m=float(config.objective_f_eff_mm) * BT_MM,
     )
     relay = replace(
         base.relay,
@@ -432,7 +436,7 @@ def make_twin_config(
     )
     slm = replace(
         base.slm,
-        pixel_pitch_m=float(config.slm_pixel_pitch_um) * bt.um,
+        pixel_pitch_m=float(config.slm_pixel_pitch_um) * BT_UM,
         phase_bits=int(config.slm_phase_bits),
         fill_factor=float(config.slm_fill_factor),
         blaze_period_px=int(config.blaze_period_px),
@@ -442,11 +446,11 @@ def make_twin_config(
         base.material,
         name=str(config.material_name),
         refractive_index=float(config.material_refractive_index),
-        write_depth_m=float(config.write_depth_um) * bt.um,
+        write_depth_m=float(config.write_depth_um) * BT_UM,
         single_pulse_threshold_J_cm2=float(config.single_pulse_threshold_J_cm2),
         incubation_exponent=float(config.incubation_exponent),
-        scan_speed_m_s=float(config.scan_speed_mm_s) * bt.mm,
-        feature_width_m=float(config.feature_width_um) * bt.um,
+        scan_speed_m_s=float(config.scan_speed_mm_s) * BT_MM,
+        feature_width_m=float(config.feature_width_um) * BT_UM,
         static_or_scan="static" if int(config.pulse_count) > 1 else base.material.static_or_scan,
         n_static_pulses=max(1, int(config.pulse_count)),
     )
@@ -503,18 +507,18 @@ def config_summary_frame(config: QuicklookConfig) -> pd.DataFrame:
 
 
 def _air_z_values(config: QuicklookConfig, points: int | None = None) -> np.ndarray:
-    z_end = max(float(config.axial_range_um), 1.35 * float(config.target_bessel_length_um)) * bt.um
+    z_end = max(float(config.axial_range_um), 1.35 * float(config.target_bessel_length_um)) * BT_UM
     return np.linspace(0.0, z_end, int(points or config.axial_points))
 
 
 def _sample_z_values(config: QuicklookConfig) -> np.ndarray:
-    z_end = max(float(config.write_depth_um), 1.25 * float(config.target_bessel_length_um)) * bt.um
+    z_end = max(float(config.write_depth_um), 1.25 * float(config.target_bessel_length_um)) * BT_UM
     return np.linspace(0.0, z_end, int(config.axial_points))
 
 
-def _phase_from_config(twin: bt.TwinConfig) -> dict[str, Any]:
-    design = bt.compute_design_from_targets(twin.laser, twin.target, twin.material)
-    field = bt.build_realistic_slm_field(twin, design)
+def _phase_from_config(twin: TwinConfig) -> dict[str, Any]:
+    design = _compute_design_from_targets(twin.laser, twin.target, twin.material)
+    field = _bt().build_realistic_slm_field(twin, design)
     return {"design": design, "field": field}
 
 
@@ -545,12 +549,12 @@ def _qa_dataframe(metrics: Mapping[str, Any], config: QuicklookConfig, *, previe
 
 
 def _axis_um_from_grid(grid: Mapping[str, Any]) -> np.ndarray:
-    return np.asarray(grid["x"], dtype=float) / bt.um
+    return np.asarray(grid["x"], dtype=float) / BT_UM
 
 
 def _grid_from_axis_um(axis_um: Sequence[float]) -> dict[str, Any]:
-    x = np.asarray(axis_um, dtype=float) * bt.um
-    dx = float(abs(x[1] - x[0])) if len(x) > 1 else bt.um
+    x = np.asarray(axis_um, dtype=float) * BT_UM
+    dx = float(abs(x[1] - x[0])) if len(x) > 1 else BT_UM
     X, Y = np.meshgrid(x, x, indexing="xy")
     return {"N": len(x), "dx": dx, "x": x, "X": X, "Y": Y, "R": np.hypot(X, Y), "PHI": np.arctan2(Y, X)}
 
@@ -898,7 +902,7 @@ def _beam_preview_from_result(
     raw_xy = np.asarray(volume["planes"]["peak"], dtype=float)
     raw_xz = np.asarray(volume["xz"], dtype=float)
     raw_axis_um = _axis_um_from_grid(volume["crop_grid"])
-    z_um = np.asarray(volume["z"], dtype=float) / bt.um
+    z_um = np.asarray(volume["z"], dtype=float) / BT_UM
     metrics = dict(result.get("metrics", {}))
     sanity = beam_visual_sanity_metrics(
         xy_intensity=raw_xy,
@@ -981,8 +985,8 @@ def run_slm_phase_preview(config: QuicklookConfig) -> QuicklookPreview:
         captions=["SLM wrapped phase preview."],
         raw={"phase_info": phase_info},
         slm_phase_rad=np.asarray(field["phase"], dtype=float),
-        slm_x_mm=np.asarray(grid["x"], dtype=float) / bt.mm,
-        slm_y_mm=np.asarray(grid["x"], dtype=float) / bt.mm,
+        slm_x_mm=np.asarray(grid["x"], dtype=float) / BT_MM,
+        slm_y_mm=np.asarray(grid["x"], dtype=float) / BT_MM,
     )
 
 
@@ -992,10 +996,10 @@ def run_ideal_beam_preview(config: QuicklookConfig) -> QuicklookPreview:
     cfg = resolve_config(config)
     twin = make_twin_config(cfg)
     air = vbb_studies.beam_air_config(twin)
-    design = bt.compute_design_from_targets(air.laser, air.target, air.material)
-    grid = bt.make_xy_grid(int(air.grid.ideal_N), float(air.grid.ideal_dx_m))
-    field = bt.build_bessel_gauss_field_ideal(grid, design, air.laser, include_vortex=bool(cfg.include_vortex and cfg.vortex_phase_on))
-    volume = bt.propagate_volume(
+    design = _compute_design_from_targets(air.laser, air.target, air.material)
+    grid = make_xy_grid(int(air.grid.ideal_N), float(air.grid.ideal_dx_m))
+    field = build_bessel_gauss_field_ideal(grid, design, air.laser, include_vortex=bool(cfg.include_vortex and cfg.vortex_phase_on))
+    volume = _bt().propagate_volume(
         field,
         grid,
         air.laser.wavelength_m,
@@ -1015,7 +1019,7 @@ def run_ideal_beam_preview(config: QuicklookConfig) -> QuicklookPreview:
         "first_order_selected_fraction": 1.0,
         "beam_medium_n": 1.0,
     }
-    metrics = bt.extract_vortex_safe_metrics(result, air)
+    metrics = _bt().extract_vortex_safe_metrics(result, air)
     metrics.update(
         {
             "case_id": "quicklook_ideal_target",
@@ -1034,7 +1038,7 @@ def run_conical_axicon_preview(config: QuicklookConfig) -> QuicklookPreview:
 
     cfg = resolve_config(config)
     twin = make_twin_config(cfg)
-    result = bt.run_case(twin, preset=_mode_preset(cfg), path="ideal", case_id="quicklook_conical_axicon", z_values_m=_air_z_values(cfg))
+    result = _bt().run_case(twin, preset=_mode_preset(cfg), path="ideal", case_id="quicklook_conical_axicon", z_values_m=_air_z_values(cfg))
     return _beam_preview_from_result(cfg, result, preview_kind="conical")
 
 
@@ -1076,9 +1080,9 @@ def run_gaussian_reference_preview(config: QuicklookConfig | None = None) -> Qui
     cfg = resolve_config(config or known_good_visual_config(vortex_phase_on=False, ell=0, vortex_charge=0, include_vortex=False))
     twin = make_twin_config(cfg, effective_ell=0, nominal_ell=0)
     air = vbb_studies.beam_air_config(twin)
-    grid = bt.make_xy_grid(int(air.grid.ideal_N), float(air.grid.ideal_dx_m))
-    field = bt.gaussian_amplitude(grid["R"], 6.0 * bt.um)
-    volume = bt.propagate_volume(
+    grid = make_xy_grid(int(air.grid.ideal_N), float(air.grid.ideal_dx_m))
+    field = gaussian_amplitude(grid["R"], 6.0 * BT_UM)
+    volume = _bt().propagate_volume(
         field,
         grid,
         air.laser.wavelength_m,
@@ -1101,7 +1105,7 @@ def run_gaussian_reference_preview(config: QuicklookConfig | None = None) -> Qui
     result = {
         "path": "gaussian_reference",
         "study_kind": "beam_to_surface",
-        "design": bt.compute_design_from_targets(air.laser, air.target, air.material),
+        "design": _compute_design_from_targets(air.laser, air.target, air.material),
         "focal_grid": grid,
         "volume": volume,
         "first_order_selected_fraction": 1.0,
@@ -1131,7 +1135,7 @@ def run_lab_realistic_preview(config: QuicklookConfig) -> QuicklookPreview:
 
     cfg = resolve_config(config)
     twin = make_twin_config(cfg)
-    result = bt.run_case(twin, preset=_mode_preset(cfg), path="realistic", case_id="quicklook_lab", z_values_m=_air_z_values(cfg))
+    result = _bt().run_case(twin, preset=_mode_preset(cfg), path="realistic", case_id="quicklook_lab", z_values_m=_air_z_values(cfg))
     return _beam_preview_from_result(cfg, result, preview_kind="lab")
 
 
@@ -1181,11 +1185,11 @@ def run_through_sample_preview(config: QuicklookConfig, lab_preview: QuicklookPr
         lab_result["surface_field"],
         twin,
         correct_interface=bool(cfg.correct_interface),
-        write_depth_m=float(cfg.write_depth_um) * bt.um,
+        write_depth_m=float(cfg.write_depth_um) * BT_UM,
         z_values_m=_sample_z_values(cfg),
     )
     xz, transverse_um = _crop_xz_for_display(sample.volume_result["xz"], sample.volume_result["crop_grid"], cfg)
-    z_um = np.asarray(sample.volume_result["z"], dtype=float) / bt.um
+    z_um = np.asarray(sample.volume_result["z"], dtype=float) / BT_UM
     metrics = dict(sample.metrics)
     return QuicklookPreview(
         resolved_config=cfg,
@@ -1216,7 +1220,7 @@ def run_material_proxy_preview(config: QuicklookConfig, through_sample_preview: 
     sample = through.raw["sample"]
     twin = make_twin_config(cfg)
     threshold = float(twin.material.incubated_threshold_J_cm2(twin.laser.rep_rate_Hz))
-    fluence = bt.fluence_from_intensity(
+    fluence = _bt().fluence_from_intensity(
         sample.volume_result["planes"]["peak"],
         sample.volume_result["crop_grid"]["dx"],
         twin.energy.pulse_energy_at_sample_J,
@@ -1536,7 +1540,7 @@ def _volume_case_to_plot_case(
         "xy": volume["planes"]["peak"],
         "xz": volume["xz"],
         "grid": volume["crop_grid"],
-        "z_um": np.asarray(volume["z"], dtype=float) / bt.um,
+        "z_um": np.asarray(volume["z"], dtype=float) / BT_UM,
         "metrics": metrics,
         "qa_label": qa_label,
     }
@@ -1768,7 +1772,7 @@ def run_four_condition_phase_comparison(
         preset = case["preset"]
         case_twin = case["twin_config"]
         phase_case = _phase_from_config(case_twin)
-        ideal_result = bt.run_case(
+        ideal_result = _bt().run_case(
             case_twin,
             preset=_mode_preset(config),
             path="ideal",
@@ -1810,7 +1814,7 @@ def run_four_condition_phase_comparison(
             )
         )
         if bool(config.run_four_condition_lab_realistic_if_sane):
-            lab_result = bt.run_case(
+            lab_result = _bt().run_case(
                 case_twin,
                 preset=_mode_preset(config),
                 path="realistic",
@@ -2116,7 +2120,7 @@ def run_quicklook(
                     pupil,
                     pupil_grid,
                     title="Quick-look objective pupil",
-                    pupil_radius=twin.objective.pupil_radius_m / bt.mm,
+                    pupil_radius=twin.objective.pupil_radius_m / BT_MM,
                     display_interpolation=cfg.display_interpolation,
                     interpolation=cfg.display_interpolation_method,
                 ),
@@ -2255,7 +2259,7 @@ def run_quicklook(
         delta_cfg = replace(cfg, vortex_charge=int(cfg.delta_vortex_charge), target_core_diameter_um=float(cfg.delta_target_core_diameter_um))
         delta_twin = make_twin_config(delta_cfg)
         delta_phase = _phase_from_config(delta_twin)
-        delta_result = bt.run_case(delta_twin, preset=_mode_preset(delta_cfg), path="realistic", case_id="quicklook_after_delta", z_values_m=_air_z_values(delta_cfg))
+        delta_result = _bt().run_case(delta_twin, preset=_mode_preset(delta_cfg), path="realistic", case_id="quicklook_after_delta", z_values_m=_air_z_values(delta_cfg))
         _attach_visual_sanity_to_result(delta_result, delta_cfg, include_first_order=True)
         before_case = _volume_case_to_plot_case("before", "before", lab_result, phase_info)
         after_case = _volume_case_to_plot_case("after", "after delta", delta_result, delta_phase)
