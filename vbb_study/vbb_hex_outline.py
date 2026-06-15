@@ -8,8 +8,21 @@ from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-import bessel_twin_core as bt
 from . import vbb_style
+from vbb_study.config import EPS as BT_EPS, TWOPI as BT_TWOPI, TwinConfig, um as BT_UM
+from vbb_study.equations.fields import (
+    fft2c,
+    gaussian_amplitude,
+    ifft2c,
+    make_rect_grid,
+    make_xy_grid,
+    phase_to_gray,
+    phase_wrap,
+    quantize_phase,
+)
+from vbb_study.equations.holography import fill_factor_amplitude as _fill_factor_amplitude
+from vbb_study.equations.interface import interface_aberration_pupil, interface_correction_phase
+from vbb_study.equations.propagation import bandlimit_mask_matsushima, focus_to_focal_plane
 
 try:
     from scipy.ndimage import label as nd_label
@@ -20,6 +33,16 @@ try:
     from PIL import Image
 except Exception:  # pragma: no cover
     Image = None
+
+
+def _fill_factor_amplitude_grid(grid: Mapping[str, Any], pixel_pitch_m: float, fill_factor: float) -> np.ndarray:
+    return _fill_factor_amplitude(
+        grid["X"],
+        grid["Y"],
+        pixel_pitch_m=pixel_pitch_m,
+        fill_factor=fill_factor,
+        sample_spacing_m=float(grid["dx"]),
+    )
 
 
 @dataclass(frozen=True)
@@ -74,7 +97,7 @@ def distance_to_hex_outline(grid: Mapping[str, Any], config: HexOutlineConfig) -
     ab2 = np.sum(ab * ab, axis=1)
     apx = points_x - a[:, 0]
     apy = points_y - a[:, 1]
-    t = np.clip((apx * ab[:, 0] + apy * ab[:, 1]) / np.maximum(ab2, bt.EPS), 0.0, 1.0)
+    t = np.clip((apx * ab[:, 0] + apy * ab[:, 1]) / np.maximum(ab2, BT_EPS), 0.0, 1.0)
     closest_x = a[:, 0] + t * ab[:, 0]
     closest_y = a[:, 1] + t * ab[:, 1]
     d2 = (points_x - closest_x) ** 2 + (points_y - closest_y) ** 2
@@ -85,10 +108,10 @@ def hex_outline_target(grid: Mapping[str, Any], config: HexOutlineConfig) -> dic
     """Return the outline target amplitude and masks on a sample/focal grid."""
 
     distance = distance_to_hex_outline(grid, config)
-    sigma = max(float(config.line_sigma_m), bt.EPS)
+    sigma = max(float(config.line_sigma_m), BT_EPS)
     target = np.exp(-0.5 * (distance / sigma) ** 2)
     target = np.where(distance <= float(config.target_truncation_widths) * sigma, target, 0.0)
-    target = target / (float(np.max(target)) + bt.EPS)
+    target = target / (float(np.max(target)) + BT_EPS)
 
     inside = inside_hex_mask(grid, config)
     corner_radius = float(config.flat_radius_m / np.cos(np.pi / 6.0))
@@ -158,7 +181,7 @@ def hex_outline_metrics(
     core_mask = target["core_mask"]
     outside_mask = target["outside_mask"]
     roi_mask = target["roi_mask"]
-    peak = float(np.max(intensity[roi_mask])) + bt.EPS if np.any(roi_mask) else float(np.max(intensity)) + bt.EPS
+    peak = float(np.max(intensity[roi_mask])) + BT_EPS if np.any(roi_mask) else float(np.max(intensity)) + BT_EPS
     norm = intensity / peak
 
     threshold_mask = norm >= float(config.threshold_fraction)
@@ -169,12 +192,12 @@ def hex_outline_metrics(
         count = int(np.any(threshold_mask & roi_mask))
         areas = np.asarray([np.count_nonzero(threshold_mask & roi_mask)], dtype=int)
     largest = int(np.max(areas)) if areas.size else 0
-    largest_fraction = float(largest / (np.sum(areas) + bt.EPS)) if areas.size else 0.0
+    largest_fraction = float(largest / (np.sum(areas) + BT_EPS)) if areas.size else 0.0
 
     hit = threshold_mask & outline_mask
-    precision = float(np.count_nonzero(hit) / (np.count_nonzero(threshold_mask & roi_mask) + bt.EPS))
-    recall = float(np.count_nonzero(hit) / (np.count_nonzero(outline_mask) + bt.EPS))
-    f1 = float(2.0 * precision * recall / (precision + recall + bt.EPS))
+    precision = float(np.count_nonzero(hit) / (np.count_nonzero(threshold_mask & roi_mask) + BT_EPS))
+    recall = float(np.count_nonzero(hit) / (np.count_nonzero(outline_mask) + BT_EPS))
+    f1 = float(2.0 * precision * recall / (precision + recall + BT_EPS))
 
     samples = hex_outline_samples(config)
     contour_values = _bilinear_sample(norm, grid, samples["x_m"], samples["y_m"])
@@ -182,12 +205,12 @@ def hex_outline_metrics(
         [np.mean(contour_values[samples["side"] == idx]) for idx in range(6)],
         dtype=float,
     )
-    contour_mean = float(np.mean(contour_values)) + bt.EPS
+    contour_mean = float(np.mean(contour_values)) + BT_EPS
     edge_uniformity = float(1.0 / (1.0 + np.std(contour_values) / contour_mean))
-    side_balance = float(np.min(side_means) / (np.max(side_means) + bt.EPS))
+    side_balance = float(np.min(side_means) / (np.max(side_means) + BT_EPS))
 
     outline_energy = float(np.sum(intensity[outline_mask]))
-    roi_energy = float(np.sum(intensity[roi_mask])) + bt.EPS
+    roi_energy = float(np.sum(intensity[roi_mask])) + BT_EPS
     core_peak = float(np.max(norm[core_mask])) if np.any(core_mask) else np.nan
     outside_peak = float(np.max(norm[outside_mask])) if np.any(outside_mask) else np.nan
     return {
@@ -208,9 +231,9 @@ def hex_outline_metrics(
         "edge_uniformity_pass": bool(edge_uniformity >= 0.55),
         "side_balance": side_balance,
         "side_balance_pass": bool(side_balance >= 0.35),
-        "target_flat_radius_um": float(config.flat_radius_m / bt.um),
-        "target_line_sigma_um": float(config.line_sigma_m / bt.um),
-        "target_line_fwhm_um": float(2.355 * config.line_sigma_m / bt.um),
+        "target_flat_radius_um": float(config.flat_radius_m / BT_UM),
+        "target_line_sigma_um": float(config.line_sigma_m / BT_UM),
+        "target_line_fwhm_um": float(2.355 * config.line_sigma_m / BT_UM),
         "threshold_fraction": float(config.threshold_fraction),
     }
 
@@ -226,31 +249,31 @@ def _pad_rect_to_square(U_rect: np.ndarray, N: int) -> np.ndarray:
     return out
 
 
-def lab_pupil_amplitude(twin_config: bt.TwinConfig) -> tuple[dict[str, Any], np.ndarray, dict[str, Any]]:
+def lab_pupil_amplitude(twin_config: TwinConfig) -> tuple[dict[str, Any], np.ndarray, dict[str, Any]]:
     """Return square pupil grid, lab amplitude mask, and rectangular metadata."""
 
     ds = max(1, int(twin_config.grid.device_downsample))
     nx = int(np.ceil(twin_config.slm.resolution_x / ds))
     ny = int(np.ceil(twin_config.slm.resolution_y / ds))
-    rect_grid = bt.make_rect_grid(nx, ny, twin_config.slm.pixel_pitch_m * ds)
-    amp = bt.gaussian_amplitude(rect_grid["R"], twin_config.laser.beam_radius_on_slm_m)
+    rect_grid = make_rect_grid(nx, ny, twin_config.slm.pixel_pitch_m * ds)
+    amp = gaussian_amplitude(rect_grid["R"], twin_config.laser.beam_radius_on_slm_m)
     if twin_config.include_fill_factor:
-        amp = amp * bt.fill_factor_amplitude(rect_grid, twin_config.slm.pixel_pitch_m, twin_config.slm.fill_factor)
+        amp = amp * _fill_factor_amplitude_grid(rect_grid, twin_config.slm.pixel_pitch_m, twin_config.slm.fill_factor)
     if twin_config.include_active_aperture:
         aperture = (
             (np.abs(rect_grid["X"]) <= 0.5 * twin_config.slm.active_width_m)
             & (np.abs(rect_grid["Y"]) <= 0.5 * twin_config.slm.active_height_m)
         ).astype(float)
         amp = amp * aperture
-    pupil_grid = bt.make_xy_grid(twin_config.grid.N, rect_grid["dx"])
+    pupil_grid = make_xy_grid(twin_config.grid.N, rect_grid["dx"])
     amp_sq = _pad_rect_to_square(amp, int(twin_config.grid.N))
     pupil = (pupil_grid["R"] <= twin_config.objective.pupil_radius_m).astype(float)
     return pupil_grid, amp_sq * pupil, {"rect_grid": rect_grid, "device_downsample": ds}
 
 
-def focus_grid_from_pupil(twin_config: bt.TwinConfig, pupil_grid: Mapping[str, Any]) -> dict[str, Any]:
+def focus_grid_from_pupil(twin_config: TwinConfig, pupil_grid: Mapping[str, Any]) -> dict[str, Any]:
     dummy = np.zeros((int(pupil_grid["N"]), int(pupil_grid["N"])), dtype=complex)
-    _field, focal_grid = bt.focus_to_focal_plane(dummy, dict(pupil_grid), twin_config.laser, twin_config.objective)
+    _field, focal_grid = focus_to_focal_plane(dummy, dict(pupil_grid), twin_config.laser, twin_config.objective)
     return focal_grid
 
 
@@ -281,26 +304,26 @@ def phase_retrieve_outline(
         seed_focus = np.asarray(initial_focus_field, dtype=complex)
         if seed_focus.shape != amp.shape:
             raise ValueError("initial_focus_field must match the pupil amplitude shape.")
-        phase = np.angle(bt.ifft2c(seed_focus))
+        phase = np.angle(ifft2c(seed_focus))
     else:
-        phase = rng.uniform(0.0, bt.TWOPI, size=amp.shape)
+        phase = rng.uniform(0.0, BT_TWOPI, size=amp.shape)
     U = amp * np.exp(1j * phase)
     history: list[dict[str, float]] = []
     n_iter = int(config.retrieval_iterations if iterations is None else iterations)
     for idx in range(max(1, n_iter)):
-        F = bt.fft2c(U)
+        F = fft2c(U)
         current_amp = np.abs(F)
         current_phase = np.angle(F)
-        signal_scale = float(np.mean(current_amp[signal]) / (np.mean(target_amp[signal]) + bt.EPS)) if np.any(signal) else 1.0
+        signal_scale = float(np.mean(current_amp[signal]) / (np.mean(target_amp[signal]) + BT_EPS)) if np.any(signal) else 1.0
         desired_amp = signal_scale * target_amp
         next_amp = current_amp.copy()
         next_amp[roi] = desired_amp[roi]
         F_next = next_amp * np.exp(1j * current_phase)
-        U_back = bt.ifft2c(F_next)
+        U_back = ifft2c(F_next)
         U = amp * np.exp(1j * np.angle(U_back))
         U = np.where(support, U, 0.0)
         if idx == 0 or (idx + 1) % 25 == 0 or idx + 1 == n_iter:
-            I = np.abs(bt.fft2c(U)) ** 2
+            I = np.abs(fft2c(U)) ** 2
             m = hex_outline_metrics(I, target_grid, config)
             history.append(
                 {
@@ -311,7 +334,7 @@ def phase_retrieve_outline(
                     "outline_energy_fraction": float(m["outline_energy_fraction"]),
                 }
             )
-    F_final = bt.fft2c(U)
+    F_final = fft2c(U)
     metrics = hex_outline_metrics(np.abs(F_final) ** 2, target_grid, config)
     return {
         "pupil_field": U,
@@ -333,9 +356,9 @@ def _asm_transfer_stack(
 ) -> tuple[np.ndarray, np.ndarray]:
     """Return forward and backward ASM transfer functions for one grid."""
 
-    k = bt.TWOPI * float(n_medium) / float(wavelength_m)
-    kx = bt.TWOPI * np.asarray(grid["FX"], dtype=float)
-    ky = bt.TWOPI * np.asarray(grid["FY"], dtype=float)
+    k = BT_TWOPI * float(n_medium) / float(wavelength_m)
+    kx = BT_TWOPI * np.asarray(grid["FX"], dtype=float)
+    ky = BT_TWOPI * np.asarray(grid["FY"], dtype=float)
     arg = k * k - kx * kx - ky * ky
     propagating = arg >= 0.0
     kz = np.zeros_like(arg, dtype=float)
@@ -351,7 +374,7 @@ def _asm_transfer_stack(
         H[~propagating] = np.exp(-evanescent_alpha[~propagating] * abs(float(z)))
         H_back[~propagating] = H[~propagating]
         if bandlimit:
-            mask = bt.bandlimit_mask_matsushima(dict(grid), wavelength_m, float(z), n_medium=n_medium)
+            mask = bandlimit_mask_matsushima(dict(grid), wavelength_m, float(z), n_medium=n_medium)
             H = H * mask
             H_back = H_back * mask
         forward.append(H)
@@ -360,7 +383,7 @@ def _asm_transfer_stack(
 
 
 def _propagate_with_transfer(field: np.ndarray, transfer: np.ndarray) -> np.ndarray:
-    return bt.ifft2c(bt.fft2c(field) * transfer)
+    return ifft2c(fft2c(field) * transfer)
 
 
 def phase_retrieve_outline_multiplane(
@@ -392,9 +415,9 @@ def phase_retrieve_outline_multiplane(
         seed_focus = np.asarray(initial_focus_field, dtype=complex)
         if seed_focus.shape != amp.shape:
             raise ValueError("initial_focus_field must match the pupil amplitude shape.")
-        phase = np.angle(bt.ifft2c(seed_focus))
+        phase = np.angle(ifft2c(seed_focus))
     else:
-        phase = rng.uniform(0.0, bt.TWOPI, size=amp.shape)
+        phase = rng.uniform(0.0, BT_TWOPI, size=amp.shape)
     U = amp * np.exp(1j * phase)
     H_forward, H_backward = _asm_transfer_stack(
         target_grid,
@@ -406,24 +429,24 @@ def phase_retrieve_outline_multiplane(
     history: list[dict[str, float]] = []
     n_iter = int(config.retrieval_iterations if iterations is None else iterations)
     for idx in range(max(1, n_iter)):
-        focus0 = bt.fft2c(U)
+        focus0 = fft2c(U)
         back_focus_fields = []
         for Hf, Hb in zip(H_forward, H_backward):
             plane = _propagate_with_transfer(focus0, Hf)
             current_amp = np.abs(plane)
             current_phase = np.angle(plane)
-            scale = float(np.mean(current_amp[signal]) / (np.mean(target_amp[signal]) + bt.EPS)) if np.any(signal) else 1.0
+            scale = float(np.mean(current_amp[signal]) / (np.mean(target_amp[signal]) + BT_EPS)) if np.any(signal) else 1.0
             next_amp = current_amp.copy()
             next_amp[roi] = scale * target_amp[roi]
             constrained = next_amp * np.exp(1j * current_phase)
             back_focus_fields.append(_propagate_with_transfer(constrained, Hb))
         focus_next = np.mean(np.asarray(back_focus_fields), axis=0)
-        U_back = bt.ifft2c(focus_next)
+        U_back = ifft2c(focus_next)
         U = amp * np.exp(1j * np.angle(U_back))
         U = np.where(support, U, 0.0)
         if idx == 0 or (idx + 1) % 20 == 0 or idx + 1 == n_iter:
             stack = []
-            focus_eval = bt.fft2c(U)
+            focus_eval = fft2c(U)
             for Hf in H_forward:
                 stack.append(np.abs(_propagate_with_transfer(focus_eval, Hf)) ** 2)
             summary = outline_z_survival(np.asarray(stack), target_grid, config, z_values_m)
@@ -436,7 +459,7 @@ def phase_retrieve_outline_multiplane(
                     "max_side_lobe_peak_ratio": float(summary["max_side_lobe_peak_ratio"]),
                 }
             )
-    focus_final = bt.fft2c(U)
+    focus_final = fft2c(U)
     fields = np.asarray([_propagate_with_transfer(focus_final, Hf) for Hf in H_forward])
     intensity_stack = np.abs(fields) ** 2
     metrics_z = outline_z_survival(intensity_stack, target_grid, config, z_values_m)
@@ -454,7 +477,7 @@ def phase_retrieve_outline_multiplane(
 
 
 def build_lab_outline_case(
-    twin_config: bt.TwinConfig,
+    twin_config: TwinConfig,
     config: HexOutlineConfig,
     pupil_phase: np.ndarray,
     *,
@@ -467,20 +490,20 @@ def build_lab_outline_case(
     pupil_grid, amp, meta = lab_pupil_amplitude(twin_config)
     phase = np.asarray(pupil_phase, dtype=float)
     if correct_interface and include_interface:
-        phase = phase + bt.interface_correction_phase(
+        phase = phase + interface_correction_phase(
             pupil_grid,
             twin_config.laser,
             twin_config.objective,
             twin_config.material,
         )
-    encoded_phase = bt.quantize_phase(phase, int(config.phase_bits)) if quantize else bt.phase_wrap(phase)
+    encoded_phase = quantize_phase(phase, int(config.phase_bits)) if quantize else phase_wrap(phase)
     U = amp * np.exp(1j * encoded_phase)
     if include_interface:
-        W = bt.interface_aberration_pupil(pupil_grid, twin_config.laser, twin_config.objective, twin_config.material)
+        W = interface_aberration_pupil(pupil_grid, twin_config.laser, twin_config.objective, twin_config.material)
         U = U * np.exp(1j * W)
-    focus, focal_grid = bt.focus_to_focal_plane(U, pupil_grid, twin_config.laser, twin_config.objective)
+    focus, focal_grid = focus_to_focal_plane(U, pupil_grid, twin_config.laser, twin_config.objective)
     metrics = hex_outline_metrics(focus, focal_grid, config)
-    gray = bt.phase_to_gray(encoded_phase, int(config.phase_bits), invert=twin_config.slm.invert_gray)
+    gray = phase_to_gray(encoded_phase, int(config.phase_bits), invert=twin_config.slm.invert_gray)
     rect_grid = meta["rect_grid"]
     ny = int(rect_grid["ny"])
     nx = int(rect_grid["nx"])
@@ -547,7 +570,7 @@ def outline_z_survival(
         )
         rows.append(
             {
-                "z_um": float(z_m / bt.um),
+                "z_um": float(z_m / BT_UM),
                 "accepted": bool(accepted),
                 "outline_f1": float(metrics["outline_f1"]),
                 "core_peak_ratio": float(metrics["core_peak_ratio"]),
@@ -569,9 +592,9 @@ def outline_z_survival(
         ends = changes[1::2] - 1
         spans = z[ends] - z[starts]
         best_idx = int(np.argmax(spans))
-        best_depth = float(spans[best_idx] / bt.um)
-        start_um = float(z[starts[best_idx]] / bt.um)
-        end_um = float(z[ends[best_idx]] / bt.um)
+        best_depth = float(spans[best_idx] / BT_UM)
+        start_um = float(z[starts[best_idx]] / BT_UM)
+        end_um = float(z[ends[best_idx]] / BT_UM)
     f1 = np.asarray([row["outline_f1"] for row in rows], dtype=float)
     side = np.asarray([row["side_lobe_peak_ratio"] for row in rows], dtype=float)
     core = np.asarray([row["core_peak_ratio"] for row in rows], dtype=float)
@@ -638,7 +661,7 @@ def plot_outline_checkpoint(
         ]
         for col, (label, intensity, grid, metrics) in enumerate(panels):
             ax = axes[row, col]
-            x_um = np.asarray(grid["x"], dtype=float) / bt.um
+            x_um = np.asarray(grid["x"], dtype=float) / BT_UM
             ax.imshow(
                 vbb_style.display_scale(intensity, gamma=0.55),
                 origin="lower",
@@ -647,7 +670,7 @@ def plot_outline_checkpoint(
                 vmin=0.0,
                 vmax=1.0,
             )
-            verts = hex_vertices(config) / bt.um
+            verts = hex_vertices(config) / BT_UM
             closed = np.vstack([verts, verts[0]])
             ax.plot(closed[:, 0], closed[:, 1], color="white", lw=0.9, alpha=0.9)
             ax.set_xlim(-16.0, 16.0)
@@ -656,7 +679,7 @@ def plot_outline_checkpoint(
             ax.set_xlabel("x [um]")
             ax.set_ylabel("y [um]")
             if metrics is None:
-                subtitle = f"line FWHM={2.355 * config.line_sigma_m / bt.um:.2f} um"
+                subtitle = f"line FWHM={2.355 * config.line_sigma_m / BT_UM:.2f} um"
             else:
                 subtitle = (
                     f"F1={metrics['outline_f1']:.2f}, "
