@@ -7,7 +7,10 @@ from typing import Any, Literal, Sequence
 
 import numpy as np
 
-import bessel_twin_core as bt
+from vbb_study.config import BeamDesign, EPS, PathKind, TwinConfig, um
+from vbb_study.design import compute_design_from_targets
+from vbb_study.equations.propagation import focus_to_focal_plane, make_bl_asm_propagator
+from vbb_study.facade import core as _bt
 
 StudyKind = Literal["beam_to_surface", "through_sample", "full_source_to_sample"]
 
@@ -37,7 +40,7 @@ class FullJourneyResult:
     metrics: dict[str, Any]
 
 
-def beam_air_config(config: bt.TwinConfig) -> bt.TwinConfig:
+def beam_air_config(config: TwinConfig) -> TwinConfig:
     """Return a config copy for the air-only beam study."""
 
     air_material = replace(config.material, name="air beam path", refractive_index=1.0)
@@ -52,14 +55,14 @@ def beam_air_config(config: bt.TwinConfig) -> bt.TwinConfig:
     )
 
 
-def _beam_design(config: bt.TwinConfig) -> tuple[bt.TwinConfig, bt.BeamDesign]:
+def _beam_design(config: TwinConfig) -> tuple[TwinConfig, BeamDesign]:
     air_config = beam_air_config(config)
-    return air_config, bt.compute_design_from_targets(air_config.laser, air_config.target, air_config.material)
+    return air_config, compute_design_from_targets(air_config.laser, air_config.target, air_config.material)
 
 
 def resolve_surface_z_m(
-    config: bt.TwinConfig,
-    design: bt.BeamDesign,
+    config: TwinConfig,
+    design: BeamDesign,
     *,
     zone_start_m: float | None = None,
     zone_center_m: float | None = None,
@@ -83,10 +86,10 @@ def resolve_surface_z_m(
 def _trace_zone_from_field(
     U0: np.ndarray,
     grid: dict[str, Any],
-    config: bt.TwinConfig,
+    config: TwinConfig,
     z_values_m: np.ndarray,
 ) -> dict[str, Any]:
-    volume = bt.propagate_volume(
+    volume = _bt().propagate_volume(
         U0,
         grid,
         config.laser.wavelength_m,
@@ -97,11 +100,11 @@ def _trace_zone_from_field(
         method=config.propagation.method,
         propagation_config=config.propagation,
     )
-    zone = bt.bessel_zone_metrics(volume["z"], volume["peak"], level=0.5)
+    zone = _bt().bessel_zone_metrics(volume["z"], volume["peak"], level=0.5)
     peak_index = int(volume.get("peak_index", int(np.argmax(volume["peak"]))))
     peak_z_m = float(volume["z"][peak_index])
-    start_m = float(zone["zone_start_um"]) * bt.um if np.isfinite(zone["zone_start_um"]) else np.nan
-    end_m = float(zone["zone_end_um"]) * bt.um if np.isfinite(zone["zone_end_um"]) else np.nan
+    start_m = float(zone["zone_start_um"]) * um if np.isfinite(zone["zone_start_um"]) else np.nan
+    end_m = float(zone["zone_end_um"]) * um if np.isfinite(zone["zone_end_um"]) else np.nan
     center_m = 0.5 * (start_m + end_m) if np.isfinite(start_m) and np.isfinite(end_m) else peak_z_m
     return {
         "volume": volume,
@@ -114,8 +117,8 @@ def _trace_zone_from_field(
 
 
 def _air_scan_plan(
-    config: bt.TwinConfig,
-    design: bt.BeamDesign,
+    config: TwinConfig,
+    design: BeamDesign,
     U0: np.ndarray,
     grid: dict[str, Any],
     z_values_m: Sequence[float] | None,
@@ -140,7 +143,7 @@ def _air_scan_plan(
     coarse_points = max(17, int(config.grid.coarse_scan_points))
     coarse_z = np.linspace(-coarse_half_span, coarse_half_span, coarse_points)
     coarse = _trace_zone_from_field(U0, grid, config, coarse_z)
-    measured_zone_m = float(coarse["zone"]["bessel_zone_um"]) * bt.um
+    measured_zone_m = float(coarse["zone"]["bessel_zone_um"]) * um
     center_m = float(coarse["zone_center_m"])
     half_span = max(
         float(config.grid.axial_range_m),
@@ -162,7 +165,7 @@ def _air_scan_plan(
         "coarse_zone_um": float(coarse["zone"]["bessel_zone_um"]),
         "coarse_zone_start_um": float(coarse["zone"]["zone_start_um"]),
         "coarse_zone_end_um": float(coarse["zone"]["zone_end_um"]),
-        "coarse_peak_z_um": float(coarse["peak_z_m"] / bt.um),
+        "coarse_peak_z_um": float(coarse["peak_z_m"] / um),
         "zone_center_m": center_m,
         "surface_z_m": surface_z,
         "z_start_m": float(z_values[0]),
@@ -171,7 +174,7 @@ def _air_scan_plan(
     }
 
 
-def _coerce_z_values(config: bt.TwinConfig, design: bt.BeamDesign, z_values_m: Sequence[float] | None) -> np.ndarray:
+def _coerce_z_values(config: TwinConfig, design: BeamDesign, z_values_m: Sequence[float] | None) -> np.ndarray:
     if z_values_m is None:
         return _default_air_z_values(config, design)
     z_values = np.asarray(z_values_m, dtype=float)
@@ -183,15 +186,15 @@ def _coerce_z_values(config: bt.TwinConfig, design: bt.BeamDesign, z_values_m: S
 def _propagate_component_to_surface(
     component: np.ndarray | None,
     grid: dict[str, Any],
-    config: bt.TwinConfig,
+    config: TwinConfig,
     z_surface_m: float,
 ) -> np.ndarray | None:
     if component is None:
         return None
     z_surface = float(z_surface_m)
-    if abs(z_surface) <= bt.EPS:
+    if abs(z_surface) <= EPS:
         return np.asarray(component, dtype=complex).copy()
-    prop = bt.make_bl_asm_propagator(
+    prop = make_bl_asm_propagator(
         np.asarray(component, dtype=complex),
         grid,
         config.laser.wavelength_m,
@@ -204,14 +207,14 @@ def _propagate_component_to_surface(
 def _surface_field(
     Ex0: np.ndarray,
     grid: dict[str, Any],
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     Ey0: np.ndarray | None = None,
     Ez0: np.ndarray | None = None,
     z_surface_m: float | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> SurfaceField:
-    surface_z = resolve_surface_z_m(config, bt.compute_design_from_targets(config.laser, config.target, config.material)) if z_surface_m is None else float(z_surface_m)
+    surface_z = resolve_surface_z_m(config, compute_design_from_targets(config.laser, config.target, config.material)) if z_surface_m is None else float(z_surface_m)
     return SurfaceField(
         Ex=np.asarray(_propagate_component_to_surface(Ex0, grid, config, surface_z), dtype=complex),
         Ey=None if Ey0 is None else np.asarray(_propagate_component_to_surface(Ey0, grid, config, surface_z), dtype=complex),
@@ -224,8 +227,8 @@ def _surface_field(
 
 
 def _result_from_axicon_stage(
-    config: bt.TwinConfig,
-    path: bt.PathKind,
+    config: TwinConfig,
+    path: PathKind,
     z_values_m: Sequence[float] | None,
 ) -> dict[str, Any]:
     from . import vbb_axicon
@@ -236,7 +239,7 @@ def _result_from_axicon_stage(
     grid = axicon_result.grid
     U0 = np.asarray(axicon_result.Ex, dtype=complex)
     z_values, surface_z, scan_plan = _air_scan_plan(air_config, design, U0, grid, z_values_m)
-    volume = bt.propagate_volume(
+    volume = _bt().propagate_volume(
         U0,
         grid,
         air_config.laser.wavelength_m,
@@ -284,17 +287,17 @@ def _result_from_axicon_stage(
 
 
 def _result_from_realistic_holographic(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     z_values_m: Sequence[float] | None,
 ) -> dict[str, Any]:
     air_config, design = _beam_design(config)
-    slm_field = bt.build_realistic_slm_field(air_config, design)
+    slm_field = _bt().build_realistic_slm_field(air_config, design)
     grid = slm_field["grid"]
     U = np.asarray(slm_field["U"], dtype=complex)
 
     if air_config.include_first_order_isolation and air_config.include_blaze:
-        filter_geometry = bt.first_order_filter_geometry(grid, air_config.slm, design)
-        order = bt.isolate_first_order(
+        filter_geometry = _bt().first_order_filter_geometry(grid, air_config.slm, design)
+        order = _bt().isolate_first_order(
             U,
             grid,
             air_config.slm,
@@ -313,9 +316,9 @@ def _result_from_realistic_holographic(
 
     pupil = (grid["R"] <= air_config.objective.pupil_radius_m).astype(float)
     U = U * pupil
-    U_focus, focal_grid = bt.focus_to_focal_plane(U, grid, air_config.laser, air_config.objective)
+    U_focus, focal_grid = focus_to_focal_plane(U, grid, air_config.laser, air_config.objective)
     z_values, surface_z, scan_plan = _air_scan_plan(air_config, design, U_focus, focal_grid, z_values_m)
-    volume = bt.propagate_volume(
+    volume = _bt().propagate_volume(
         U_focus,
         focal_grid,
         air_config.laser.wavelength_m,
@@ -364,9 +367,9 @@ def _result_from_realistic_holographic(
 
 
 def build_beam_to_surface_result(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
-    path: bt.PathKind = "ideal",
+    path: PathKind = "ideal",
     z_values_m: Sequence[float] | None = None,
 ) -> dict[str, Any]:
     """Build the full air-only beam study result used by ``bt.run_case``."""
@@ -377,7 +380,7 @@ def build_beam_to_surface_result(
     return _result_from_axicon_stage(config, path, z_values_m)
 
 
-def run_beam_to_surface(config: bt.TwinConfig) -> tuple[dict[str, Any], SurfaceField]:
+def run_beam_to_surface(config: TwinConfig) -> tuple[dict[str, Any], SurfaceField]:
     """Air-only source-to-surface beam study."""
 
     result = build_beam_to_surface_result(config, path="ideal", z_values_m=None)
@@ -386,7 +389,7 @@ def run_beam_to_surface(config: bt.TwinConfig) -> tuple[dict[str, Any], SurfaceF
 
 def run_through_sample(
     surface: SurfaceField,
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     correct_interface: bool = False,
     write_depth_m: float | None = None,
@@ -484,11 +487,11 @@ def _stitched_volume(
 
 
 def run_full_source_to_sample(
-    config: bt.TwinConfig,
+    config: TwinConfig,
     *,
     correct_interface: bool = False,
     write_depth_m: float | None = None,
-    path: bt.PathKind = "ideal",
+    path: PathKind = "ideal",
     z_values_air_m: Sequence[float] | None = None,
     z_values_sample_m: Sequence[float] | None = None,
 ) -> FullJourneyResult:
@@ -514,7 +517,7 @@ def run_full_source_to_sample(
         )
     air_surface_power = _surface_power(surface)
     refracted_surface_power = float(sample.energy_report["surface_power_air"])
-    rel = abs(refracted_surface_power - air_surface_power) / max(air_surface_power, bt.EPS)
+    rel = abs(refracted_surface_power - air_surface_power) / max(air_surface_power, EPS)
     if rel > 1e-9:
         raise RuntimeError(f"Surface refraction changed power by {rel:.3e}; expected continuity before surface loss.")
     sample.volume_result["target_write_depth_m"] = float(sample.correction_report["target_write_depth_m"])
@@ -538,11 +541,11 @@ def run_full_source_to_sample(
         "surface_power_air": air_surface_power,
         "refracted_surface_power_before_loss": refracted_surface_power,
         "surface_transmission": float(sample.energy_report["surface_transmission"]),
-        "full_axial_dz_um": float(np.nanmedian(dz) / bt.um) if dz.size else np.nan,
-        "air_axial_dz_um": float(np.nanmedian(np.abs(np.diff(air_result["volume"]["z"]))) / bt.um)
+        "full_axial_dz_um": float(np.nanmedian(dz) / um) if dz.size else np.nan,
+        "air_axial_dz_um": float(np.nanmedian(np.abs(np.diff(air_result["volume"]["z"]))) / um)
         if len(air_result["volume"]["z"]) > 1
         else np.nan,
-        "sample_axial_dz_um": float(np.nanmedian(np.abs(np.diff(sample.z_axis_m))) / bt.um)
+        "sample_axial_dz_um": float(np.nanmedian(np.abs(np.diff(sample.z_axis_m))) / um)
         if len(sample.z_axis_m) > 1
         else np.nan,
         "air_subresult_is_beam_result": True,
