@@ -31,6 +31,8 @@ from typing import Any
 
 import numpy as np
 
+from vbb_study import vbb_planes
+
 EPS = 1.0e-30
 
 
@@ -244,3 +246,39 @@ def pupil_fill_ratio(beam_1e_radius_m: float, pupil_radius_m_val: float) -> floa
     """
 
     return float(beam_1e_radius_m) / max(float(pupil_radius_m_val), EPS)
+
+
+def objective_map_from_design_inputs(
+    laser: Any,
+    target: Any,
+    material: Any,
+    beam_radius_on_slm_m: float | None = None,
+):
+    """Return the explicit SLM/free-space -> sample transverse map.
+
+    The current inverse design chooses the sample Bessel-Gauss waist from the
+    requested sample-plane zone length, then maps the SLM Gaussian radius onto
+    that waist.  This helper keeps that cross-plane conversion named and
+    auditable while preserving the legacy numerical value exactly.
+    """
+
+    D = max(float(target.target_core_diameter_m), EPS)
+    L = max(float(target.target_bessel_length_m), EPS)
+    w_slm = float(laser.beam_radius_on_slm_m if beam_radius_on_slm_m is None else beam_radius_on_slm_m)
+    k_medium = laser.k0 * float(material.refractive_index)
+    # Compatibility contract: D is the equivalent ell=0 first-zero diameter,
+    # not the measured bright-ring diameter for vortex beams.
+    kr_sample = 2.0 * 2.405 / D
+    w0_sample = L * kr_sample / max(k_medium, EPS)
+    return vbb_planes.objective_map_from_waists(
+        pre_objective_radius_m=w_slm,
+        sample_radius_m=w0_sample,
+        n_sample=float(material.refractive_index),
+        source="compute_design_from_targets:w0_sample/beam_radius_on_slm",
+    )
+
+
+def headline_length_tags(config: Any) -> dict[str, Any]:
+    """Return JSON-friendly plane tags for headline length quantities."""
+
+    return dict(vbb_planes.headline_lengths_jsonable(config))

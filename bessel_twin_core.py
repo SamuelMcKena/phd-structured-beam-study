@@ -507,36 +507,7 @@ def apply_orientation(gray: np.ndarray, slm: SLMConfig) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
-def objective_map_from_design_inputs(
-    laser: LaserConfig,
-    target: BeamTarget,
-    material: MaterialConfig,
-    beam_radius_on_slm_m: Optional[float] = None,
-):
-    """Return the explicit SLM/free-space -> sample transverse map.
-
-    The current inverse design chooses the sample Bessel-Gauss waist from the
-    requested sample-plane zone length, then maps the SLM Gaussian radius onto
-    that waist.  This helper keeps that cross-plane conversion named and
-    auditable while preserving the legacy numerical value exactly.
-    """
-
-    from vbb_study import vbb_planes
-
-    D = max(float(target.target_core_diameter_m), EPS)
-    L = max(float(target.target_bessel_length_m), EPS)
-    w_slm = float(laser.beam_radius_on_slm_m if beam_radius_on_slm_m is None else beam_radius_on_slm_m)
-    k_medium = laser.k0 * float(material.refractive_index)
-    # Compatibility contract: D is the equivalent ell=0 first-zero diameter,
-    # not the measured bright-ring diameter for vortex beams.
-    kr_sample = 2.0 * 2.405 / D
-    w0_sample = L * kr_sample / max(k_medium, EPS)
-    return vbb_planes.objective_map_from_waists(
-        pre_objective_radius_m=w_slm,
-        sample_radius_m=w0_sample,
-        n_sample=float(material.refractive_index),
-        source="compute_design_from_targets:w0_sample/beam_radius_on_slm",
-    )
+from vbb_study.equations.objective_pupil import headline_length_tags, objective_map_from_design_inputs
 
 
 def compute_design_from_targets(
@@ -622,14 +593,6 @@ def objective_map_from_config(config: TwinConfig, design: Optional[BeamDesign] =
         n_sample=float(config.material.refractive_index),
         source="target_matched_bessel_gauss_waist_audit",
     )
-
-
-def headline_length_tags(config: TwinConfig) -> Dict[str, Any]:
-    """Return JSON-friendly plane tags for headline length quantities."""
-
-    from vbb_study import vbb_planes
-
-    return dict(vbb_planes.headline_lengths_jsonable(config))
 
 
 def analytic_references(config: TwinConfig, design: Optional[BeamDesign] = None) -> Dict[str, float]:
