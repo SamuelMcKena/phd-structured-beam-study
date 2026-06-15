@@ -53,7 +53,7 @@ introduced under `Publication_Study/vbb_study/equations/`.
 
 ```text
 tests/test_characterisation_lock.py .........                            [100%]
-9 passed, 1 warning in 16.68s
+9 passed, 1 warning
 ```
 
 The warning is the existing pytest-cache access warning under
