@@ -33,7 +33,7 @@ Edited `Publication_Study/vbb_study/vbb_train_viz.py`.
 
 Source edit timestamp:
 
-- `Publication_Study/vbb_study/vbb_train_viz.py`: `2026-06-16T14:27:03.5190940Z`
+- `Publication_Study/vbb_study/vbb_train_viz.py`: `2026-06-16T14:44:33.4529403Z`
 
 Frame sanity check after edit:
 
@@ -44,20 +44,73 @@ Frame sanity check after edit:
 
 ## Notebook Execution
 
-Pending.
+Executed end-to-end with `C:\PhD\.venv2` Python/Jupyter:
+
+- `notebooks/lab_realism/01_holographic_axicon_route.ipynb`
+- `notebooks/lab_realism/02_physical_axicon_route.ipynb`
+- `notebooks/lab_realism/03_holographic_vs_physical_axicon.ipynb`
+
+Jupyter on this Windows sandbox could not set ACLs on connection files unless `JUPYTER_ALLOW_INSECURE_WRITES=1` was set. Re-execution used:
+
+- `JUPYTER_ALLOW_INSECURE_WRITES=1`
+- `JUPYTER_RUNTIME_DIR=C:\PhD\Code\Publication_Study\outputs\jupyter_runtime`
+
+Final notebook timestamps:
+
+| Notebook | Last write time UTC |
+|---|---|
+| `01_holographic_axicon_route.ipynb` | `2026-06-16T14:47:27Z` |
+| `02_physical_axicon_route.ipynb` | `2026-06-16T14:48:32Z` |
+| `03_holographic_vs_physical_axicon.ipynb` | `2026-06-16T14:49:43Z` |
 
 ## PNG Timestamp Proof
 
-Pending.
+The final train PNGs are newer than the source edit timestamp (`2026-06-16T14:44:33.4529403Z`):
+
+| PNG | Last write time UTC | Size |
+|---|---:|---:|
+| `outputs/figures/stage_c/stage_c_train_holographic.png` | `2026-06-16T14:49:10Z` | `4,721,184` bytes |
+| `outputs/figures/stage_c/stage_c_train_physical.png` | `2026-06-16T14:49:27Z` | `3,028,344` bytes |
+
+Caption sidecars were regenerated at the same times and explicitly state that the z=0 pre-zone endpoint differs from the z=peak canonical core, and that `ring_radius_um` is a z=peak metric.
 
 ## Visual Inspection Evidence
 
-Pending.
+Opened and inspected the regenerated figures.
+
+Notebook 01 / holographic:
+
+- `stage_c_train_holographic.png` now has six columns.
+- Column 5 is labelled `focused surface seed (z=0, pre-zone)` and shows the large bright pre-zone seed annulus in the surface-in-air grid.
+- Column 6 is labelled `Bessel zone core (z=peak, canonical)` with `z=-50.3 um, r=1.64 um`.
+- The new domain-coloured peak-core panel shows a compact central vortex core with approximately three visible phase-colour cycles/spiral arms, matching the measured label `measured winding = 3.00 (design ell=3; charge preserved)`.
+
+Notebook 02 / physical:
+
+- `stage_c_train_physical.png` now has six route columns.
+- Column 5 is labelled `after physical axicon (z=0, pre-zone)` and shows the pre-zone post-axicon field.
+- Column 6 is labelled `Bessel zone core (z=peak, canonical)`. The lab row is labelled `z=75.7 um, r=2.39 um`.
+- The physical peak-core panel is tighter at the centre but shows concentric/no-helical phase structure rather than a three-arm winding, matching the preserved measured-charge label `measured winding = 0.00 (design ell=3; charge stripped; SLM2 conjugate_mode='full' strips the helical phase)`.
+
+Notebook 03 / comparison:
+
+- Re-execution regenerated both shared train figures from the comparison notebook after notebooks 01 and 02.
+- The final holographic output carries the `measured winding = 3.00` label and the z=peak core column.
+- The final physical output carries the `measured winding = 0.00` label and the z=peak core column.
 
 ## Tests
 
-Pending.
+- `C:\PhD\.venv2\Scripts\python.exe -m pytest tests\test_viz_fields.py`
+  - Result: 9 passed, 1 pytest cache-permission warning.
+- `C:\PhD\.venv2\Scripts\python.exe -m pytest tests\test_characterisation_lock.py tests\test_characterisation_lock_prod.py`
+  - Result: 18 passed, 1 pytest cache-permission warning.
+
+The warning in both runs was the existing inability to write `C:\PhD\Code\.pytest_cache\v\cache\nodeids`.
+
+Engine/baseline diff check:
+
+- `bessel_twin_core.py`, `vbb_studies.py`, `design.py`, `equations/propagation.py`, `baselines`, and `baselines_prod` had no diff from this fix.
 
 ## Commits
 
-Pending.
+- `3fcc097 Update publication study notebooks and validation outputs` postdates prior Stage 6A and Stage 6Y commits and contains the source/notebook/output part of this retry, including `vbb_train_viz.py`, `FOCUSED_SEED_FINDING.md`, and this summary file.
