@@ -24,6 +24,10 @@ dev = [
     "ipykernel",
     "jupyter",
 ]
+viz = [
+    "colorcet>=3.1",
+    "cmocean>=4.0",
+]
 
 [tool.setuptools]
 py-modules = ["bessel_twin_core"]
