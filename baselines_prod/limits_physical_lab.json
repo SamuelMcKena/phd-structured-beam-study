@@ -1,0 +1,2158 @@
+{
+  "capture": {
+    "created_utc": "2026-06-15T23:38:55.100907+00:00",
+    "encoder_version": "hex-float-array-sha256-v1",
+    "exactness": "bit-exact for captured scalar values and array byte hashes",
+    "array_hashing": "sha256(np.ascontiguousarray(a).tobytes())",
+    "endianness_assumption": "Hashes use native-endian NumPy bytes from this platform; dtype_str records byte order and ENVIRONMENT.json records sys.byteorder.",
+    "python_version": "3.13.7 (tags/v3.13.7:bcee1c3, Aug 14 2025, 14:15:11) [MSC v.1944 64 bit (AMD64)]",
+    "python_executable": "C:\\PhD\\.venv2\\Scripts\\python.exe",
+    "platform": "Windows-11-10.0.26200-SP0",
+    "sys_byteorder": "little",
+    "numpy_version": "2.4.1"
+  },
+  "case_definition": {
+    "regime": "limits",
+    "route": "physical",
+    "variant": "lab",
+    "path": "ideal",
+    "physical_slm2_stroke_levels": 256,
+    "physical_slm2_conjugate_mode": "full",
+    "preset": "paper"
+  },
+  "case_id": "limits_physical_lab",
+  "config_flat": {
+    "air_scan_coarse_span_factor": "0x1.0000000000000p+2",
+    "air_scan_half_span_factor": "0x1.4000000000000p+0",
+    "apply_interface": true,
+    "correct_interface": false,
+    "energy.first_order_efficiency": "0x1.ccccccccccccdp-2",
+    "energy.focusing_transmission": "0x1.ccccccccccccdp-1",
+    "energy.pre_slm_transmission": "0x1.0000000000000p+0",
+    "energy.pulse_energy_in_J": "0x1.4f8b588e368f0p-17",
+    "energy.relay_transmission": "0x1.ccccccccccccdp-1",
+    "energy.sample_surface_transmission": "0x1.eb851eb851eb8p-1",
+    "energy.slm_reflectivity": "0x1.8000000000000p-1",
+    "energy.user_extra_transmission": "0x1.0000000000000p+0",
+    "generation_method": "physical",
+    "grid.N": 2048,
+    "grid.axial_points": 181,
+    "grid.axial_range_m": "0x1.797cc39ffd60ep-12",
+    "grid.axial_target_factor": "0x1.8000000000000p+1",
+    "grid.coarse_scan_factor": "0x1.8000000000000p+1",
+    "grid.coarse_scan_points": 41,
+    "grid.crop_pixels": 512,
+    "grid.device_downsample": 1,
+    "grid.ideal_N": 1024,
+    "grid.ideal_dx_m": "0x1.828c0be769dc1p-23",
+    "grid.label": "paper",
+    "include_active_aperture": true,
+    "include_blaze": true,
+    "include_fill_factor": true,
+    "include_first_order_isolation": true,
+    "include_quantization": true,
+    "laser.beam_radius_definition": "1/e field amplitude radius",
+    "laser.beam_radius_on_slm_m": "0x1.0624dd2f1a9fcp-9",
+    "laser.input_pulse_energy_J": "0x1.4f8b588e368f0p-17",
+    "laser.max_average_power_W": "0x1.4000000000000p+3",
+    "laser.max_pulse_energy_J": "0x1.a36e2eb1c432cp-12",
+    "laser.name": "PHAROS PH2",
+    "laser.pulse_duration_s": "0x1.24bbe5d62f36ep-42",
+    "laser.rep_rate_Hz": "0x1.86a0000000000p+16",
+    "laser.wavelength_m": "0x1.1438577090721p-20",
+    "material.feature_width_m": "0x1.92a737110e454p-19",
+    "material.incubation_exponent": "0x1.ae147ae147ae1p-1",
+    "material.n_static_pulses": 1,
+    "material.name": "Cr:ZnSe",
+    "material.refractive_index": "0x1.3851eb851eb85p+1",
+    "material.scan_speed_m_s": "0x1.0624dd2f1a9fcp-10",
+    "material.side_lobe_exclusion_radius_factor": "0x1.999999999999ap+0",
+    "material.single_pulse_threshold_J_cm2": "0x1.0000000000000p+1",
+    "material.static_or_scan": "scan",
+    "material.write_depth_m": "0x1.3a92a30553261p-12",
+    "objective.NA": "0x1.ccccccccccccdp-2",
+    "objective.f_eff_m": "0x1.0624dd2f1a9fcp-8",
+    "objective.immersion_n": "0x1.0000000000000p+0",
+    "objective.pupil_fill": "0x1.e666666666666p-1",
+    "objective.transmission": "0x1.ccccccccccccdp-1",
+    "physical_axicon.axicon_aperture_radius_m": null,
+    "physical_axicon.axicon_base_angle_deg": null,
+    "physical_axicon.axicon_medium_n": "0x1.0000000000000p+0",
+    "physical_axicon.axicon_transmission": "0x1.0000000000000p+0",
+    "physical_axicon.inter_slm_n": "0x1.0000000000000p+0",
+    "physical_axicon.inter_slm_z_m": "0x1.a36e2eb1c432cp-16",
+    "physical_axicon.n_axicon": null,
+    "physical_axicon.slm1_transmission": "0x1.0000000000000p+0",
+    "physical_axicon.slm1_vortex_charge": null,
+    "physical_axicon.slm2_conjugate_mode": "full",
+    "physical_axicon.slm2_stroke_levels": 256,
+    "physical_axicon.slm2_transmission": "0x1.0000000000000p+0",
+    "propagation.method": "bl_asm",
+    "propagation.sas_allow_invalid": false,
+    "propagation.sas_bandlimit": true,
+    "propagation.sas_pad_factor": 2,
+    "propagation.sas_skip_final_phase": true,
+    "random_seed": 12345,
+    "regime": "limits",
+    "relay.effective_relay_f_m": "0x1.fb7df25c2cd45p-2",
+    "relay.magnification_to_sample": null,
+    "relay.name": "ideal relay",
+    "relay.transmission": "0x1.ccccccccccccdp-1",
+    "slm.blaze_period_px": 20,
+    "slm.fill_factor": "0x1.dc28f5c28f5c3p-1",
+    "slm.first_order": 1,
+    "slm.first_order_filter_radius_lpmm": "0x1.4000000000000p+1",
+    "slm.flip_x": false,
+    "slm.flip_y": false,
+    "slm.invert_gray": false,
+    "slm.name": "HOLOEYE LCOS-NIR",
+    "slm.phase_bits": 8,
+    "slm.pixel_pitch_m": "0x1.0c6f7a0b5ed8dp-17",
+    "slm.resolution_x": 1920,
+    "slm.resolution_y": 1080,
+    "slm.rotate_180": false,
+    "study_kind": "beam_to_surface",
+    "surface_placement": "zone_center",
+    "surface_z_m": null,
+    "target.ell": 3,
+    "target.hologram_medium_n": "0x1.0000000000000p+0",
+    "target.n_axicon": "0x1.8000000000000p+0",
+    "target.signum_pi_flip": false,
+    "target.target_bessel_length_m": "0x1.3a92a30553261p-12",
+    "target.target_core_diameter_m": "0x1.0c6f7a0b5ed8dp-19",
+    "validity_on_violation": "flag"
+  },
+  "engine_git_commit": "N/A",
+  "engine_git_commit_note": "run without git introspection",
+  "payload": {
+    "metrics": {
+      "NA": {
+        "kind": "float",
+        "hex": "0x1.ccccccccccccdp-2"
+      },
+      "axial_dz_um": {
+        "kind": "float",
+        "hex": "0x1.400000000000fp+2"
+      },
+      "axial_sampling_label": "pass",
+      "axial_scan_end_um": {
+        "kind": "float",
+        "hex": "0x1.c200000000000p+9"
+      },
+      "axial_scan_target_factor": {
+        "kind": "float",
+        "hex": "0x1.8000000000000p+1"
+      },
+      "beam_medium_n": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "beam_radius_on_slm_mm": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+1"
+      },
+      "bessel_region_capped": {
+        "kind": "bool",
+        "value": false
+      },
+      "bessel_region_definition": "strict_intersection_peak_power_radius",
+      "bessel_region_end_um": {
+        "kind": "float",
+        "hex": "0x1.aa5e0c1d16d61p+7"
+      },
+      "bessel_region_peak_level": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p-1"
+      },
+      "bessel_region_power_level": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p-1"
+      },
+      "bessel_region_radius_tolerance": {
+        "kind": "float",
+        "hex": "0x1.3333333333333p-3"
+      },
+      "bessel_region_start_um": {
+        "kind": "float",
+        "hex": "0x1.957830745b583p+5"
+      },
+      "bessel_region_um": {
+        "kind": "float",
+        "hex": "0x1.4500000000000p+7"
+      },
+      "bessel_zone_um": {
+        "kind": "float",
+        "hex": "0x1.51123ee49827cp+7"
+      },
+      "blaze_period_px": {
+        "kind": "int",
+        "value": 20
+      },
+      "canonical_zone_capped": {
+        "kind": "bool",
+        "value": false
+      },
+      "canonical_zone_definition": "axial_peak_fwhm",
+      "canonical_zone_end_um": {
+        "kind": "float",
+        "hex": "0x1.ae5aaa7d50be8p+7"
+      },
+      "canonical_zone_start_um": {
+        "kind": "float",
+        "hex": "0x1.7521ae62e25b0p+5"
+      },
+      "canonical_zone_um": {
+        "kind": "float",
+        "hex": "0x1.51123ee49827cp+7"
+      },
+      "case_id": "limits_physical_lab",
+      "core_first_zero_diameter_um": {
+        "kind": "float",
+        "hex": "0x1.fff67e30b4987p+0"
+      },
+      "core_first_zero_radius_um": {
+        "kind": "float",
+        "hex": "0x1.fff67e30b4987p-1"
+      },
+      "core_hwhm_diameter_um": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "core_hwhm_radius_um": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "core_or_ring_peak_fluence_J_cm2": {
+        "kind": "float",
+        "hex": "0x1.7ccdd4ba65c20p+0"
+      },
+      "core_radius_definition": "legacy_vortex_inner_hwhm_radius",
+      "core_radius_um": {
+        "kind": "float",
+        "hex": "0x1.34ff4334331d8p+0"
+      },
+      "device_downsample": {
+        "kind": "int",
+        "value": 1
+      },
+      "device_grid_label": "exact",
+      "effective_pulses": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "ell": {
+        "kind": "int",
+        "value": 3
+      },
+      "equivalent_l0_first_zero_diameter_um": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+1"
+      },
+      "equivalent_l0_first_zero_radius_um": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "feature_diameter_um": {
+        "kind": "float",
+        "hex": "0x1.8872b020c49bbp+1"
+      },
+      "feature_power_zone_capped": {
+        "kind": "bool",
+        "value": false
+      },
+      "feature_power_zone_end_um": {
+        "kind": "float",
+        "hex": "0x1.aa5e0c1d16d61p+7"
+      },
+      "feature_power_zone_start_um": {
+        "kind": "float",
+        "hex": "0x1.7422db1f06031p+5"
+      },
+      "feature_power_zone_um": {
+        "kind": "float",
+        "hex": "0x1.4d55555555554p+7"
+      },
+      "feature_radius_um": {
+        "kind": "float",
+        "hex": "0x1.8872b020c49bbp+0"
+      },
+      "fill_factor": {
+        "kind": "float",
+        "hex": "0x1.dc28f5c28f5c3p-1"
+      },
+      "first_order_axicon_cone_radius_lpmm": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "first_order_carrier_lpmm": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "first_order_configured_filter_radius_lpmm": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "first_order_effective_filter_radius_lpmm": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "first_order_geometry_valid": {
+        "kind": "bool",
+        "value": true
+      },
+      "first_order_peak_distance_to_carrier_lpmm": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "first_order_peak_fx_lpmm": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "first_order_peak_fy_lpmm": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "first_order_recommended_filter_radius_lpmm": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "first_order_selected_fraction": {
+        "kind": "float",
+        "hex": "0x1.b34157b25037dp-1"
+      },
+      "fluence_pulse_energy_uJ": {
+        "kind": "float",
+        "hex": "0x1.5deb851eb8520p+1"
+      },
+      "focal_dx_um": {
+        "kind": "float",
+        "hex": "0x1.0140000000001p-2"
+      },
+      "focal_kt_nyquist_over_kr": {
+        "kind": "float",
+        "hex": "0x1.4cc818a129fc7p+2"
+      },
+      "focal_samples_per_radial_period": {
+        "kind": "float",
+        "hex": "0x1.4cc818a129fc8p+3"
+      },
+      "focal_sampling_label": "pass",
+      "focused_plane": "surface_in_air",
+      "gamma_slm_deg": {
+        "kind": "float",
+        "hex": "0x1.551191999e5d7p+1"
+      },
+      "hardware_reachable": {
+        "kind": "bool",
+        "value": true
+      },
+      "incubated_threshold_J_cm2": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "k_medium_m_inv": {
+        "kind": "float",
+        "hex": "0x1.74aff0ae54104p+22"
+      },
+      "kr_sample_m_inv": {
+        "kind": "float",
+        "hex": "0x1.2594400000000p+21"
+      },
+      "line_proxy_threshold_area_um2": {
+        "kind": "float",
+        "hex": "0x0.0p+0"
+      },
+      "line_proxy_threshold_length_um": {
+        "kind": "float",
+        "hex": "0x0.0p+0"
+      },
+      "line_proxy_threshold_width_um": {
+        "kind": "float",
+        "hex": "0x0.0p+0"
+      },
+      "magnification_to_sample": {
+        "kind": "float",
+        "hex": "0x1.0878fcecde864p-7"
+      },
+      "material": "air",
+      "objective_map_source": "objective_f_eff_over_effective_relay_f",
+      "onaxis_to_peak_ratio": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "output_dx_at_peak_um": {
+        "kind": "float",
+        "hex": "0x1.70a3d70a3d70ap-3"
+      },
+      "output_dx_max_um": {
+        "kind": "float",
+        "hex": "0x1.70a3d70a3d70ap-3"
+      },
+      "output_dx_min_um": {
+        "kind": "float",
+        "hex": "0x1.70a3d70a3d70ap-3"
+      },
+      "path": "ideal",
+      "peak_fluence_J_cm2": {
+        "kind": "float",
+        "hex": "0x1.1bd0516282266p+3"
+      },
+      "peak_in_plane": {
+        "kind": "float",
+        "hex": "0x1.ba7e3106dcb7dp+8"
+      },
+      "peak_onaxis": {
+        "kind": "float",
+        "hex": "0x1.ba7e3106dcb7dp+8"
+      },
+      "phase_bits": {
+        "kind": "int",
+        "value": 8
+      },
+      "phase_frequency_lpmm": {
+        "kind": "float",
+        "hex": "0x1.cdd2dfaefecffp+4"
+      },
+      "phase_sampling_label": "pass",
+      "plane_fluence_integral_J": {
+        "kind": "float",
+        "hex": "0x1.6eeaef4ca97bep-19"
+      },
+      "propagation_method": "bl_asm",
+      "propagation_power_clipping_note": "Total propagated-power drift; pass<=0.05, marginal<=0.20, fail>0.20. SAS clipping is reported separately by sas_retained_power_fraction_*.",
+      "propagation_power_drift_fraction": {
+        "kind": "float",
+        "hex": "0x1.8f44d658a3385p+0"
+      },
+      "propagation_power_label": "fail",
+      "pulse_energy_at_sample_uJ": {
+        "kind": "float",
+        "hex": "0x1.5deb851eb8520p+1"
+      },
+      "pulse_energy_at_surface_air_uJ": {
+        "kind": "float",
+        "hex": "0x1.5deb851eb8520p+1"
+      },
+      "pupil_N": {
+        "kind": "int",
+        "value": 2048
+      },
+      "pupil_dx_um": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+3"
+      },
+      "pupil_nyquist_lpmm": {
+        "kind": "float",
+        "hex": "0x1.f400000000000p+5"
+      },
+      "pupil_window_mm": {
+        "kind": "float",
+        "hex": "0x1.0624dd2f1a9fcp+4"
+      },
+      "qa_status": "pass",
+      "radius_stability_zone_capped": {
+        "kind": "bool",
+        "value": false
+      },
+      "radius_stability_zone_end_um": {
+        "kind": "float",
+        "hex": "0x1.dc5e0c1d16d61p+7"
+      },
+      "radius_stability_zone_start_um": {
+        "kind": "float",
+        "hex": "0x1.52cd85c9b0ad8p+5"
+      },
+      "radius_stability_zone_um": {
+        "kind": "float",
+        "hex": "0x1.87aaaaaaaaaabp+7"
+      },
+      "regime": "limits",
+      "ring_diameter_um": {
+        "kind": "float",
+        "hex": "0x1.8872b020c49bbp+1"
+      },
+      "ring_or_core_power_fraction_min_in_region": {
+        "kind": "float",
+        "hex": "0x1.1169a4d05b182p-1"
+      },
+      "ring_or_core_radius_drift_fraction_at_peak": {
+        "kind": "float",
+        "hex": "0x0.0p+0"
+      },
+      "ring_or_core_radius_drift_fraction_max_in_region": {
+        "kind": "float",
+        "hex": "0x0.0p+0"
+      },
+      "ring_radius_um": {
+        "kind": "float",
+        "hex": "0x1.8872b020c49bbp+0"
+      },
+      "ring_width_um": {
+        "kind": "float",
+        "hex": "0x1.8abf58e25071dp-1"
+      },
+      "sas_bandlimit_retained_fraction_min": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "sas_output_magnification_at_peak": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "sas_retained_power_fraction_at_peak": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "sas_retained_power_fraction_mean": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "sas_retained_power_fraction_min": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "sas_z_limit_min_um": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "sas_z_over_limit_max": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "side_lobe_peak_fluence_J_cm2": {
+        "kind": "float",
+        "hex": "0x1.c233b63684c03p-1"
+      },
+      "side_to_core_peak_ratio": {
+        "kind": "float",
+        "hex": "0x1.2ea752ae10db0p-1"
+      },
+      "strict_bessel_region_capped": {
+        "kind": "bool",
+        "value": false
+      },
+      "strict_bessel_region_end_um": {
+        "kind": "float",
+        "hex": "0x1.aa5e0c1d16d61p+7"
+      },
+      "strict_bessel_region_start_um": {
+        "kind": "float",
+        "hex": "0x1.957830745b583p+5"
+      },
+      "strict_bessel_region_um": {
+        "kind": "float",
+        "hex": "0x1.4500000000000p+7"
+      },
+      "study": "single_case",
+      "study_kind": "beam_to_surface",
+      "surface_placement": "zone_center",
+      "surface_z_um": {
+        "kind": "float",
+        "hex": "0x1.03b361726c2b7p+7"
+      },
+      "target_bessel_length_um": {
+        "kind": "float",
+        "hex": "0x1.2c00000000000p+8"
+      },
+      "target_core_diameter_um": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+1"
+      },
+      "target_equivalent_l0_core_diameter_um": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+1"
+      },
+      "target_scale_definition": "equivalent_l0_first_zero_diameter",
+      "validity_action": "pass",
+      "validity_output_dx_um": {
+        "kind": "float",
+        "hex": "0x1.70a3d70a3d70ap-3"
+      },
+      "validity_samples_per_axial_zone": {
+        "kind": "float",
+        "hex": "0x1.1fffffffffffdp+6"
+      },
+      "validity_samples_per_feature": {
+        "kind": "float",
+        "hex": "0x1.638e38e38e38ep+3"
+      },
+      "validity_samples_per_radial_period": {
+        "kind": "float",
+        "hex": "0x1.d0741a0a99397p+3"
+      },
+      "validity_valid": {
+        "kind": "bool",
+        "value": true
+      },
+      "validity_violations": "",
+      "vortex_main_ring_diameter_um": {
+        "kind": "float",
+        "hex": "0x1.bf31f6414dd21p+1"
+      },
+      "vortex_main_ring_radius_um": {
+        "kind": "float",
+        "hex": "0x1.bf31f6414dd21p+0"
+      },
+      "waist_matched_design_magnification_to_sample": {
+        "kind": "float",
+        "hex": "0x1.e3fc20c5f3613p-5"
+      },
+      "write_depth_um": {
+        "kind": "float",
+        "hex": "nan"
+      },
+      "zone_capped": {
+        "kind": "bool",
+        "value": false
+      },
+      "zone_end_um": {
+        "kind": "float",
+        "hex": "0x1.ae5aaa7d50be8p+7"
+      },
+      "zone_start_um": {
+        "kind": "float",
+        "hex": "0x1.7521ae62e25b0p+5"
+      }
+    },
+    "design": {
+      "ell": {
+        "kind": "int",
+        "value": 3
+      },
+      "equivalent_l0_core_diameter_m": {
+        "kind": "float",
+        "hex": "0x1.0c6f7a0b5ed8dp-19"
+      },
+      "equivalent_l0_core_radius_m": {
+        "kind": "float",
+        "hex": "0x1.0c6f7a0b5ed8dp-20"
+      },
+      "equivalent_l0_first_zero_diameter_m": {
+        "kind": "float",
+        "hex": "0x1.0c6f7a0b5ed8dp-19"
+      },
+      "equivalent_l0_first_zero_radius_m": {
+        "kind": "float",
+        "hex": "0x1.0c6f7a0b5ed8dp-20"
+      },
+      "gamma_slm_deg": {
+        "kind": "float",
+        "hex": "0x1.551191999e5d7p+1"
+      },
+      "gamma_slm_rad": {
+        "kind": "float",
+        "hex": "0x1.7cfa314195465p-5"
+      },
+      "hologram_medium_n": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "kr_sample_m_inv": {
+        "kind": "float",
+        "hex": "0x1.2594400000000p+21"
+      },
+      "kr_slm_m_inv": {
+        "kind": "float",
+        "hex": "0x1.1583ec2245183p+17"
+      },
+      "magnification_to_sample": {
+        "kind": "float",
+        "hex": "0x1.e3fc20c5f3613p-5"
+      },
+      "n_axicon": {
+        "kind": "float",
+        "hex": "0x1.8000000000000p+0"
+      },
+      "sample_medium_n": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "signum_pi_flip": {
+        "kind": "bool",
+        "value": false
+      },
+      "target_bessel_length_m": {
+        "kind": "float",
+        "hex": "0x1.3a92a30553261p-12"
+      },
+      "target_core_diameter_m": {
+        "kind": "float",
+        "hex": "0x1.0c6f7a0b5ed8dp-19"
+      },
+      "target_equivalent_l0_core_diameter_m": {
+        "kind": "float",
+        "hex": "0x1.0c6f7a0b5ed8dp-19"
+      },
+      "target_scale_definition": "equivalent_l0_first_zero_diameter",
+      "vortex_main_ring_diameter_m": {
+        "kind": "float",
+        "hex": "0x1.d4eb09a7cff87p-19"
+      },
+      "vortex_main_ring_radius_m": {
+        "kind": "float",
+        "hex": "0x1.d4eb09a7cff87p-20"
+      },
+      "w0_sample_m": {
+        "kind": "float",
+        "hex": "0x1.ef99bb28e8d63p-14"
+      }
+    },
+    "axicon_metadata": {
+      "axicon_base_angle_deg": {
+        "kind": "float",
+        "hex": "0x1.31d4855c190f5p+5"
+      },
+      "axicon_medium_n": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "axicon_transmission": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "efficiency": {
+        "kind": "float",
+        "hex": "0x1.b34157b25037dp-1"
+      },
+      "input_power_au_m2": {
+        "kind": "float",
+        "hex": "0x1.2495c08ae31c3p-26"
+      },
+      "inter_slm_n": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "inter_slm_z_m": {
+        "kind": "float",
+        "hex": "0x1.a36e2eb1c432cp-16"
+      },
+      "k_r_m_inv": {
+        "kind": "float",
+        "hex": "0x1.2594400000000p+21"
+      },
+      "method": "physical",
+      "n_axicon": {
+        "kind": "float",
+        "hex": "0x1.8000000000000p+0"
+      },
+      "output_power_au_m2": {
+        "kind": "float",
+        "hex": "0x1.f175246c936a4p-27"
+      },
+      "physical_axicon_phase": "continuous_conical",
+      "physical_axicon_pixelated": {
+        "kind": "bool",
+        "value": false
+      },
+      "scalar_fresnel_amplitude": {
+        "kind": "float",
+        "hex": "0x1.d82aff469cfdfp-1"
+      },
+      "slm1_contains_axicon": {
+        "kind": "bool",
+        "value": false
+      },
+      "slm1_phase_components": [
+        "vortex"
+      ],
+      "slm1_transmission": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "slm1_vortex_charge": {
+        "kind": "int",
+        "value": 3
+      },
+      "slm2_conjugate_mode": "full",
+      "slm2_contains_axicon": {
+        "kind": "bool",
+        "value": false
+      },
+      "slm2_phase_components": [
+        "conjugate_flattening",
+        "optional_amplitude_correction"
+      ],
+      "slm2_residual_phase_rms_after_rad": {
+        "kind": "float",
+        "hex": "0x1.d024acb5e29d5p-8"
+      },
+      "slm2_residual_phase_rms_before_rad": {
+        "kind": "float",
+        "hex": "0x1.d04fb39ed9060p+0"
+      },
+      "slm2_stroke_levels": {
+        "kind": "int",
+        "value": 256
+      },
+      "slm2_transmission": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "stage": "slm1_slm2_conjugate_physical_axicon",
+      "tp_abs": {
+        "kind": "float",
+        "hex": "0x1.f89c9770cd181p-1"
+      },
+      "ts_abs": {
+        "kind": "float",
+        "hex": "0x1.b552ec21201bcp-1"
+      }
+    },
+    "result_fields": {
+      "air_scan_plan": {
+        "coarse_peak_z_um": {
+          "kind": "float",
+          "hex": "0x1.e000000000007p+6"
+        },
+        "coarse_z_end_m": {
+          "kind": "float",
+          "hex": "0x1.3a92a30553261p-10"
+        },
+        "coarse_z_start_m": {
+          "kind": "float",
+          "hex": "-0x1.3a92a30553261p-10"
+        },
+        "coarse_zone_end_um": {
+          "kind": "float",
+          "hex": "0x1.a7bcf588204a8p+7"
+        },
+        "coarse_zone_start_um": {
+          "kind": "float",
+          "hex": "0x1.7ea73572e0312p+5"
+        },
+        "coarse_zone_um": {
+          "kind": "float",
+          "hex": "0x1.4813282b683e3p+7"
+        },
+        "half_span_factor": {
+          "kind": "float",
+          "hex": "0x1.4000000000000p+0"
+        },
+        "mode": "coarse_fwhm_centered",
+        "surface_z_m": {
+          "kind": "float",
+          "hex": "0x1.1050e09a0f37ep-13"
+        },
+        "z_end_m": {
+          "kind": "float",
+          "hex": "0x1.08afde09d7c5cp-11"
+        },
+        "z_start_m": {
+          "kind": "float",
+          "hex": "-0x1.010edb79a053ap-12"
+        },
+        "zone_center_m": {
+          "kind": "float",
+          "hex": "0x1.1050e09a0f37ep-13"
+        }
+      },
+      "axicon_result": {
+        "Ex": {
+          "kind": "ndarray",
+          "dtype": "complex128",
+          "dtype_str": "<c16",
+          "shape": [
+            1024,
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "307200cdf5416adc407a084a0591b00e294d600474aa0609d3c335bdeecd908d"
+        },
+        "Ey": null,
+        "Ez": null,
+        "grid": {
+          "FX": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "b27d453055175f53c94b612bc47d3cfd800c2b480d77a016c9da83c8a9eb881e"
+          },
+          "FY": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "198e4b3dd0df135671e5dce7a7c09d2b159e8ccd938b569be5f858766b176f8f"
+          },
+          "N": {
+            "kind": "int",
+            "value": 1024
+          },
+          "PHI": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "d369c4bb71cd893a85096178386c11b16b9ae78a7d32467d2024bcfc0a1cefcd"
+          },
+          "R": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "ec0ef11116f5e0bc4ae760db02241546a480b160d5b1960ce974892b2662999d"
+          },
+          "X": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "486324664ce33c20f0c2ea8fbda1afe0d877c174ad85254a46837479460e7e79"
+          },
+          "Y": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "d859d0d341164a1076c03bdca3355e4eb55a52c4211ac87d43741cc8bc1fb72f"
+          },
+          "dx": {
+            "kind": "float",
+            "hex": "0x1.828c0be769dc1p-23"
+          },
+          "x": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "65cc861cd5a28cd0b496cab1a80c8d9b6ca7d3da1846bd26a13fad1fc35dd01c"
+          }
+        },
+        "k_r": {
+          "kind": "float",
+          "hex": "0x1.2594400000000p+21"
+        },
+        "metadata": {
+          "axicon_base_angle_deg": {
+            "kind": "float",
+            "hex": "0x1.31d4855c190f5p+5"
+          },
+          "axicon_medium_n": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "axicon_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "efficiency": {
+            "kind": "float",
+            "hex": "0x1.b34157b25037dp-1"
+          },
+          "input_power_au_m2": {
+            "kind": "float",
+            "hex": "0x1.2495c08ae31c3p-26"
+          },
+          "inter_slm_n": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "inter_slm_z_m": {
+            "kind": "float",
+            "hex": "0x1.a36e2eb1c432cp-16"
+          },
+          "k_r_m_inv": {
+            "kind": "float",
+            "hex": "0x1.2594400000000p+21"
+          },
+          "method": "physical",
+          "n_axicon": {
+            "kind": "float",
+            "hex": "0x1.8000000000000p+0"
+          },
+          "output_power_au_m2": {
+            "kind": "float",
+            "hex": "0x1.f175246c936a4p-27"
+          },
+          "physical_axicon_phase": "continuous_conical",
+          "physical_axicon_pixelated": {
+            "kind": "bool",
+            "value": false
+          },
+          "scalar_fresnel_amplitude": {
+            "kind": "float",
+            "hex": "0x1.d82aff469cfdfp-1"
+          },
+          "slm1_contains_axicon": {
+            "kind": "bool",
+            "value": false
+          },
+          "slm1_phase_components": [
+            "vortex"
+          ],
+          "slm1_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "slm1_vortex_charge": {
+            "kind": "int",
+            "value": 3
+          },
+          "slm2_conjugate_mode": "full",
+          "slm2_contains_axicon": {
+            "kind": "bool",
+            "value": false
+          },
+          "slm2_phase_components": [
+            "conjugate_flattening",
+            "optional_amplitude_correction"
+          ],
+          "slm2_residual_phase_rms_after_rad": {
+            "kind": "float",
+            "hex": "0x1.d024acb5e29d5p-8"
+          },
+          "slm2_residual_phase_rms_before_rad": {
+            "kind": "float",
+            "hex": "0x1.d04fb39ed9060p+0"
+          },
+          "slm2_stroke_levels": {
+            "kind": "int",
+            "value": 256
+          },
+          "slm2_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "stage": "slm1_slm2_conjugate_physical_axicon",
+          "tp_abs": {
+            "kind": "float",
+            "hex": "0x1.f89c9770cd181p-1"
+          },
+          "ts_abs": {
+            "kind": "float",
+            "hex": "0x1.b552ec21201bcp-1"
+          }
+        }
+      },
+      "beam_medium_n": {
+        "kind": "float",
+        "hex": "0x1.0000000000000p+0"
+      },
+      "first_order_selected_fraction": {
+        "kind": "float",
+        "hex": "0x1.b34157b25037dp-1"
+      },
+      "focal_grid": {
+        "FX": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            1024,
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "b27d453055175f53c94b612bc47d3cfd800c2b480d77a016c9da83c8a9eb881e"
+        },
+        "FY": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            1024,
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "198e4b3dd0df135671e5dce7a7c09d2b159e8ccd938b569be5f858766b176f8f"
+        },
+        "N": {
+          "kind": "int",
+          "value": 1024
+        },
+        "PHI": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            1024,
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "d369c4bb71cd893a85096178386c11b16b9ae78a7d32467d2024bcfc0a1cefcd"
+        },
+        "R": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            1024,
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "ec0ef11116f5e0bc4ae760db02241546a480b160d5b1960ce974892b2662999d"
+        },
+        "X": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            1024,
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "486324664ce33c20f0c2ea8fbda1afe0d877c174ad85254a46837479460e7e79"
+        },
+        "Y": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            1024,
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "d859d0d341164a1076c03bdca3355e4eb55a52c4211ac87d43741cc8bc1fb72f"
+        },
+        "dx": {
+          "kind": "float",
+          "hex": "0x1.828c0be769dc1p-23"
+        },
+        "x": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "65cc861cd5a28cd0b496cab1a80c8d9b6ca7d3da1846bd26a13fad1fc35dd01c"
+        }
+      },
+      "generation_method": "physical",
+      "interface_zernike_fit": {},
+      "metrics_config": {
+        "air_scan_coarse_span_factor": {
+          "kind": "float",
+          "hex": "0x1.0000000000000p+2"
+        },
+        "air_scan_half_span_factor": {
+          "kind": "float",
+          "hex": "0x1.4000000000000p+0"
+        },
+        "apply_interface": {
+          "kind": "bool",
+          "value": false
+        },
+        "correct_interface": {
+          "kind": "bool",
+          "value": false
+        },
+        "energy": {
+          "first_order_efficiency": {
+            "kind": "float",
+            "hex": "0x1.ccccccccccccdp-2"
+          },
+          "focusing_transmission": {
+            "kind": "float",
+            "hex": "0x1.ccccccccccccdp-1"
+          },
+          "pre_slm_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "pulse_energy_in_J": {
+            "kind": "float",
+            "hex": "0x1.4f8b588e368f0p-17"
+          },
+          "relay_transmission": {
+            "kind": "float",
+            "hex": "0x1.ccccccccccccdp-1"
+          },
+          "sample_surface_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "slm_reflectivity": {
+            "kind": "float",
+            "hex": "0x1.8000000000000p-1"
+          },
+          "user_extra_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          }
+        },
+        "generation_method": "physical",
+        "grid": {
+          "N": {
+            "kind": "int",
+            "value": 2048
+          },
+          "axial_points": {
+            "kind": "int",
+            "value": 181
+          },
+          "axial_range_m": {
+            "kind": "float",
+            "hex": "0x1.797cc39ffd60ep-12"
+          },
+          "axial_target_factor": {
+            "kind": "float",
+            "hex": "0x1.8000000000000p+1"
+          },
+          "coarse_scan_factor": {
+            "kind": "float",
+            "hex": "0x1.8000000000000p+1"
+          },
+          "coarse_scan_points": {
+            "kind": "int",
+            "value": 41
+          },
+          "crop_pixels": {
+            "kind": "int",
+            "value": 512
+          },
+          "device_downsample": {
+            "kind": "int",
+            "value": 1
+          },
+          "ideal_N": {
+            "kind": "int",
+            "value": 1024
+          },
+          "ideal_dx_m": {
+            "kind": "float",
+            "hex": "0x1.828c0be769dc1p-23"
+          },
+          "label": "paper"
+        },
+        "include_active_aperture": {
+          "kind": "bool",
+          "value": true
+        },
+        "include_blaze": {
+          "kind": "bool",
+          "value": true
+        },
+        "include_fill_factor": {
+          "kind": "bool",
+          "value": true
+        },
+        "include_first_order_isolation": {
+          "kind": "bool",
+          "value": true
+        },
+        "include_quantization": {
+          "kind": "bool",
+          "value": true
+        },
+        "laser": {
+          "beam_radius_definition": "1/e field amplitude radius",
+          "beam_radius_on_slm_m": {
+            "kind": "float",
+            "hex": "0x1.0624dd2f1a9fcp-9"
+          },
+          "input_pulse_energy_J": {
+            "kind": "float",
+            "hex": "0x1.4f8b588e368f0p-17"
+          },
+          "max_average_power_W": {
+            "kind": "float",
+            "hex": "0x1.4000000000000p+3"
+          },
+          "max_pulse_energy_J": {
+            "kind": "float",
+            "hex": "0x1.a36e2eb1c432cp-12"
+          },
+          "name": "PHAROS PH2",
+          "pulse_duration_s": {
+            "kind": "float",
+            "hex": "0x1.24bbe5d62f36ep-42"
+          },
+          "rep_rate_Hz": {
+            "kind": "float",
+            "hex": "0x1.86a0000000000p+16"
+          },
+          "wavelength_m": {
+            "kind": "float",
+            "hex": "0x1.1438577090721p-20"
+          }
+        },
+        "material": {
+          "feature_width_m": {
+            "kind": "float",
+            "hex": "0x1.92a737110e454p-19"
+          },
+          "incubation_exponent": {
+            "kind": "float",
+            "hex": "0x1.ae147ae147ae1p-1"
+          },
+          "n_static_pulses": {
+            "kind": "int",
+            "value": 1
+          },
+          "name": "air beam path",
+          "refractive_index": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "scan_speed_m_s": {
+            "kind": "float",
+            "hex": "0x1.0624dd2f1a9fcp-10"
+          },
+          "side_lobe_exclusion_radius_factor": {
+            "kind": "float",
+            "hex": "0x1.999999999999ap+0"
+          },
+          "single_pulse_threshold_J_cm2": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+1"
+          },
+          "static_or_scan": "scan",
+          "write_depth_m": {
+            "kind": "float",
+            "hex": "0x1.3a92a30553261p-12"
+          }
+        },
+        "objective": {
+          "NA": {
+            "kind": "float",
+            "hex": "0x1.ccccccccccccdp-2"
+          },
+          "f_eff_m": {
+            "kind": "float",
+            "hex": "0x1.0624dd2f1a9fcp-8"
+          },
+          "immersion_n": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "pupil_fill": {
+            "kind": "float",
+            "hex": "0x1.e666666666666p-1"
+          },
+          "transmission": {
+            "kind": "float",
+            "hex": "0x1.ccccccccccccdp-1"
+          }
+        },
+        "physical_axicon": {
+          "axicon_aperture_radius_m": null,
+          "axicon_base_angle_deg": null,
+          "axicon_medium_n": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "axicon_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "inter_slm_n": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "inter_slm_z_m": {
+            "kind": "float",
+            "hex": "0x1.a36e2eb1c432cp-16"
+          },
+          "n_axicon": null,
+          "slm1_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "slm1_vortex_charge": null,
+          "slm2_conjugate_mode": "full",
+          "slm2_stroke_levels": {
+            "kind": "int",
+            "value": 256
+          },
+          "slm2_transmission": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          }
+        },
+        "propagation": {
+          "method": "bl_asm",
+          "sas_allow_invalid": {
+            "kind": "bool",
+            "value": false
+          },
+          "sas_bandlimit": {
+            "kind": "bool",
+            "value": true
+          },
+          "sas_pad_factor": {
+            "kind": "int",
+            "value": 2
+          },
+          "sas_skip_final_phase": {
+            "kind": "bool",
+            "value": true
+          }
+        },
+        "random_seed": {
+          "kind": "int",
+          "value": 12345
+        },
+        "regime": "limits",
+        "relay": {
+          "effective_relay_f_m": {
+            "kind": "float",
+            "hex": "0x1.fb7df25c2cd45p-2"
+          },
+          "magnification_to_sample": null,
+          "name": "ideal relay",
+          "transmission": {
+            "kind": "float",
+            "hex": "0x1.ccccccccccccdp-1"
+          }
+        },
+        "slm": {
+          "blaze_period_px": {
+            "kind": "int",
+            "value": 20
+          },
+          "fill_factor": {
+            "kind": "float",
+            "hex": "0x1.dc28f5c28f5c3p-1"
+          },
+          "first_order": {
+            "kind": "int",
+            "value": 1
+          },
+          "first_order_filter_radius_lpmm": {
+            "kind": "float",
+            "hex": "0x1.4000000000000p+1"
+          },
+          "flip_x": {
+            "kind": "bool",
+            "value": false
+          },
+          "flip_y": {
+            "kind": "bool",
+            "value": false
+          },
+          "invert_gray": {
+            "kind": "bool",
+            "value": false
+          },
+          "name": "HOLOEYE LCOS-NIR",
+          "phase_bits": {
+            "kind": "int",
+            "value": 8
+          },
+          "pixel_pitch_m": {
+            "kind": "float",
+            "hex": "0x1.0c6f7a0b5ed8dp-17"
+          },
+          "resolution_x": {
+            "kind": "int",
+            "value": 1920
+          },
+          "resolution_y": {
+            "kind": "int",
+            "value": 1080
+          },
+          "rotate_180": {
+            "kind": "bool",
+            "value": false
+          }
+        },
+        "study_kind": "beam_to_surface",
+        "surface_placement": "zone_center",
+        "surface_z_m": null,
+        "target": {
+          "ell": {
+            "kind": "int",
+            "value": 3
+          },
+          "hologram_medium_n": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "n_axicon": {
+            "kind": "float",
+            "hex": "0x1.8000000000000p+0"
+          },
+          "signum_pi_flip": {
+            "kind": "bool",
+            "value": false
+          },
+          "target_bessel_length_m": {
+            "kind": "float",
+            "hex": "0x1.3a92a30553261p-12"
+          },
+          "target_core_diameter_m": {
+            "kind": "float",
+            "hex": "0x1.0c6f7a0b5ed8dp-19"
+          }
+        },
+        "validity_on_violation": "flag"
+      },
+      "path": "ideal",
+      "sampling_report": {
+        "NA": {
+          "kind": "float",
+          "hex": "0x1.ccccccccccccdp-2"
+        },
+        "axial_dz_um": {
+          "kind": "float",
+          "hex": "0x1.400000000000fp+2"
+        },
+        "axial_sampling_label": "pass",
+        "axial_scan_end_um": {
+          "kind": "float",
+          "hex": "0x1.c200000000000p+9"
+        },
+        "axial_scan_target_factor": {
+          "kind": "float",
+          "hex": "0x1.8000000000000p+1"
+        },
+        "device_downsample": {
+          "kind": "int",
+          "value": 1
+        },
+        "device_grid_label": "exact",
+        "focal_dx_um": {
+          "kind": "float",
+          "hex": "0x1.0140000000001p-2"
+        },
+        "focal_kt_nyquist_over_kr": {
+          "kind": "float",
+          "hex": "0x1.4cc818a129fc7p+2"
+        },
+        "focal_samples_per_radial_period": {
+          "kind": "float",
+          "hex": "0x1.4cc818a129fc8p+3"
+        },
+        "focal_sampling_label": "pass",
+        "k_medium_m_inv": {
+          "kind": "float",
+          "hex": "0x1.74aff0ae54104p+22"
+        },
+        "output_dx_max_um": {
+          "kind": "float",
+          "hex": "0x1.70a3d70a3d70ap-3"
+        },
+        "output_dx_min_um": {
+          "kind": "float",
+          "hex": "0x1.70a3d70a3d70ap-3"
+        },
+        "phase_frequency_lpmm": {
+          "kind": "float",
+          "hex": "0x1.cdd2dfaefecffp+4"
+        },
+        "phase_sampling_label": "pass",
+        "propagation_method": "bl_asm",
+        "propagation_power_clipping_note": "Total propagated-power drift; pass<=0.05, marginal<=0.20, fail>0.20. SAS clipping is reported separately by sas_retained_power_fraction_*.",
+        "propagation_power_drift_fraction": {
+          "kind": "float",
+          "hex": "0x1.8f44d658a3385p+0"
+        },
+        "propagation_power_label": "fail",
+        "pupil_N": {
+          "kind": "int",
+          "value": 2048
+        },
+        "pupil_dx_um": {
+          "kind": "float",
+          "hex": "0x1.0000000000000p+3"
+        },
+        "pupil_nyquist_lpmm": {
+          "kind": "float",
+          "hex": "0x1.f400000000000p+5"
+        },
+        "pupil_window_mm": {
+          "kind": "float",
+          "hex": "0x1.0624dd2f1a9fcp+4"
+        },
+        "qa_status": "pass",
+        "sas_retained_power_fraction_mean": {
+          "kind": "float",
+          "hex": "0x1.0000000000000p+0"
+        },
+        "sas_retained_power_fraction_min": {
+          "kind": "float",
+          "hex": "0x1.0000000000000p+0"
+        }
+      },
+      "study_kind": "beam_to_surface",
+      "surface_field": {
+        "Ex": {
+          "kind": "ndarray",
+          "dtype": "complex128",
+          "dtype_str": "<c16",
+          "shape": [
+            1024,
+            1024
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "c084aa7a0f5d57cfc1bae0e8b26ddb1aa3e0d26b2b706f5f659e688f78fb729e"
+        },
+        "Ey": null,
+        "Ez": null,
+        "grid": {
+          "FX": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "b27d453055175f53c94b612bc47d3cfd800c2b480d77a016c9da83c8a9eb881e"
+          },
+          "FY": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "198e4b3dd0df135671e5dce7a7c09d2b159e8ccd938b569be5f858766b176f8f"
+          },
+          "N": {
+            "kind": "int",
+            "value": 1024
+          },
+          "PHI": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "d369c4bb71cd893a85096178386c11b16b9ae78a7d32467d2024bcfc0a1cefcd"
+          },
+          "R": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "ec0ef11116f5e0bc4ae760db02241546a480b160d5b1960ce974892b2662999d"
+          },
+          "X": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "486324664ce33c20f0c2ea8fbda1afe0d877c174ad85254a46837479460e7e79"
+          },
+          "Y": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024,
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "d859d0d341164a1076c03bdca3355e4eb55a52c4211ac87d43741cc8bc1fb72f"
+          },
+          "dx": {
+            "kind": "float",
+            "hex": "0x1.828c0be769dc1p-23"
+          },
+          "x": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              1024
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "65cc861cd5a28cd0b496cab1a80c8d9b6ca7d3da1846bd26a13fad1fc35dd01c"
+          }
+        },
+        "medium_before": {
+          "kind": "float",
+          "hex": "0x1.0000000000000p+0"
+        },
+        "metadata": {
+          "air_scan_plan": {
+            "coarse_peak_z_um": {
+              "kind": "float",
+              "hex": "0x1.e000000000007p+6"
+            },
+            "coarse_z_end_m": {
+              "kind": "float",
+              "hex": "0x1.3a92a30553261p-10"
+            },
+            "coarse_z_start_m": {
+              "kind": "float",
+              "hex": "-0x1.3a92a30553261p-10"
+            },
+            "coarse_zone_end_um": {
+              "kind": "float",
+              "hex": "0x1.a7bcf588204a8p+7"
+            },
+            "coarse_zone_start_um": {
+              "kind": "float",
+              "hex": "0x1.7ea73572e0312p+5"
+            },
+            "coarse_zone_um": {
+              "kind": "float",
+              "hex": "0x1.4813282b683e3p+7"
+            },
+            "half_span_factor": {
+              "kind": "float",
+              "hex": "0x1.4000000000000p+0"
+            },
+            "mode": "coarse_fwhm_centered",
+            "surface_z_m": {
+              "kind": "float",
+              "hex": "0x1.1050e09a0f37ep-13"
+            },
+            "z_end_m": {
+              "kind": "float",
+              "hex": "0x1.08afde09d7c5cp-11"
+            },
+            "z_start_m": {
+              "kind": "float",
+              "hex": "-0x1.010edb79a053ap-12"
+            },
+            "zone_center_m": {
+              "kind": "float",
+              "hex": "0x1.1050e09a0f37ep-13"
+            }
+          },
+          "axicon_metadata": {
+            "axicon_base_angle_deg": {
+              "kind": "float",
+              "hex": "0x1.31d4855c190f5p+5"
+            },
+            "axicon_medium_n": {
+              "kind": "float",
+              "hex": "0x1.0000000000000p+0"
+            },
+            "axicon_transmission": {
+              "kind": "float",
+              "hex": "0x1.0000000000000p+0"
+            },
+            "efficiency": {
+              "kind": "float",
+              "hex": "0x1.b34157b25037dp-1"
+            },
+            "input_power_au_m2": {
+              "kind": "float",
+              "hex": "0x1.2495c08ae31c3p-26"
+            },
+            "inter_slm_n": {
+              "kind": "float",
+              "hex": "0x1.0000000000000p+0"
+            },
+            "inter_slm_z_m": {
+              "kind": "float",
+              "hex": "0x1.a36e2eb1c432cp-16"
+            },
+            "k_r_m_inv": {
+              "kind": "float",
+              "hex": "0x1.2594400000000p+21"
+            },
+            "method": "physical",
+            "n_axicon": {
+              "kind": "float",
+              "hex": "0x1.8000000000000p+0"
+            },
+            "output_power_au_m2": {
+              "kind": "float",
+              "hex": "0x1.f175246c936a4p-27"
+            },
+            "physical_axicon_phase": "continuous_conical",
+            "physical_axicon_pixelated": {
+              "kind": "bool",
+              "value": false
+            },
+            "scalar_fresnel_amplitude": {
+              "kind": "float",
+              "hex": "0x1.d82aff469cfdfp-1"
+            },
+            "slm1_contains_axicon": {
+              "kind": "bool",
+              "value": false
+            },
+            "slm1_phase_components": [
+              "vortex"
+            ],
+            "slm1_transmission": {
+              "kind": "float",
+              "hex": "0x1.0000000000000p+0"
+            },
+            "slm1_vortex_charge": {
+              "kind": "int",
+              "value": 3
+            },
+            "slm2_conjugate_mode": "full",
+            "slm2_contains_axicon": {
+              "kind": "bool",
+              "value": false
+            },
+            "slm2_phase_components": [
+              "conjugate_flattening",
+              "optional_amplitude_correction"
+            ],
+            "slm2_residual_phase_rms_after_rad": {
+              "kind": "float",
+              "hex": "0x1.d024acb5e29d5p-8"
+            },
+            "slm2_residual_phase_rms_before_rad": {
+              "kind": "float",
+              "hex": "0x1.d04fb39ed9060p+0"
+            },
+            "slm2_stroke_levels": {
+              "kind": "int",
+              "value": 256
+            },
+            "slm2_transmission": {
+              "kind": "float",
+              "hex": "0x1.0000000000000p+0"
+            },
+            "stage": "slm1_slm2_conjugate_physical_axicon",
+            "tp_abs": {
+              "kind": "float",
+              "hex": "0x1.f89c9770cd181p-1"
+            },
+            "ts_abs": {
+              "kind": "float",
+              "hex": "0x1.b552ec21201bcp-1"
+            }
+          },
+          "design_medium_n": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "generation_method": "physical",
+          "medium_before": {
+            "kind": "float",
+            "hex": "0x1.0000000000000p+0"
+          },
+          "path": "ideal",
+          "study_kind": "beam_to_surface"
+        },
+        "z_surface_m": {
+          "kind": "float",
+          "hex": "0x1.1050e09a0f37ep-13"
+        }
+      },
+      "validity_report": {
+        "axial_dz_um": {
+          "kind": "float",
+          "hex": "0x1.0aaaaaaaaaaadp+2"
+        },
+        "min_axial_samples_per_zone": {
+          "kind": "float",
+          "hex": "0x1.0000000000000p+2"
+        },
+        "min_samples_per_feature": {
+          "kind": "float",
+          "hex": "0x1.0000000000000p+1"
+        },
+        "min_samples_per_radial_period": {
+          "kind": "float",
+          "hex": "0x1.0000000000000p+1"
+        },
+        "on_violation": "flag",
+        "output_dx_um": {
+          "kind": "float",
+          "hex": "0x1.70a3d70a3d70ap-3"
+        },
+        "regime": "limits",
+        "samples_per_axial_zone": {
+          "kind": "float",
+          "hex": "0x1.1fffffffffffdp+6"
+        },
+        "samples_per_feature": {
+          "kind": "float",
+          "hex": "0x1.638e38e38e38ep+3"
+        },
+        "samples_per_radial_period": {
+          "kind": "float",
+          "hex": "0x1.d0741a0a99397p+3"
+        },
+        "valid": {
+          "kind": "bool",
+          "value": true
+        },
+        "validity_action": "pass",
+        "violations": []
+      },
+      "volume": {
+        "crop_grid": {
+          "N": {
+            "kind": "int",
+            "value": 512
+          },
+          "PHI": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              512,
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "41f37d88b79a170bb2cbf3e06649289aaa08ebb0f96cbf5a0ba0b0d763f09dfc"
+          },
+          "R": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              512,
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "6d9ec62e19db780d1c8984e53d0c937d13e7327c67ad69a15dbc97621b4e4093"
+          },
+          "X": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              512,
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "b0ad5008866ae89a7e8a8b0d69ae0959f16ef3eaaeef947b4c5526221ec97ee1"
+          },
+          "Y": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              512,
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "4453e7f19c8848ab75b17df5dbb4047f61b55ad257766336422a079a4a3e948c"
+          },
+          "dx": {
+            "kind": "float",
+            "hex": "0x1.828c0be769dc1p-23"
+          },
+          "x": {
+            "kind": "ndarray",
+            "dtype": "float64",
+            "dtype_str": "<f8",
+            "shape": [
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "47e73047f0957ed80016e5d02cc35036e32fc805bf6c411a6b272c383e08d92b"
+          }
+        },
+        "intensity_stack": {
+          "kind": "ndarray",
+          "dtype": "float32",
+          "dtype_str": "<f4",
+          "shape": [
+            181,
+            512,
+            512
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "9cc6907b87252e752d6c2dd3ad0b6d7825a85fbf8baa33713ad3f5e7d844eae4"
+        },
+        "native_grids": [],
+        "onaxis": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            181
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "0eafa73f270400ef53917d8c9caaca32edeb54121c3881b04835fe4937986a25"
+        },
+        "output_dx_m": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            181
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "c57932a92c61bb8cf74b7dfa921995525db9c2f9315ea4228a7f96db653e802f"
+        },
+        "peak": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            181
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "517906f630e38bb34b7ddfa8d2eabc07501abf40f9c0da0477c613f0455c53a5"
+        },
+        "peak_index": {
+          "kind": "int",
+          "value": 97
+        },
+        "planes": {
+          "end": {
+            "kind": "ndarray",
+            "dtype": "float32",
+            "dtype_str": "<f4",
+            "shape": [
+              512,
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "a64601bd37e67d5e102a83c8ff13369cda07a153ec079d18a59b4774341320b6"
+          },
+          "middle": {
+            "kind": "ndarray",
+            "dtype": "float32",
+            "dtype_str": "<f4",
+            "shape": [
+              512,
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "9b520e295902d879dd10e95c9c48555d627d2f2f4fe732571cfc98fb27e901d1"
+          },
+          "peak": {
+            "kind": "ndarray",
+            "dtype": "float32",
+            "dtype_str": "<f4",
+            "shape": [
+              512,
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "76c64342d005d0640b2c138a037be4930bad7c38d12a5d43e334dfd4eb8ee9be"
+          },
+          "start": {
+            "kind": "ndarray",
+            "dtype": "float32",
+            "dtype_str": "<f4",
+            "shape": [
+              512,
+              512
+            ],
+            "c_contiguous": true,
+            "source_c_contiguous": true,
+            "sha256": "5f23bfb4d5512cb259ef3a7187cdaf7971ae8faa5254255038643c71ee75daf7"
+          }
+        },
+        "propagation_method": "bl_asm",
+        "retained_power_fraction": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            181
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "1a97c16cfd464ccecc7ac7f42cee1ea631eeb1a4d4da1a2deadb7f1b2db4bd2f"
+        },
+        "sas_metadata": [],
+        "total_power": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            181
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "a1c7176632c51451e71fbac53394d777865345450e2862a1f55c66a643ba3677"
+        },
+        "xz": {
+          "kind": "ndarray",
+          "dtype": "float32",
+          "dtype_str": "<f4",
+          "shape": [
+            512,
+            181
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "5cf475d604a6c72a8ea371862fc5c20ec0fd8757efb63853badfc25e2ac955ac"
+        },
+        "z": {
+          "kind": "ndarray",
+          "dtype": "float64",
+          "dtype_str": "<f8",
+          "shape": [
+            181
+          ],
+          "c_contiguous": true,
+          "source_c_contiguous": true,
+          "sha256": "0e3ae6b54029b3a4172d7f0c42e05586aa56f8759490ac5ca64901c2521a62b2"
+        }
+      },
+      "z_zone_centre_m": {
+        "kind": "float",
+        "hex": "0x1.1050e09a0f37ep-13"
+      }
+    }
+  },
+  "schema_version": "prod-v1"
+}

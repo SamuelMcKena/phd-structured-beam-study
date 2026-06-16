@@ -1,0 +1,16 @@
+{
+  "created_utc": "2026-06-15T23:38:55.100907+00:00",
+  "preset": "paper",
+  "total_wall_seconds": 444.34500885009766,
+  "per_case_seconds": {
+    "general_holographic_ideal": 32.98284149169922,
+    "general_holographic_lab": 122.95942211151123,
+    "general_physical_ideal": 31.425473928451538,
+    "general_physical_lab": 31.063349962234497,
+    "limits_holographic_ideal": 31.918004751205444,
+    "limits_holographic_lab": 128.68426656723022,
+    "limits_physical_ideal": 30.703274726867676,
+    "limits_physical_lab": 30.62267279624939
+  },
+  "note": "Production-resolution (paper preset: N=2048, device_downsample=1, axial_points=181, ideal_N=1024, ideal_dx=0.18um) baselines. Physical route still carries charge=0 (Finding F-A3p, fixed in next stage). This baseline locks the CURRENT behaviour bit-for-bit at production resolution."
+}

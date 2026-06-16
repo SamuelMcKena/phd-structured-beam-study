@@ -17,6 +17,7 @@ from vbb_study.design import compute_design_from_targets
 from vbb_study.equations.fields import gaussian_amplitude, make_xy_grid, phase_wrap
 from vbb_study.equations.propagation import focus_to_focal_plane, make_bl_asm_propagator
 from vbb_study.facade import core as _bt
+from vbb_study.viz_fields import complex_field_image
 
 Method = Literal["holographic", "physical"]
 
@@ -65,6 +66,65 @@ def _air_config_and_design(config: TwinConfig) -> tuple[TwinConfig, BeamDesign]:
     return air, design
 
 
+def _run_case_peak_metadata(config: TwinConfig, *, method: Method, lab: bool) -> tuple[float, dict[str, Any]]:
+    run_cfg = replace(config, generation_method=method)
+    if method == "physical":
+        physical_cfg = run_cfg.physical_axicon
+        if not lab:
+            physical_cfg = replace(physical_cfg, slm2_stroke_levels=None, slm2_conjugate_mode="full")
+        run_cfg = replace(run_cfg, physical_axicon=physical_cfg)
+    path: PathKind = "realistic" if method == "holographic" else "ideal"
+    result = _bt().run_case(
+        run_cfg,
+        path=path,
+        case_id=f"train_visualiser_{method}_{'lab' if lab else 'ideal'}_peak_reference",
+    )
+    volume = result["volume"]
+    peak_index = int(volume.get("peak_index", int(np.nanargmax(volume["peak"]))))
+    peak_z_m = float(np.asarray(volume["z"], dtype=float)[peak_index])
+    metrics = result.get("metrics", {})
+    return peak_z_m, {
+        "peak_index": peak_index,
+        "peak_z_um": peak_z_m / BT_UM,
+        "ring_radius_um": float(metrics.get("ring_radius_um", np.nan)),
+        "core_radius_um": float(metrics.get("core_radius_um", np.nan)),
+        "path": path,
+    }
+
+
+def _canonical_peak_core_frame(
+    config: TwinConfig,
+    *,
+    method: Method,
+    lab: bool,
+    field_z0: np.ndarray,
+    grid: dict[str, Any],
+) -> TrainFrame:
+    air, _ = _air_config_and_design(replace(config, generation_method=method))
+    peak_z_m, peak_meta = _run_case_peak_metadata(config, method=method, lab=lab)
+    method_key = str(air.propagation.method).lower().strip()
+    if method_key != "bl_asm":
+        raise ValueError(f"Train visualiser peak-core panel currently supports the validated BL-ASM path, not {air.propagation.method!r}.")
+    prop = make_bl_asm_propagator(
+        np.asarray(field_z0, dtype=complex),
+        grid,
+        air.laser.wavelength_m,
+        n_medium=1.0,
+        bandlimit=True,
+    )
+    return TrainFrame(
+        "Bessel zone core (z=peak, canonical)",
+        prop(peak_z_m),
+        grid,
+        {
+            "plane": "bessel_zone_peak",
+            "render": "complex",
+            "canonical_core": True,
+            **peak_meta,
+        },
+    )
+
+
 def holographic_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list[TrainFrame], dict[str, Any]]:
     air, design = _air_config_and_design(replace(config, generation_method="holographic"))
     slm = _bt().build_realistic_slm_field(
@@ -97,7 +157,16 @@ def holographic_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[l
     U_pupil = U * pupil
     frames.append(TrainFrame("objective pupil", U_pupil, grid, {"plane": "pupil"}))
     U_focus, focal_grid = focus_to_focal_plane(U_pupil, grid, air.laser, air.objective)
-    frames.append(TrainFrame("focused surface seed", U_focus, focal_grid, {"plane": "surface_in_air"}))
+    frames.append(TrainFrame("focused surface seed (z=0, pre-zone)", U_focus, focal_grid, {"plane": "surface_in_air", "z_um": 0.0, "pre_zone": True}))
+    frames.append(
+        _canonical_peak_core_frame(
+            config,
+            method="holographic",
+            lab=lab,
+            field_z0=U_focus,
+            grid=focal_grid,
+        )
+    )
     mask = {
         "slm1_phase": np.asarray(slm["phase"], dtype=float),
         "slm1_grid": grid,
@@ -144,19 +213,6 @@ def physical_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list
     slm2_phase = np.angle(U2_flat / (U2 + BT_EPS))
     frames.append(
         TrainFrame(
-            "SLM2 correction mask",
-            np.exp(1j * slm2_phase),
-            grid,
-            {
-                **dict(diag),
-                "plane": "SLM2",
-                "phase_components": ("conjugate_flattening", "optional_amplitude_correction"),
-                "contains_axicon": False,
-            },
-        )
-    )
-    frames.append(
-        TrainFrame(
             "after SLM2 flattening",
             U2_flat,
             grid,
@@ -183,14 +239,6 @@ def physical_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list
         k_r = float(air.laser.k0 * (n_axicon - axicon_medium_n) * np.tan(np.deg2rad(gamma_deg)))
     axicon_phase = -abs(k_r) * np.asarray(grid["R"], dtype=float)
     axicon_field = np.exp(1j * axicon_phase)
-    frames.append(
-        TrainFrame(
-            "physical axicon phase (continuous)",
-            axicon_field,
-            grid,
-            {"plane": "physical_axicon", "pixelated": False, "k_r_m_inv": float(abs(k_r)), "base_angle_deg": gamma_deg},
-        )
-    )
     tp, ts = vbb_polarized_train.fresnel_sp_coefficients(n_axicon, axicon_medium_n, gamma_deg)
     fresnel_amp = np.sqrt(max(0.5 * (abs(tp) ** 2 + abs(ts) ** 2), 0.0))
     if physical_cfg.axicon_aperture_radius_m is None:
@@ -200,16 +248,27 @@ def physical_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list
     U3 = np.sqrt(max(float(physical_cfg.axicon_transmission), 0.0)) * fresnel_amp * aperture * axicon_field * U2_flat
     frames.append(
         TrainFrame(
-            "after physical axicon",
+            "after physical axicon (z=0, pre-zone)",
             U3,
             grid,
             {
                 "method": "physical",
                 "plane": "post_axicon",
+                "z_um": 0.0,
+                "pre_zone": True,
                 "k_r_m_inv": float(abs(k_r)),
                 "physical_axicon_pixelated": False,
                 "scalar_fresnel_amplitude": float(fresnel_amp),
             },
+        )
+    )
+    frames.append(
+        _canonical_peak_core_frame(
+            config,
+            method="physical",
+            lab=lab,
+            field_z0=U3,
+            grid=grid,
         )
     )
     mask = {
@@ -254,6 +313,7 @@ def plot_train_visualiser(
     ideal_frames, ideal_masks = build_train_frames(config, method=method, lab=False)
     n = max(len(lab_frames), len(ideal_frames))
     fig, axes = plt.subplots(4, n, figsize=(3.0 * n, 10.0), constrained_layout=True)
+    im = None
     for col in range(n):
         for row, frames in enumerate((ideal_frames, lab_frames)):
             if col >= len(frames):
@@ -264,25 +324,39 @@ def plot_train_visualiser(
             amp = _normalised_amplitude(field)
             ph = _phase(field)
             plane_label = str(frames[col].metadata.get("plane", "plotted")).replace("_", " ")
-            axes[2 * row, col].imshow(vbb_style.display_scale(amp, gamma=0.70), extent=_extent_um(grid), origin="lower", cmap=vbb_style.INTENSITY_CMAP)
-            axes[2 * row, col].set_title(frames[col].label if row == 0 else "")
-            axes[2 * row, col].set_xlabel(f"x [um, {plane_label} grid]")
-            axes[2 * row, col].set_ylabel(("ideal amp" if row == 0 else "lab amp") + f"\ny [um, {plane_label} grid]")
+            meta = frames[col].metadata
+            peak_z_um = meta.get("peak_z_um")
+            ring_um = meta.get("ring_radius_um")
+            title = frames[col].label
+            if peak_z_um is not None and np.isfinite(float(peak_z_um)):
+                title = f"{title}\nz={float(peak_z_um):.1f} um"
+            if ring_um is not None and np.isfinite(float(ring_um)):
+                title = f"{title}, r={float(ring_um):.2f} um"
+            if meta.get("render") == "complex":
+                core_title = title if row == 0 else title.replace("Bessel zone core (z=peak, canonical)", "lab core")
+                complex_field_image(field, grid, ax=axes[2 * row, col], title=core_title)
+            else:
+                axes[2 * row, col].imshow(vbb_style.display_scale(amp, gamma=0.70), extent=_extent_um(grid), origin="lower", cmap=vbb_style.INTENSITY_CMAP)
+                axes[2 * row, col].set_title(title if row == 0 else "")
+                axes[2 * row, col].set_xlabel(f"x [um, {plane_label} grid]")
+                axes[2 * row, col].set_ylabel(("ideal amp" if row == 0 else "lab amp") + f"\ny [um, {plane_label} grid]")
             im = axes[2 * row + 1, col].imshow(ph, extent=_extent_um(grid), origin="lower", cmap=vbb_style.PHASE_CMAP, vmin=-np.pi, vmax=np.pi)
             axes[2 * row + 1, col].set_xlabel(f"x [um, {plane_label} grid]")
             axes[2 * row + 1, col].set_ylabel(("ideal phase" if row == 0 else "lab phase") + f"\ny [um, {plane_label} grid]")
-    fig.colorbar(im, ax=axes[:, -1], shrink=0.70, label="phase [rad, cyclic]")
+    if im is not None:
+        fig.colorbar(im, ax=axes[:, -1], shrink=0.70, label="phase [rad, cyclic]")
     before = lab_masks.get("slm2_residual_before_rad")
     after = lab_masks.get("slm2_residual_after_rad")
     subtitle = "" if before is None else f" SLM2 residual RMS {before:.3g} -> {after:.3g} rad"
     charge_tag = f"  [{charge_label}]" if charge_label else ""
-    fig.suptitle(f"{method} train visualiser: ideal vs lab.{subtitle}{charge_tag}")
+    plane_note = "z=0 pre-zone endpoint is followed by the z=peak canonical core; ring_radius_um is measured at z=peak."
+    fig.suptitle(f"{method} train visualiser: ideal vs lab. {plane_note}{subtitle}{charge_tag}")
     path = out / f"stage_c_train_{method}.png"
     caption_charge = f" {charge_label}" if charge_label else ""
     return vbb_style.save_figure(
         fig,
         path,
-        f"Per-stage {method} beam train. Amplitude is gamma displayed without changing the data; phase uses a cyclic twilight colormap. {subtitle.strip()}{caption_charge}",
+        f"Per-stage {method} beam train. The z=0 pre-zone endpoint is labelled explicitly, and the canonical Bessel-zone core column is propagated to the validated peak-z plane used by ring_radius_um in the metrics/CSVs. Amplitude is gamma displayed without changing the data; phase uses a cyclic twilight colormap, while the peak core also uses domain-coloured phase hue with amplitude brightness. {subtitle.strip()}{caption_charge}",
         metadata={"method": method, "slm2_residual_before_rad": before, "slm2_residual_after_rad": after},
     )
 
