@@ -52,6 +52,7 @@ __all__ = [
     "complex_field_image",
     "linked_field_views",
     "azimuthal_order_panel",
+    "measured_charge_label",
 ]
 
 
@@ -130,6 +131,62 @@ def _crop_to_grid(field_2d: np.ndarray, N_full: int, N_crop: int) -> np.ndarray:
     half = N_crop // 2
     s = slice(centre - half, centre + half)
     return field_2d[s, s]
+
+
+def _phase_winding(
+    field_2d: np.ndarray,
+    grid: dict[str, Any],
+    sample_radius_m: float,
+    n_phi: int = 256,
+) -> float:
+    """Return phase winding in turns (closed-loop incremental phase accumulation).
+
+    Ported from tests/test_physics_validation.py A3.
+    """
+    x = np.asarray(grid["x"], dtype=float)
+    dx = float(grid["dx"])
+    x0 = float(x[0])
+    phis = np.linspace(0.0, _TWOPI, n_phi, endpoint=False)
+    col = (sample_radius_m * np.cos(phis) - x0) / dx
+    row = (sample_radius_m * np.sin(phis) - x0) / dx
+    arr = np.asarray(field_2d, dtype=complex)
+    E_r = map_coordinates(np.real(arr), [row, col], order=1, mode="nearest")
+    E_i = map_coordinates(np.imag(arr), [row, col], order=1, mode="nearest")
+    E_ring = E_r + 1j * E_i
+    steps = np.angle(np.conj(E_ring[:-1]) * E_ring[1:])
+    closing = np.angle(np.conj(E_ring[-1]) * E_ring[0])
+    return float(np.sum(steps) + closing) / _TWOPI
+
+
+def measured_charge_label(
+    field_2d: np.ndarray,
+    grid: dict[str, Any],
+    sample_radius_m: float,
+    *,
+    design_ell: int,
+    conjugate_mode: str | None = None,
+    n_phi: int = 256,
+) -> str:
+    """Measured phase winding as a human-readable label string.
+
+    Charge is noted as preserved when winding ≈ design_ell (within 0.15 turns);
+    otherwise the discrepancy is flagged with the conjugate_mode culprit if supplied.
+    """
+    winding = _phase_winding(field_2d, grid, sample_radius_m, n_phi=n_phi)
+    if abs(winding - design_ell) < 0.15:
+        return (
+            f"measured winding = {winding:.2f}"
+            f" (design ℓ={design_ell}; ✓ charge preserved)"
+        )
+    mode_str = (
+        f"; SLM2 conjugate_mode='{conjugate_mode}' strips the helical phase"
+        if conjugate_mode
+        else ""
+    )
+    return (
+        f"measured winding = {winding:.2f}"
+        f" (design ℓ={design_ell}; charge stripped{mode_str})"
+    )
 
 
 # ─────────────────────────────────────────────────────────────────────────────

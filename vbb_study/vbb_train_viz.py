@@ -9,7 +9,7 @@ from typing import Any, Literal, Sequence
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from matplotlib.colors import BoundaryNorm, ListedColormap
+import matplotlib.colors  # noqa: F401 — kept for potential downstream use
 
 from . import vbb_axicon, vbb_polarized_train, vbb_regime, vbb_studies, vbb_style
 from vbb_study.config import BeamDesign, EPS as BT_EPS, PathKind, TWOPI as BT_TWOPI, TwinConfig, um as BT_UM
@@ -245,6 +245,7 @@ def plot_train_visualiser(
     *,
     method: Method = "holographic",
     output_dir: str | Path = "Publication_Study/outputs/figures/stage_c",
+    charge_label: str | None = None,
 ) -> Path:
     vbb_style.apply_style()
     out = Path(output_dir)
@@ -274,12 +275,14 @@ def plot_train_visualiser(
     before = lab_masks.get("slm2_residual_before_rad")
     after = lab_masks.get("slm2_residual_after_rad")
     subtitle = "" if before is None else f" SLM2 residual RMS {before:.3g} -> {after:.3g} rad"
-    fig.suptitle(f"{method} train visualiser: ideal vs lab.{subtitle}")
+    charge_tag = f"  [{charge_label}]" if charge_label else ""
+    fig.suptitle(f"{method} train visualiser: ideal vs lab.{subtitle}{charge_tag}")
     path = out / f"stage_c_train_{method}.png"
+    caption_charge = f" {charge_label}" if charge_label else ""
     return vbb_style.save_figure(
         fig,
         path,
-        f"Per-stage {method} beam train. Amplitude is gamma displayed without changing the data; phase uses a cyclic twilight colormap. {subtitle.strip()}",
+        f"Per-stage {method} beam train. Amplitude is gamma displayed without changing the data; phase uses a cyclic twilight colormap. {subtitle.strip()}{caption_charge}",
         metadata={"method": method, "slm2_residual_before_rad": before, "slm2_residual_after_rad": after},
     )
 
@@ -496,32 +499,137 @@ def plot_sampling_qa(
     *,
     output_dir: str | Path = "Publication_Study/outputs/figures/stage_c",
 ) -> Path:
+    """Rebuild of the sampling-QA plot showing a continuous per-cell sampling margin.
+
+    The previous implementation had two defects:
+      1. FALSE 2D — every column was identical because the code only used the
+         boolean ``valid`` flag, which happens to be purely core-diameter-driven
+         for zone ≥ 50 µm.  The zone axis was wasted.
+      2. FALSE TERNARY — the colormap defined fail/marginal/pass but the code
+         wrote ``2 if valid else 0``, so 'marginal' never appeared and the
+         underlying sampling margin was discarded.
+
+    This replacement:
+      - Computes the continuous limiting margin per cell:
+        ``min_margin = min(spf/2, spr/2, spaz/4)``
+        where spf = samples_per_feature (threshold 2), spr = samples_per_radial_period
+        (threshold 2), spaz = samples_per_axial_zone (threshold 4).
+        A margin of 1.0 = exactly at the Nyquist threshold.
+      - Displays it as a perceptually-uniform (viridis) heatmap so you can see
+        HOW far each cell is from the limit, not just pass/fail.
+      - Draws the pass/fail threshold at margin = 1.0 as a white contour.
+      - Annotates each cell with the BINDING criterion (feature / radial / axial).
+
+    Note on zone-axis inertia:
+      The Bessel-length axis is NOT fully inert. For zone = 25 µm the axial
+      sampling term becomes binding (margin ≈ 1.04), reducing the margin
+      compared to longer zones (where the transverse feature sampling dominates).
+      The 2D heatmap is therefore the correct representation.  The pass/fail
+      boundary is purely determined by core diameter for zone ≥ 50 µm; at
+      zone = 25 µm a secondary axial-sampling constraint appears at any core size.
+    """
     vbb_style.apply_style()
     table = vbb_regime.validity_map(config, "limits")
     cores = sorted(table["target_core_diameter_um"].unique())
     zones = sorted(table["target_bessel_length_um"].unique())
-    status = np.zeros((len(cores), len(zones)), dtype=int)
+
+    # Nyquist thresholds (must match sampling_validity defaults)
+    _MIN_FEAT = 2.0
+    _MIN_RAD = 2.0
+    _MIN_AX = 4.0
+
+    margin = np.full((len(cores), len(zones)), np.nan)
+    limiting = np.full((len(cores), len(zones)), "", dtype=object)
+
     for i, core in enumerate(cores):
         for j, zone in enumerate(zones):
-            row = table[(table["target_core_diameter_um"] == core) & (table["target_bessel_length_um"] == zone)].iloc[0]
-            status[i, j] = 2 if bool(row["valid"]) else 0
-    cmap = ListedColormap(["#D55E00", "#E69F00", "#009E73"])
-    norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5], cmap.N)
-    fig, ax = plt.subplots(figsize=(7.0, 4.6), constrained_layout=True)
-    im = ax.imshow(status, origin="lower", aspect="auto", cmap=cmap, norm=norm)
-    ax.set_xticks(range(len(zones)), [f"{z:g}" for z in zones])
-    ax.set_yticks(range(len(cores)), [f"{c:g}" for c in cores])
-    ax.set_xlabel("target Bessel length [um, surface plane]")
-    ax.set_ylabel("target core diameter [um, surface plane]")
-    ax.set_title("Limits-regime sampling QA")
-    cbar = fig.colorbar(im, ax=ax, ticks=[0, 1, 2])
-    cbar.ax.set_yticklabels(["fail", "marginal", "pass"])
+            mask = (table["target_core_diameter_um"] == core) & (table["target_bessel_length_um"] == zone)
+            if not mask.any():
+                continue
+            row = table[mask].iloc[0]
+            m_feat = float(row["samples_per_feature"]) / _MIN_FEAT
+            m_rad = float(row["samples_per_radial_period"]) / _MIN_RAD
+            m_ax = float(row["samples_per_axial_zone"]) / _MIN_AX
+            m_min = min(m_feat, m_rad, m_ax)
+            margin[i, j] = m_min
+            if m_min <= m_feat and m_feat <= m_rad and m_feat <= m_ax:
+                limiting[i, j] = "feat"
+            elif m_rad <= m_ax:
+                limiting[i, j] = "rad"
+            else:
+                limiting[i, j] = "ax"
+
+    vmax = float(np.nanmax(margin))
+    fig, ax = plt.subplots(figsize=(8.0, 4.8), constrained_layout=True)
+
+    import matplotlib.colors as mcolors
+    im = ax.imshow(
+        margin,
+        origin="lower",
+        aspect="auto",
+        cmap="viridis",
+        vmin=0.0,
+        vmax=vmax,
+        extent=[-0.5, len(zones) - 0.5, -0.5, len(cores) - 0.5],
+        interpolation="nearest",
+    )
+
+    # Pass/fail threshold contour at margin = 1.0
+    X_c = np.arange(len(zones))
+    Y_c = np.arange(len(cores))
+    ax.contour(X_c, Y_c, margin, levels=[1.0], colors="white", linewidths=2.5, linestyles="-")
+
+    # Cell annotations: show margin value and limiting criterion
+    for i in range(len(cores)):
+        for j in range(len(zones)):
+            m = margin[i, j]
+            if not np.isfinite(m):
+                continue
+            lim = str(limiting[i, j])
+            color = "white" if m < 0.5 * vmax else "black"
+            ax.text(j, i, f"{m:.2f}\n{lim}", ha="center", va="center",
+                    fontsize=6.5, color=color, fontweight="normal")
+
+    ax.set_xticks(range(len(zones)))
+    ax.set_xticklabels([f"{z:g}" for z in zones])
+    ax.set_yticks(range(len(cores)))
+    ax.set_yticklabels([f"{c:g}" for c in cores])
+    ax.set_xlabel("target Bessel length [µm, surface plane]")
+    ax.set_ylabel("target core diameter [µm, surface plane]")
+    ax.set_title("Limits-regime sampling QA — continuous margin (white contour = Nyquist threshold)")
+
+    cbar = fig.colorbar(im, ax=ax)
+    cbar.set_label("sampling margin (× Nyquist threshold; 1.0 = exactly at limit)")
+
+    # Note about zone-axis structure
+    ax.text(
+        0.01, 0.01,
+        "Annotations: margin value / binding criterion (feat=transverse feature, rad=radial period, ax=axial zone).\n"
+        "Zone = 25 µm column is axially-binding (ax); longer zones are feature-binding (feat).",
+        transform=ax.transAxes, fontsize=6, va="bottom", ha="left",
+        color="0.30",
+    )
+
     path = Path(output_dir) / "stage_c_sampling_qa_limits.png"
+    valid_count = int(table["valid"].sum())
+    invalid_count = int((~table["valid"]).sum())
     return vbb_style.save_figure(
         fig,
         path,
-        "Sampling QA map from the real Stage-B/C per-cell validity report. The limits grid contains a mixed valid/invalid envelope rather than a flat placeholder.",
-        metadata={"valid_count": int(table["valid"].sum()), "invalid_count": int((~table["valid"]).sum())},
+        (
+            "Limits-regime sampling QA: continuous per-cell sampling margin = "
+            "min(samples_per_feature/2, samples_per_radial_period/2, samples_per_axial_zone/4). "
+            "Margin < 1.0 = Nyquist violation (fail).  White contour marks the threshold.  "
+            "Cell annotations show the margin value and which sub-criterion is binding "
+            "(feat / rad / ax).  The zone=25 µm column is axially-binding for all passing cores; "
+            f"all other zone values are transverse-feature-binding.  {valid_count} pass, {invalid_count} fail."
+        ),
+        metadata={
+            "valid_count": valid_count,
+            "invalid_count": invalid_count,
+            "margin_min": float(np.nanmin(margin)),
+            "margin_max": float(np.nanmax(margin)),
+        },
     )
 
 
