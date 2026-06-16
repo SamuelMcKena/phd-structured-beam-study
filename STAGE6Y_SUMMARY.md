@@ -43,4 +43,49 @@ Lock status after this fix:
 
 ## Fix 2: lab04 carrier-cone diagram and CSV
 
-Pending.
+Changed the lab04 carrier-cone plot cell, lab04 first-order geometry CSV cell, and the lab04 CSV template in `Publication_Study/tools/update_lab_realism_notebooks.py` to compute first-order cone/filter geometry from `vbb_studies.beam_air_config(cfg)`.
+
+Regenerated outputs:
+
+- `Publication_Study/outputs/figures/stage_c/nb04_carrier_cone_diagram.png` (ignored by Git; regenerated in place, 77,242 bytes)
+- `Publication_Study/outputs/csv/stage_c/first_order_filter_geometry_summary.csv`
+- Cleared stale stored output from the affected lab04 CSV display cell so the notebook no longer embeds the old sample-context table.
+
+Re-run carrier/cone comparison:
+
+| Case | Pre-fix sample cone (lp/mm) | Fixed air cone (lp/mm) | Validated run-case cone (lp/mm) | Carrier (lp/mm) | Pre-fix valid? | Fixed valid? | Run-case valid? |
+|---|---:|---:|---:|---:|---|---|---|
+| `general_blaze12` | 2.059561279829788 | 5.025329522784684 | not separately propagated | 10.416666666666666 | true | true | not separately propagated |
+| `general_blaze20` | 2.059561279829788 | 5.025329522784684 | not separately propagated | 6.250000000000001 | true | true | not separately propagated |
+| `general_blaze32` | 2.059561279829788 | 5.025329522784684 | 5.025329522784684 | 3.90625 | true | false | false |
+| `limits_blaze12` | 9.268025759234048 | 22.613982852531077 | 22.613982852531077 | 10.416666666666666 | true | false | false |
+| `limits_blaze20` | 9.268025759234048 | 22.613982852531077 | not separately propagated | 6.250000000000001 | false | false | not separately propagated |
+| `limits_blaze32` | 9.268025759234048 | 22.613982852531077 | not separately propagated | 3.90625 | false | false | not separately propagated |
+
+Resolved achievability flips:
+
+- `general_blaze32`: before `current_lab_realizable` / valid=true; after `diagnostic_only` / valid=false; run-case valid=false.
+- `limits_blaze12`: before `current_lab_realizable` / valid=true; after `diagnostic_only` / valid=false; run-case valid=false.
+
+Lock status after this fix:
+
+- First lock attempt completed all tests with `18 passed`, but the shell command hit the 20-minute timeout after printing the pytest summary, so it returned exit code 124.
+- Clean rerun with a longer timeout: `C:\PhD\.venv2\Scripts\python.exe -m pytest tests\test_characterisation_lock.py tests\test_characterisation_lock_prod.py`
+- Result: 18 passed, 1 cache-permission warning (`C:\PhD\Code\.pytest_cache\v\cache\nodeids` could not be written).
+
+## Final status
+
+Both Stage 6X DIVERGES findings are resolved without engine changes. The only source/template changes are:
+
+- `Publication_Study/vbb_study/publication/quicklook.py`
+- `Publication_Study/notebooks/lab_realism/04_objective_pupil_and_first_order_filtering.ipynb`
+- `Publication_Study/tools/update_lab_realism_notebooks.py`
+
+Tracked regenerated output:
+
+- `Publication_Study/outputs/csv/stage_c/first_order_filter_geometry_summary.csv`
+
+Ignored regenerated output figures:
+
+- `Publication_Study/outputs/figures/quicklook/01_quicklook_slm_phase_mask.png`
+- `Publication_Study/outputs/figures/stage_c/nb04_carrier_cone_diagram.png`

@@ -580,7 +580,7 @@ from pathlib import Path
 import pandas as pd
 
 import bessel_twin_core as bt
-from vbb_study import setup_study, vbb_regime
+from vbb_study import setup_study, vbb_regime, vbb_studies
 from vbb_study.equations import objective_pupil as objp
 from vbb_study.publication import lab_realism as lab_schema
 
@@ -643,10 +643,11 @@ objective_pupil_geometry
 rows = []
 for regime in ("general", "limits"):
     cfg = vbb_regime.config_for_regime(base, regime)
-    design = bt.compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
-    grid = bt.make_xy_grid(int(cfg.grid.N), float(cfg.slm.pixel_pitch_m) * float(cfg.grid.device_downsample))
+    air_cfg = vbb_studies.beam_air_config(cfg)
+    design = bt.compute_design_from_targets(air_cfg.laser, air_cfg.target, air_cfg.material)
+    grid = bt.make_xy_grid(int(air_cfg.grid.N), float(air_cfg.slm.pixel_pitch_m) * float(air_cfg.grid.device_downsample))
     for blaze_px in (12, 20, 32):
-        test_cfg = replace(cfg, slm=replace(cfg.slm, blaze_period_px=blaze_px))
+        test_cfg = replace(air_cfg, slm=replace(air_cfg.slm, blaze_period_px=blaze_px))
         geom = bt.first_order_filter_geometry(grid, test_cfg.slm, design)
         status = "current_lab_realizable" if geom["first_order_geometry_valid"] else "diagnostic_only"
         row = _common(
