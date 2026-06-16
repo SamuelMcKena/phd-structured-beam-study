@@ -111,7 +111,7 @@ All figures added in Stage 6C carry preset/N/device_downsample in their caption 
 |---|---|
 | `tests/test_viz_fields.py` (9 tests) | **9/9 PASS** |
 | `tests/test_characterisation_lock.py` (fast, 9 tests) | **9/9 PASS** |
-| `tests/test_characterisation_lock_prod.py` (paper, 9 tests) | pending (running) |
+| `tests/test_characterisation_lock_prod.py` (paper, 9 tests) | **9/9 PASS** (680 s) |
 
 ---
 
