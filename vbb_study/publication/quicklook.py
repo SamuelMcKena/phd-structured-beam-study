@@ -517,9 +517,10 @@ def _sample_z_values(config: QuicklookConfig) -> np.ndarray:
 
 
 def _phase_from_config(twin: TwinConfig) -> dict[str, Any]:
-    design = _compute_design_from_targets(twin.laser, twin.target, twin.material)
-    field = _bt().build_realistic_slm_field(twin, design)
-    return {"design": design, "field": field}
+    air = vbb_studies.beam_air_config(twin)
+    design = _compute_design_from_targets(air.laser, air.target, air.material)
+    field = _bt().build_realistic_slm_field(air, design)
+    return {"design": design, "field": field, "air_config": air}
 
 
 def _metrics_dataframe(metrics: Mapping[str, Any], *, case_id: str | None = None) -> pd.DataFrame:
