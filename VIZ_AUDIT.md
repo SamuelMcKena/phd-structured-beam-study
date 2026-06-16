@@ -40,6 +40,49 @@ at paper preset for general/holographic and limits/holographic cases.
 
 ---
 
+## Resolved in Stage 6C (physical route — labelled, charge=0 documented)
+
+### NB02-A · `notebooks/lab_realism/02_physical_axicon_route.ipynb` — all figures
+
+**Status: RESOLVED** — Stage 6C adds:
+- `nb02_results` dict storing full result objects for charge measurement.
+- `measured_charge_label` on `plot_train_visualiser(method='physical')` call.
+- Hero `linked_field_views` at `balanced` preset (N=1024, ds=2) for both
+  regimes, with charge label and preset/N/ds in caption.
+- `azimuthal_order_panel` for both regimes, showing m=0 dominance (charge=0).
+All figures carry the F-A3p label: "measured winding ≈ 0 (design ℓ=3; SLM2
+conjugate_mode='full' strips the helical phase)".
+
+---
+
+### NB03-A · `notebooks/lab_realism/03_holographic_vs_physical_axicon.ipynb` — method comparison
+
+**Status: RESOLVED** — Stage 6C adds:
+- Markdown cell explaining holographic vs physical charge discrepancy (F-A3p).
+- Measured charge labels on both `plot_train_visualiser` calls (computed from
+  fast run, not hardcoded).
+
+---
+
+### NB05-A · `notebooks/lab_realism/05_through_sample_interface.ipynb` — `plot_sample_result_comparison`
+
+**Status: RESOLVED** — Stage 6C expands from 2 to all 8 computed cases, with
+measured charge label in every figure title.
+
+---
+
+### NB06-A · `notebooks/lab_realism/06_full_source_to_sample_journey.ipynb` — `_shared_linear_display`
+
+**Status: RESOLVED** — Stage 6C:
+- Replaces linear clip with `vbb_style.display_scale(gamma=0.45)`.
+- Adds `charge_label` kwarg to `plot_journey_grid` (suptitle + caption).
+- Computes charge from air_result surface_field in main loop.
+- Adds holographic phase hero cell after main loop.
+Validity-stamping logic (`_stamp_invalid`, `_is_first_order_impossible`,
+NOT ACHIEVABLE blanking) preserved unchanged.
+
+---
+
 ## Deferred (physical route — pending SLM2 decision)
 
 ### NB02-A · `notebooks/lab_realism/02_physical_axicon_route.ipynb` — all figures
