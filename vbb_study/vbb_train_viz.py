@@ -71,7 +71,9 @@ def _run_case_peak_metadata(config: TwinConfig, *, method: Method, lab: bool) ->
     if method == "physical":
         physical_cfg = run_cfg.physical_axicon
         if not lab:
-            physical_cfg = replace(physical_cfg, slm2_stroke_levels=None, slm2_conjugate_mode="full")
+            # Keep the selected conjugation physics fixed between ideal/lab;
+            # only remove hardware phase quantisation in the ideal row.
+            physical_cfg = replace(physical_cfg, slm2_stroke_levels=None)
         run_cfg = replace(run_cfg, physical_axicon=physical_cfg)
     path: PathKind = "realistic" if method == "holographic" else "ideal"
     result = _bt().run_case(
@@ -181,7 +183,9 @@ def holographic_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[l
 def physical_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list[TrainFrame], dict[str, Any]]:
     physical_cfg = config.physical_axicon
     if not lab:
-        physical_cfg = replace(physical_cfg, slm2_stroke_levels=None, slm2_conjugate_mode="full")
+        # Keep the selected conjugation physics fixed between ideal/lab;
+        # only remove hardware phase quantisation in the ideal row.
+        physical_cfg = replace(physical_cfg, slm2_stroke_levels=None)
     air, design = _air_config_and_design(replace(config, generation_method="physical", physical_axicon=physical_cfg))
     grid = make_xy_grid(int(air.grid.ideal_N), float(air.grid.ideal_dx_m))
     amp = np.exp(-(grid["R"] ** 2) / max(float(design.w0_sample_m), BT_EPS) ** 2)
@@ -204,10 +208,12 @@ def physical_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list
         prop = make_bl_asm_propagator(U1, grid, air.laser.wavelength_m, n_medium=float(physical_cfg.inter_slm_n), bandlimit=True)
         U2 = prop(z)
     frames.append(TrainFrame("before SLM2", U2, grid, {"inter_slm_z_m": z}))
+    reference_phase = charge * np.asarray(grid["PHI"], dtype=float) if str(physical_cfg.slm2_conjugate_mode).lower().strip() == "preserve_vortex" else None
     U2_flat, diag = vbb_axicon.slm2_conjugate(
         U2,
         mode=physical_cfg.slm2_conjugate_mode,
         stroke_levels=physical_cfg.slm2_stroke_levels,
+        reference_phase=reference_phase,
         return_diagnostics=True,
     )
     slm2_phase = np.angle(U2_flat / (U2 + BT_EPS))

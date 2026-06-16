@@ -26,7 +26,7 @@ except Exception:  # pragma: no cover
     gaussian_filter = None
 
 
-ConjugateMode = Literal["full", "lowpass", "zernike"]
+ConjugateMode = Literal["full", "lowpass", "zernike", "preserve_vortex"]
 GenerationMethod = Literal["holographic", "physical"]
 
 
@@ -171,22 +171,52 @@ def _zernike_fit_loworder(phi_corr: np.ndarray, field: np.ndarray) -> np.ndarray
     return fit
 
 
+def _wrapped_residual(phi: np.ndarray, target: np.ndarray | float = 0.0) -> np.ndarray:
+    """Wrapped phase residual ``phi - target`` on [-pi, pi)."""
+
+    return np.angle(np.exp(1j * (np.asarray(phi, dtype=float) - target)))
+
+
 def _slm2_correction(
     field: np.ndarray,
     *,
     mode: ConjugateMode = "full",
     stroke_levels: int | None = None,
+    reference_phase: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict[str, float | int | str | None]]:
+    """Return the SLM2 correction phase and diagnostics.
+
+    ``mode='full'`` flattens the full incoming phase, including any SLM1 vortex.
+    That is useful for making a plane wave before a physical axicon, but it
+    deliberately strips topological charge.
+
+    ``mode='preserve_vortex'`` instead flattens only the residual phase relative
+    to a supplied helical reference phase, normally ``ell * PHI``.  The outgoing
+    field then keeps the intended vortex winding while still removing the
+    non-helical propagation/aberration term.
+    """
+
     arr = np.asarray(field, dtype=complex)
     phi = np.angle(arr)
-    phi_corr = -phi
     mode_key = str(mode).lower().strip()
-    if mode_key == "zernike":
-        phi_corr = _zernike_fit_loworder(phi_corr, arr)
-    elif mode_key == "lowpass":
-        phi_corr = _lowpass(phi_corr)
-    elif mode_key != "full":
-        raise ValueError(f"Unsupported SLM2 conjugation mode: {mode!r}")
+    target_phase = np.zeros_like(phi, dtype=float)
+
+    if mode_key == "preserve_vortex":
+        if reference_phase is None:
+            raise ValueError("mode='preserve_vortex' requires reference_phase, normally ell * grid['PHI'].")
+        target_phase = np.asarray(reference_phase, dtype=float)
+        if target_phase.shape != phi.shape:
+            raise ValueError("reference_phase must have the same shape as field.")
+        phi_corr = -_wrapped_residual(phi, target_phase)
+    else:
+        phi_corr = -phi
+        if mode_key == "zernike":
+            phi_corr = _zernike_fit_loworder(phi_corr, arr)
+        elif mode_key == "lowpass":
+            phi_corr = _lowpass(phi_corr)
+        elif mode_key != "full":
+            raise ValueError(f"Unsupported SLM2 conjugation mode: {mode!r}")
+
     if stroke_levels is not None:
         levels = int(stroke_levels)
         if levels < 2:
@@ -194,11 +224,19 @@ def _slm2_correction(
         phi_corr = np.round(phi_corr / TWOPI * levels) * (TWOPI / levels)
     after_phase = phi + phi_corr
     weights = np.abs(arr) ** 2
+    if mode_key == "preserve_vortex":
+        before_residual = _wrapped_residual(phi, target_phase)
+        after_residual = _wrapped_residual(after_phase, target_phase)
+    else:
+        # Preserve the exact legacy diagnostics for all pre-existing modes.
+        before_residual = phi
+        after_residual = after_phase
     diagnostics: dict[str, float | int | str | None] = {
         "mode": mode_key,
         "stroke_levels": None if stroke_levels is None else int(stroke_levels),
-        "residual_phase_rms_before_rad": _phase_rms_from_angle(phi, weights),
-        "residual_phase_rms_after_rad": _phase_rms_from_angle(after_phase, weights),
+        "target_phase": "helical_reference" if mode_key == "preserve_vortex" else "flat",
+        "residual_phase_rms_before_rad": _phase_rms_from_angle(before_residual, weights),
+        "residual_phase_rms_after_rad": _phase_rms_from_angle(after_residual, weights),
     }
     return phi_corr, diagnostics
 
@@ -208,17 +246,18 @@ def slm2_conjugate(
     *,
     mode: ConjugateMode = "full",
     stroke_levels: int | None = None,
+    reference_phase: np.ndarray | None = None,
     return_diagnostics: bool = False,
 ) -> np.ndarray | tuple[np.ndarray, dict[str, float | int | str | None]]:
-    """Flatten the SLM2 wavefront by applying a conjugate phase.
+    """Apply the SLM2 conjugate phase.
 
-    ``return_diagnostics=True`` returns the residual phase RMS before and after
-    flattening so callers can verify that the correction actually flattened the
-    high-power field.
+    The default ``mode='full'`` flattens everything and therefore removes an
+    upstream vortex.  Use ``mode='preserve_vortex'`` with ``reference_phase`` to
+    leave the intended helical phase in the field.
     """
 
     arr = np.asarray(field, dtype=complex)
-    phi_corr, diagnostics = _slm2_correction(arr, mode=mode, stroke_levels=stroke_levels)
+    phi_corr, diagnostics = _slm2_correction(arr, mode=mode, stroke_levels=stroke_levels, reference_phase=reference_phase)
     corrected = arr * np.exp(1j * phi_corr)
     if return_diagnostics:
         return corrected, diagnostics
@@ -296,7 +335,8 @@ class PhysicalAxicon:
         reference = Ex2
         if Ey2 is not None and np.sum(np.abs(Ey2) ** 2) > np.sum(np.abs(reference) ** 2):
             reference = Ey2
-        phi_corr, slm2_diag = _slm2_correction(reference, mode=mode, stroke_levels=stroke_levels)
+        reference_phase = charge * np.asarray(grid["PHI"], dtype=float) if str(mode).lower().strip() == "preserve_vortex" else None
+        phi_corr, slm2_diag = _slm2_correction(reference, mode=mode, stroke_levels=stroke_levels, reference_phase=reference_phase)
         slm2_factor = np.sqrt(max(slm2_transmission, 0.0)) * np.exp(1j * phi_corr)
         Ex_flat = Ex2 * slm2_factor
         Ey_flat = None if Ey2 is None else Ey2 * slm2_factor
