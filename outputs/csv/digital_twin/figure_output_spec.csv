@@ -1,0 +1,18 @@
+figure_id,filename,title,engine,model_status,proxy_stamp_required,requires_calibration_data,gated,notes
+FIG-01,dt_fig01_slm_pattern.png,SLM hologram pattern (Engine 1 input),1,optical_prediction,no,no,no,Phase pattern + blaze grating
+FIG-02,dt_fig02_4f_first_order_filter.png,4f relay first-order filter diagram (holographic route only),1,optical_prediction,no,no,no,Fourier plane + filtered output; holographic route only
+FIG-03,dt_fig03_propagation_axial.png,Beam propagation — on-axis intensity vs z,1,optical_prediction,no,no,no,I(0 z) vs z; Bessel zone marked
+FIG-04,dt_fig04_surface_field_intensity.png,Transverse intensity at sample surface,1,optical_prediction,no,no,no,4-panel linked_field_views; charge label required
+FIG-05,dt_fig05_fluence_map_transverse.png,Spatial fluence distribution at sample surface F(x y),2,fluence_prediction,no,no,no,2D F(x y) map; E_p and peak fluence in caption
+FIG-06,dt_fig06_fluence_map_xz.png,Longitudinal fluence map F(x z),2,fluence_prediction,no,no,no,x-z slice from propagation cube
+FIG-07,dt_fig07_threshold_crossing_map.png,Threshold-crossing map F(x y) vs F_th literature,2,fluence_threshold_proxy,yes,no,no,Binary or continuous map; orange proxy stamp required
+FIG-08,dt_fig08_incubation_curve.png,Incubation threshold curve F_th(N) vs N,2,fluence_threshold_proxy,yes,no,no,Jee-Becker law; literature S and F_th values stated
+FIG-09,dt_fig09_writing_trajectory.png,Writing trajectory diagram,2,dose_accumulation_proxy,yes,no,no,Plan view x-y; shot overlap geometry
+FIG-10,dt_fig10_dose_accumulation_map.png,Accumulated dose map — multi-shot writing,2,dose_accumulation_proxy,yes,no,no,Cumulative fluence sum over trajectory
+FIG-11,dt_fig11_modification_volume_proxy.png,Modification volume proxy — threshold-crossing extent,3,uncalibrated_material_response_proxy,yes,no,no,3-panel x-y x-z and feature dimensions
+FIG-12,dt_fig12_simulated_top_view.png,Simulated microscopy — top-view proxy,3,simulated_microscopy_proxy,yes,no,no,PSF convolution; Gaussian PSF by default
+FIG-13,dt_fig13_ideal_vs_lab_fluence_comparison.png,Ideal vs lab-realistic fluence comparison,1+2,fluence_prediction,no,no,no,Side-by-side ideal and holographic lab routes
+FIG-14,dt_fig14_parameter_sensitivity.png,Parameter sensitivity — fluence vs E_p and blaze period,1+2,fluence_prediction,no,no,no,Sweep E_p and blaze period Λ
+FIG-15,dt_fig15_hardware_route_comparison.png,Hardware route comparison — holographic vs physical axicon,1+2,fluence_prediction,no,no,no,Charge labels (measured winding) required; F-A3p note for physical
+FIG-16,dt_fig16_calibration_residuals.png,Calibration residuals (gated — requires calibration data),3,calibrated_material_prediction,no,yes,yes,Placeholder panel if no calibration data; not generated at proxy level
+GIF-01,dt_anim_writing_trajectory.gif,Animated writing trajectory — dose accumulation over time,2,dose_accumulation_proxy,yes,no,no,Animated GIF ≤ 5 MB; 10 fps; frame per 10 shots
