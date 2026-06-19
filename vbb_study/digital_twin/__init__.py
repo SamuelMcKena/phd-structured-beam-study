@@ -97,6 +97,8 @@ from vbb_study.digital_twin.cockpit_dashboard import (
     compute_peak_location_diagnostics,
     choose_display_plane,
     build_warning_flags,
+    compute_overall_status,
+    build_beam_path_strip,
     plot_integrated_cockpit_dashboard,
     make_interpretation_text,
 )
@@ -164,6 +166,8 @@ __all__ = [
     # integrated cockpit dashboard (Stage 8C.1)
     "build_cockpit_summary",
     "compute_peak_location_diagnostics",
+    "compute_overall_status",
+    "build_beam_path_strip",
     "choose_display_plane",
     "build_warning_flags",
     "plot_integrated_cockpit_dashboard",

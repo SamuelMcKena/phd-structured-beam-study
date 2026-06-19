@@ -7,6 +7,8 @@ material response and do not change optical propagation physics.
 
 from __future__ import annotations
 
+import textwrap
+from math import ceil
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -15,6 +17,7 @@ import numpy as np
 import matplotlib
 matplotlib.use("Agg", force=False)
 import matplotlib.pyplot as plt  # noqa: E402
+from matplotlib.patches import FancyBboxPatch, Rectangle  # noqa: E402
 
 from vbb_study.digital_twin.energy_accounting import EnergyLedger
 from vbb_study.digital_twin.exposure_bookkeeping import line_exposure_summary
@@ -25,10 +28,72 @@ from vbb_study.digital_twin.field_fluence import (
     peak_intensity_from_fluence_result,
 )
 
-STAGE = "stage8c1_integrated_cockpit_mvp"
+STAGE = "stage8c2_integrated_cockpit_dashboard"
 MODEL_STATUS = "diagnostic_preview"
 FIGURE_STATUS = "diagnostic_allowed"
 FINAL_EXPORT_ALLOWED = False
+
+# ---------------------------------------------------------------------------
+# Visual design tokens (Stage 8C.2 polish)
+# ---------------------------------------------------------------------------
+
+STATUS_DARK = {
+    "pass": "#1b5e20",
+    "caution": "#e65100",
+    "fail": "#b71c1c",
+    "missing": "#455a64",
+    "diagnostic_only": "#0d47a1",
+    "disabled_future": "#4a148c",
+    "info": "#37474f",
+}
+STATUS_LIGHT = {
+    "pass": "#e8f5e9",
+    "caution": "#fff3e0",
+    "fail": "#ffebee",
+    "missing": "#eceff1",
+    "diagnostic_only": "#e3f2fd",
+    "disabled_future": "#f3e5f5",
+    "info": "#eceff1",
+}
+STATUS_SEVERITY = {
+    "pass": 0,
+    "diagnostic_only": 0,
+    "disabled_future": 0,
+    "info": 0,
+    "missing": 1,
+    "caution": 2,
+    "fail": 3,
+}
+STATUS_WORD = {
+    "pass": "PASS",
+    "caution": "WARN",
+    "fail": "FAIL",
+    "missing": "MISS",
+    "diagnostic_only": "DIAG",
+    "disabled_future": "OFF",
+    "info": "INFO",
+}
+BADGE_WORD = {"pass": "PASS", "caution": "CAUTION", "fail": "FAIL"}
+
+_SHORT_STAGE_LABELS = {
+    "laser_source": "Laser",
+    "pre_slm_beam_conditioning": "Pre-SLM",
+    "telescope_or_beam_expander": "Telesc.",
+    "slm1_phase": "SLM1",
+    "slm2_phase_or_axicon": "SLM2/Ax",
+    "first_order_filter": "1st-ord",
+    "relay_optics": "Relay",
+    "objective_and_pupil": "Obj/Pup",
+    "sample_interface": "Sample",
+    "in_sample_propagation": "Propag.",
+    "field_to_fluence": "Fluence",
+    "exposure_bookkeeping": "Expose",
+    "future_material_response_disabled": "Material",
+}
+
+# Colormaps used consistently across the dashboard.
+_CMAP_INTENSITY = "inferno"
+_CMAP_FLUENCE = "viridis"
 
 
 def choose_display_plane(
@@ -296,9 +361,16 @@ def plot_integrated_cockpit_dashboard(
     dpi: int = 180,
     display_scaling: str = "percentile",
     display_percentile_clip: tuple[float, float] = (0.5, 99.5),
-    title: str = "Stage 8C.1 Integrated Beam-to-Write Cockpit MVP",
+    title: str = "Stage 8C.2 Integrated Beam-to-Write Cockpit",
 ) -> "matplotlib.figure.Figure":
-    """Render the integrated optical/energy/exposure cockpit dashboard."""
+    """Render the integrated optical/energy/exposure cockpit dashboard.
+
+    Stage 8C.2 polish: GridSpec hierarchy with a header band + PASS/CAUTION/FAIL
+    status badge, a stage-by-stage beam-path strip, high-visibility warning
+    cards, readable summary/energy/exposure cards, annotated XY/ROI panels, a
+    dominant annotated XZ propagation panel, peak-vs-z and raw captured-power
+    drift plots, and an interpretation/claim-boundary card.
+    """
     controls = dict(controls or {})
     if output_path is not None and not show_caveats:
         raise CaveatsRequiredError(
@@ -330,11 +402,10 @@ def plot_integrated_cockpit_dashboard(
         diagnostics=diagnostics,
     )
 
-    fig, axes = plt.subplots(4, 3, figsize=(17, 17), constrained_layout=True)
-    fig.suptitle(
-        f"{title}\noptical/fluence diagnostic only - no material response",
-        fontsize=15,
+    overall_status = compute_overall_status(
+        warning_flags, diagnostics=diagnostics, lab_report=lab_report
     )
+    strip = build_beam_path_strip(lab_report)
 
     selected_idx = int(diagnostics["selected_plane_index"])
     z = np.asarray(stack.z_um, dtype=float)
@@ -343,35 +414,67 @@ def plot_integrated_cockpit_dashboard(
     extent_xy = _extent_from_coords(x, y)
     F = fluence_result.fluence_zyx_j_cm2
 
-    _text_panel(axes[0, 0], _experiment_summary_text(controls, diagnostics), "Experiment Request")
-    _plot_energy_ledger(axes[0, 1], energy_ledger)
-    _text_panel(axes[0, 2], _exposure_text(controls, exposure_summary), "Exposure Bookkeeping")
+    surface_z = 0.0
+    target_z = float(controls.get("focus_depth_um", diagnostics.get("target_depth_z_um", 0.0)))
+    selected_z = float(diagnostics["selected_plane_z_um"])
+    global_peak_z = float(diagnostics["global_peak_z_um"])
+    roi_peak_z = float(diagnostics.get("central_roi_peak_z_um", selected_z))
 
-    _text_panel(axes[1, 0], _warning_flags_text(warning_flags), "Lab Realism / Feasibility")
-    im = axes[1, 1].imshow(
+    fig = plt.figure(figsize=(20.0, 23.5))
+    gs = fig.add_gridspec(
+        8, 12,
+        height_ratios=[0.62, 0.64, 0.78, 1.55, 1.95, 1.5, 1.5, 1.5],
+        hspace=0.55, wspace=0.65,
+        left=0.045, right=0.972, top=0.986, bottom=0.022,
+    )
+
+    # --- A. header band + status badge ---
+    _header_band(fig.add_subplot(gs[0, :]), controls, energy_ledger, diagnostics,
+                 overall_status, title)
+
+    # --- B. stage-by-stage beam-path strip ---
+    _beam_path_strip_panel(fig.add_subplot(gs[1, :]), strip)
+
+    # --- C. high-visibility warning cards ---
+    _warning_cards_panel(fig.add_subplot(gs[2, :]), warning_flags)
+
+    # --- D/E. experiment / energy ledger / exposure ---
+    _card(fig.add_subplot(gs[3, 0:4]), "Experiment request",
+          _experiment_card_lines(controls, diagnostics), status="diagnostic_only")
+    _ledger_bars(fig.add_subplot(gs[3, 4:8]), energy_ledger)
+    _card(fig.add_subplot(gs[3, 8:12]), "Exposure bookkeeping",
+          _exposure_card_lines(controls, exposure_summary),
+          status=_exposure_status(exposure_summary))
+
+    # --- F. optical / fluence panels ---
+    ax_int = fig.add_subplot(gs[4, 0:4])
+    im = ax_int.imshow(
         _display_map(stack.intensity_zyx[selected_idx], display_scaling, display_percentile_clip),
-        origin="lower",
-        extent=extent_xy,
-        cmap="inferno",
-        aspect="equal",
+        origin="lower", extent=extent_xy, cmap=_CMAP_INTENSITY, aspect="equal",
     )
-    axes[1, 1].set_title(f"XY optical intensity @ z={z[selected_idx]:.3g} um")
-    axes[1, 1].set_xlabel("x (um)")
-    axes[1, 1].set_ylabel("y (um)")
-    fig.colorbar(im, ax=axes[1, 1], fraction=0.046, pad=0.04)
+    ax_int.set_title(f"XY optical intensity @ selected z = {selected_z:.3g} um",
+                     fontsize=12, fontweight="bold")
+    ax_int.set_xlabel("x (um)"); ax_int.set_ylabel("y (um)")
+    fig.colorbar(im, ax=ax_int, fraction=0.046, pad=0.04, label="intensity (a.u.)")
+    _annotate(ax_int, [
+        f"route: {controls.get('generation_method', 'holographic')}  ell={controls.get('ell', 'na')}",
+        f"plane: {diagnostics.get('selected_plane_reason', 'na')}",
+    ])
 
-    im = axes[1, 2].imshow(
+    ax_flu = fig.add_subplot(gs[4, 4:8])
+    im = ax_flu.imshow(
         _display_map(F[selected_idx], display_scaling, display_percentile_clip),
-        origin="lower",
-        extent=extent_xy,
-        cmap="viridis",
-        aspect="equal",
+        origin="lower", extent=extent_xy, cmap=_CMAP_FLUENCE, aspect="equal",
     )
-    axes[1, 2].set_title("XY optical fluence @ selected plane (J/cm^2)")
-    axes[1, 2].set_xlabel("x (um)")
-    axes[1, 2].set_ylabel("y (um)")
-    fig.colorbar(im, ax=axes[1, 2], fraction=0.046, pad=0.04, label="J/cm^2")
+    ax_flu.set_title("XY optical fluence @ selected z", fontsize=12, fontweight="bold")
+    ax_flu.set_xlabel("x (um)"); ax_flu.set_ylabel("y (um)")
+    fig.colorbar(im, ax=ax_flu, fraction=0.046, pad=0.04, label="J/cm^2")
+    _annotate(ax_flu, [
+        f"selected peak: {_fmt(diagnostics.get('selected_plane_peak_value'))} J/cm^2",
+        f"E@sample: {_energy_at_sample(energy_ledger)} uJ",
+    ])
 
+    ax_roi = fig.add_subplot(gs[4, 8:12])
     roi_half = float(controls.get("central_roi_half_width_um", 10.0))
     xi = np.flatnonzero(np.abs(x) <= roi_half)
     yi = np.flatnonzero(np.abs(y) <= roi_half)
@@ -380,66 +483,96 @@ def plot_integrated_cockpit_dashboard(
     if yi.size == 0:
         yi = np.array([_nearest_index(y, 0.0)])
     roi_f = F[selected_idx][np.ix_(yi, xi)]
-    im = axes[2, 0].imshow(
+    im = ax_roi.imshow(
         _display_map(roi_f, display_scaling, display_percentile_clip),
-        origin="lower",
-        extent=_extent_from_coords(x[xi], y[yi]),
-        cmap="viridis",
-        aspect="equal",
+        origin="lower", extent=_extent_from_coords(x[xi], y[yi]), cmap=_CMAP_FLUENCE, aspect="equal",
     )
-    axes[2, 0].set_title("Central ROI fluence zoom")
-    axes[2, 0].set_xlabel("x (um)")
-    axes[2, 0].set_ylabel("y (um)")
-    fig.colorbar(im, ax=axes[2, 0], fraction=0.046, pad=0.04, label="J/cm^2")
+    ax_roi.set_title(f"Central ROI fluence zoom (+/-{roi_half:.3g} um)", fontsize=12, fontweight="bold")
+    ax_roi.set_xlabel("x (um)"); ax_roi.set_ylabel("y (um)")
+    fig.colorbar(im, ax=ax_roi, fraction=0.046, pad=0.04, label="J/cm^2")
+    _annotate(ax_roi, [
+        f"ROI peak: {_fmt(diagnostics.get('central_roi_peak_value'))} J/cm^2",
+        f"at z = {roi_peak_z:.3g} um",
+    ])
 
+    # --- G. dominant annotated XZ propagation panel ---
+    ax_xz = fig.add_subplot(gs[5:7, 0:8])
     yc = _nearest_index(y, 0.0)
     xz = F[:, yc, :].T
-    im = axes[2, 1].imshow(
+    im = ax_xz.imshow(
         _display_map(xz, display_scaling, display_percentile_clip),
         origin="lower",
         extent=(float(np.min(z)), float(np.max(z)), float(np.min(x)), float(np.max(x))),
-        cmap="viridis",
-        aspect="auto",
+        cmap=_CMAP_FLUENCE, aspect="auto",
     )
-    axes[2, 1].set_title("XZ optical fluence with lab markers")
-    axes[2, 1].set_xlabel("z (um)")
-    axes[2, 1].set_ylabel("x (um)")
+    ax_xz.set_title("XZ optical fluence along propagation (y = 0 slice)",
+                    fontsize=14, fontweight="bold")
+    ax_xz.set_xlabel("z (um)   [propagation axis; sample surface at z = 0]", fontsize=12)
+    ax_xz.set_ylabel("x (um)", fontsize=12)
     for value, color, label, style in [
-        (0.0, "#1f77b4", "surface z=0", "-"),
-        (float(controls.get("focus_depth_um", 0.0)), "#ff7f0e", "target depth", "--"),
-        (float(diagnostics["selected_plane_z_um"]), "#2ca02c", "selected z", "-."),
-        (float(diagnostics["global_peak_z_um"]), "#d62728", "global peak z", ":"),
+        (surface_z, "#29b6f6", "surface z=0", "-"),
+        (target_z, "#ffb300", "target depth", "--"),
+        (selected_z, "#00e676", "selected z", "-."),
+        (global_peak_z, "#ff1744", "global peak z", ":"),
     ]:
-        axes[2, 1].axvline(value, color=color, lw=1.2, ls=style, label=label)
-    axes[2, 1].legend(fontsize=7)
-    fig.colorbar(im, ax=axes[2, 1], fraction=0.046, pad=0.04, label="J/cm^2")
+        ax_xz.axvline(value, color=color, lw=2.2, ls=style, label=label)
+    ax_xz.legend(fontsize=10, loc="upper right", framealpha=0.85)
+    fig.colorbar(im, ax=ax_xz, fraction=0.03, pad=0.02, label="J/cm^2")
+    if diagnostics.get("global_peak_near_boundary"):
+        ax_xz.text(
+            0.5, 0.045,
+            "CAUTION: global peak near crop boundary - not a trustworthy headline plane",
+            transform=ax_xz.transAxes, ha="center", va="bottom",
+            fontsize=11.5, fontweight="bold", color="white",
+            bbox=dict(boxstyle="round", facecolor="#b71c1c", alpha=0.92, edgecolor="none"),
+        )
 
-    axes[2, 2].plot(z, fluence_result.peak_fluence_by_z_j_cm2, label="global peak by z")
+    # --- peak-vs-z and raw captured-power drift ---
+    ax_peak = fig.add_subplot(gs[5, 8:12])
+    ax_peak.plot(z, fluence_result.peak_fluence_by_z_j_cm2, color="#1565c0", lw=2.2, label="global peak")
     if "central_roi_peak_by_z_j_cm2" in diagnostics:
-        axes[2, 2].plot(z, diagnostics["central_roi_peak_by_z_j_cm2"], ls="--", label="central ROI peak by z")
-    axes[2, 2].axvline(float(diagnostics["selected_plane_z_um"]), color="#2ca02c", lw=1.2, label="selected")
-    axes[2, 2].set_title("Peak fluence + raw captured-power drift")
-    axes[2, 2].set_xlabel("z (um)")
-    axes[2, 2].set_ylabel("peak fluence (J/cm^2)")
-    axr = axes[2, 2].twinx()
-    axr.plot(z, fluence_result.raw_captured_power_fraction_by_z, color="#9467bd", ls=":", label="raw captured fraction")
-    axr.set_ylabel("raw captured fraction")
-    axes[2, 2].legend(fontsize=7, loc="upper left")
-    axr.legend(fontsize=7, loc="upper right")
+        ax_peak.plot(z, np.asarray(diagnostics["central_roi_peak_by_z_j_cm2"], float),
+                     color="#6a1b9a", ls="--", lw=2.0, label="central ROI peak")
+    ax_peak.axvline(selected_z, color="#00c853", lw=1.8, label="selected")
+    ax_peak.axvline(target_z, color="#ffb300", lw=1.8, ls="--", label="target")
+    ax_peak.set_title("Peak fluence vs z", fontsize=12, fontweight="bold")
+    ax_peak.set_xlabel("z (um)"); ax_peak.set_ylabel("J/cm^2")
+    ax_peak.legend(fontsize=8, loc="best")
+    ax_peak.grid(alpha=0.25)
 
-    warning_text = _diagnostic_warning_text(diagnostics, show_caveats)
-    _text_panel(axes[3, 0], warning_text, "Warnings / Interpretation Boundary")
-    _text_panel(axes[3, 1], _lab_report_text(lab_report), "Stage Report Snapshot")
-    _text_panel(axes[3, 2], _future_disabled_text(), "Future Physics Disabled")
+    ax_drift = fig.add_subplot(gs[6, 8:12])
+    ax_drift.plot(z, fluence_result.raw_captured_power_fraction_by_z, color="#8e24aa", lw=2.2)
+    ax_drift.fill_between(z, fluence_result.raw_captured_power_fraction_by_z, color="#8e24aa", alpha=0.12)
+    ax_drift.set_title("Raw captured-power fraction vs z", fontsize=12, fontweight="bold")
+    ax_drift.set_xlabel("z (um)"); ax_drift.set_ylabel("captured fraction")
+    ax_drift.grid(alpha=0.25)
+    drift = float(diagnostics.get("captured_power_drift_fraction", float("nan")))
+    drift_status = "caution" if (np.isfinite(drift) and drift > 0.20) else "pass"
+    ax_drift.text(
+        0.5, 0.93, (f"drift = {drift:.1%}" if np.isfinite(drift) else "drift = n/a"),
+        transform=ax_drift.transAxes, ha="center", va="top", fontsize=11, fontweight="bold",
+        color=STATUS_DARK[drift_status],
+        bbox=dict(boxstyle="round", facecolor=STATUS_LIGHT[drift_status],
+                  edgecolor=STATUS_DARK[drift_status]),
+    )
 
-    fig.stage8c1_metadata = {  # type: ignore[attr-defined]
+    # --- interpretation / claim boundary + future-disabled ---
+    _card(fig.add_subplot(gs[7, 0:8]), "Interpretation & claim boundary",
+          _claim_boundary_lines(diagnostics), status=overall_status, body_fs=10.5)
+    _card(fig.add_subplot(gs[7, 8:12]), "Future physics - disabled",
+          _future_disabled_text().split("\n"), status="disabled_future", body_fs=9.5)
+
+    meta = {
         "stage": STAGE,
         "figure_status": FIGURE_STATUS,
         "model_status": MODEL_STATUS,
         "final_export_allowed": False,
         "selected_plane_z_um": diagnostics["selected_plane_z_um"],
         "warning_level": diagnostics.get("warning_level", "pass"),
+        "overall_status": overall_status,
     }
+    fig.stage8c1_metadata = meta  # type: ignore[attr-defined]
+    fig.stage8c2_metadata = meta  # type: ignore[attr-defined]
 
     if output_path is not None:
         out = Path(output_path)
@@ -454,7 +587,8 @@ def plot_integrated_cockpit_dashboard(
                 "figure_status": FIGURE_STATUS,
                 "model_status": MODEL_STATUS,
                 "final_export_allowed": "False",
-                "Description": "Stage 8C.1 optical/fluence diagnostic only; no material response.",
+                "overall_status": overall_status,
+                "Description": "Stage 8C.2 optical/fluence cockpit dashboard; diagnostic only; no material response.",
             },
         )
     return fig
@@ -673,4 +807,310 @@ def _fmt(value: Any) -> str:
         if np.isfinite(float(value)):
             return f"{float(value):.4g}"
     return str(value)
+
+
+def _fmt_pct(value: Any) -> str:
+    if isinstance(value, (float, int)) and np.isfinite(float(value)):
+        return f"{100.0 * float(value):.1f}%"
+    return str(value)
+
+
+def _humanize(name: str) -> str:
+    return str(name).replace("_", " ")
+
+
+def _energy_at_sample(energy_ledger: EnergyLedger | None) -> str:
+    if energy_ledger is None:
+        return "na"
+    return f"{energy_ledger.energy_at_sample_uJ:.4g}"
+
+
+# ---------------------------------------------------------------------------
+# Stage 8C.2 public helpers
+# ---------------------------------------------------------------------------
+
+
+def compute_overall_status(
+    warning_flags: Mapping[str, Mapping[str, str]] | None = None,
+    *,
+    diagnostics: Mapping[str, Any] | None = None,
+    lab_report: Any | None = None,
+) -> str:
+    """Collapse warning flags, diagnostics, and lab stages into pass/caution/fail.
+
+    "missing" / "diagnostic_only" / "disabled_future" are treated as
+    informational for the headline badge (they are surfaced in the cards), while
+    "caution" -> CAUTION and "fail" -> FAIL.
+    """
+    severity = 0
+    for info in (warning_flags or {}).values():
+        severity = max(severity, STATUS_SEVERITY.get(info.get("status", "pass"), 0))
+    if diagnostics is not None:
+        severity = max(severity, STATUS_SEVERITY.get(diagnostics.get("warning_level", "pass"), 0))
+    if lab_report is not None and hasattr(lab_report, "stages"):
+        for stage in lab_report.stages:
+            severity = max(severity, STATUS_SEVERITY.get(stage.status_level, 0))
+    if severity >= 3:
+        return "fail"
+    if severity >= 2:
+        return "caution"
+    return "pass"
+
+
+def build_beam_path_strip(lab_report: Any | None) -> list[dict[str, Any]]:
+    """Return compact per-stage chips for the beam-path strip."""
+    if lab_report is None or not hasattr(lab_report, "stages"):
+        return []
+    chips: list[dict[str, Any]] = []
+    for stage in lab_report.stages:
+        status = stage.status_level if stage.status_level in STATUS_DARK else "info"
+        chips.append(
+            {
+                "stage_name": stage.stage_name,
+                "short_label": _SHORT_STAGE_LABELS.get(stage.stage_name, stage.stage_name[:8]),
+                "status_level": status,
+                "enabled": bool(stage.enabled),
+                "note": (stage.warnings[0] if stage.warnings else ""),
+            }
+        )
+    return chips
+
+
+# ---------------------------------------------------------------------------
+# Stage 8C.2 drawing helpers
+# ---------------------------------------------------------------------------
+
+
+def _blank_panel(ax: Any) -> None:
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+
+
+def _header_band(
+    ax: Any,
+    controls: Mapping[str, Any],
+    energy_ledger: EnergyLedger | None,
+    diagnostics: Mapping[str, Any],
+    overall_status: str,
+    title: str,
+) -> None:
+    _blank_panel(ax)
+    ax.set_facecolor("#fafafa")
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#cfd8dc")
+        spine.set_linewidth(1.5)
+    ax.text(0.012, 0.74, title, fontsize=20, fontweight="bold", color="#102027", va="center")
+    ax.text(
+        0.012, 0.30,
+        "Optical / fluence diagnostic only  -  no material response  -  final_export_allowed=False",
+        fontsize=11.5, color="#37474f", va="center", style="italic",
+    )
+    lines = [
+        f"route : {controls.get('generation_method', 'holographic')}   ell={controls.get('ell', 'na')}",
+        f"lambda: {controls.get('wavelength_nm', 'na')} nm   tau: {controls.get('pulse_duration_fs', 'na')} fs   "
+        f"f: {controls.get('repetition_rate_Hz', 'na')} Hz",
+        f"E in  : {controls.get('pulse_energy_before_optics_uJ', 'na')} uJ   "
+        f"E@sample: {_energy_at_sample(energy_ledger)} uJ",
+        f"sel z : {_fmt(diagnostics.get('selected_plane_z_um'))} um   target: {controls.get('focus_depth_um', 'na')} um",
+    ]
+    ax.text(0.45, 0.52, "\n".join(lines), fontsize=10.5, color="#263238",
+            va="center", ha="left", family="monospace", linespacing=1.7)
+    dark = STATUS_DARK[overall_status]
+    light = STATUS_LIGHT[overall_status]
+    ax.add_patch(FancyBboxPatch(
+        (0.845, 0.14), 0.14, 0.72,
+        boxstyle="round,pad=0.005,rounding_size=0.06",
+        facecolor=light, edgecolor=dark, lw=3.0,
+    ))
+    ax.text(0.915, 0.66, "DISPLAY TRUST", ha="center", va="center", fontsize=9.5, color=dark, fontweight="bold")
+    ax.text(0.915, 0.40, BADGE_WORD.get(overall_status, overall_status.upper()),
+            ha="center", va="center", fontsize=23, color=dark, fontweight="bold")
+
+
+def _beam_path_strip_panel(ax: Any, strip: list[dict[str, Any]]) -> None:
+    _blank_panel(ax)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.text(0.0, 0.97, "Beam path - stage status", fontsize=12, fontweight="bold", va="top")
+    if not strip:
+        ax.text(0.5, 0.45, "lab realism report not available", ha="center", va="center",
+                fontsize=11, color="#b71c1c")
+        return
+    n = len(strip)
+    gap = 0.006
+    w = (1.0 - gap * (n - 1)) / n
+    y0, h = 0.12, 0.62
+    for i, chip in enumerate(strip):
+        st = chip["status_level"]
+        dark = STATUS_DARK.get(st, "#37474f")
+        light = STATUS_LIGHT.get(st, "#eceff1")
+        x = i * (w + gap)
+        ax.add_patch(FancyBboxPatch(
+            (x, y0), w, h, boxstyle="round,pad=0.002,rounding_size=0.03",
+            facecolor=light, edgecolor=dark, lw=1.6,
+        ))
+        ax.add_patch(Rectangle((x, y0 + h - 0.17), w, 0.17, color=dark))
+        ax.text(x + w / 2, y0 + h - 0.085, STATUS_WORD.get(st, "INFO"),
+                ha="center", va="center", fontsize=6.6, color="white", fontweight="bold")
+        ax.text(x + w / 2, y0 + 0.24, chip["short_label"], ha="center", va="center",
+                fontsize=7.4, color="#212121", fontweight="bold")
+        if not chip["enabled"]:
+            ax.text(x + w / 2, y0 + 0.07, "(off)", ha="center", va="center",
+                    fontsize=6.0, color="#607d8b")
+        if i < n - 1:
+            ax.annotate("", xy=(x + w + gap, y0 + h / 2), xytext=(x + w, y0 + h / 2),
+                        arrowprops=dict(arrowstyle="-|>", color="#b0bec5", lw=1.2))
+
+
+def _warning_cards_panel(ax: Any, warning_flags: Mapping[str, Mapping[str, str]] | None) -> None:
+    _blank_panel(ax)
+    for spine in ax.spines.values():
+        spine.set_visible(False)
+    ax.text(0.0, 0.985, "Warnings & feasibility flags", fontsize=12, fontweight="bold", va="top")
+    items = list((warning_flags or {}).items())
+    if not items:
+        ax.text(0.5, 0.4, "no warning flags", ha="center", va="center", fontsize=10)
+        return
+    ncol = 3
+    nrow = ceil(len(items) / ncol)
+    gx, gy = 0.014, 0.05
+    top = 0.85
+    cw = (1.0 - gx * (ncol - 1)) / ncol
+    ch = (top - gy * (nrow - 1)) / nrow
+    for idx, (name, info) in enumerate(items):
+        r, c = divmod(idx, ncol)
+        st = info.get("status", "pass")
+        dark = STATUS_DARK.get(st, "#37474f")
+        light = STATUS_LIGHT.get(st, "#eceff1")
+        x = c * (cw + gx)
+        card_top = top - r * (ch + gy)
+        y = card_top - ch
+        ax.add_patch(FancyBboxPatch(
+            (x, y), cw, ch, boxstyle="round,pad=0.004,rounding_size=0.05",
+            facecolor=light, edgecolor=dark, lw=1.6,
+        ))
+        ax.add_patch(Rectangle((x, y + ch - 0.13), cw, 0.13, color=dark))
+        ax.text(x + 0.012, y + ch - 0.065, f"{STATUS_WORD.get(st, 'INFO')}  {_humanize(name)}",
+                ha="left", va="center", fontsize=8.8, color="white", fontweight="bold")
+        msg = textwrap.fill(str(info.get("message", "")), width=44)
+        ax.text(x + 0.012, y + ch - 0.17, msg, ha="left", va="top", fontsize=7.8, color="#212121")
+
+
+def _card(
+    ax: Any,
+    title: str,
+    body_lines: Any,
+    *,
+    status: str = "diagnostic_only",
+    body_fs: float = 10.0,
+    title_fs: float = 12.5,
+) -> None:
+    dark = STATUS_DARK.get(status, "#37474f")
+    light = STATUS_LIGHT.get(status, "#eceff1")
+    _blank_panel(ax)
+    for spine in ax.spines.values():
+        spine.set_edgecolor(dark)
+        spine.set_linewidth(2.0)
+    ax.set_facecolor(light)
+    ax.add_patch(Rectangle((0, 0.88), 1, 0.12, color=dark, zorder=2))
+    ax.text(0.025, 0.94, title, color="white", fontsize=title_fs, fontweight="bold",
+            va="center", ha="left", zorder=3)
+    body = "\n".join(str(line) for line in body_lines) if isinstance(body_lines, (list, tuple)) else str(body_lines)
+    ax.text(0.025, 0.83, body, color="#212121", fontsize=body_fs, va="top", ha="left",
+            family="monospace", zorder=3, linespacing=1.45)
+
+
+def _ledger_bars(ax: Any, ledger: EnergyLedger | None) -> None:
+    if ledger is None:
+        _blank_panel(ax)
+        ax.text(0.5, 0.5, "energy ledger not available", ha="center", va="center", fontsize=10)
+        return
+    labels = ["input"] + [_SHORT_STAGE_LABELS.get(r.component_name, r.component_name[:8]) for r in ledger.rows]
+    first = ledger.rows[0].energy_in_uJ if ledger.rows else ledger.energy_at_sample_uJ
+    values = [first] + [r.energy_out_uJ for r in ledger.rows]
+    colors = ["#455a64"] + ["#1565c0"] * len(ledger.rows)
+    ax.bar(np.arange(len(values)), values, color=colors)
+    ax.set_xticks(np.arange(len(labels)))
+    ax.set_xticklabels(labels, rotation=35, ha="right", fontsize=7.5)
+    ax.set_ylabel("pulse energy (uJ)", fontsize=10)
+    ax.set_title("Energy ledger", fontsize=12, fontweight="bold")
+    ax.axhline(ledger.energy_at_sample_uJ, color="#d32f2f", ls=":", lw=1.6)
+    ax.annotate(
+        f"E@sample = {ledger.energy_at_sample_uJ:.3g} uJ  ({ledger.total_throughput_fraction:.0%})",
+        xy=(0.5, 0.93), xycoords="axes fraction", ha="center", fontsize=9,
+        color="#d32f2f", fontweight="bold",
+    )
+    ax.grid(axis="y", alpha=0.25)
+
+
+def _annotate(ax: Any, lines: list[str]) -> None:
+    ax.text(
+        0.02, 0.98, "\n".join(lines), transform=ax.transAxes, va="top", ha="left",
+        fontsize=8.2, color="white",
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="#000000", alpha=0.55, edgecolor="none"),
+    )
+
+
+def _experiment_card_lines(controls: Mapping[str, Any], diagnostics: Mapping[str, Any]) -> list[str]:
+    return [
+        f"laser     : {controls.get('wavelength_nm', 'na')} nm / {controls.get('pulse_duration_fs', 'na')} fs",
+        f"rep rate  : {controls.get('repetition_rate_Hz', 'na')} Hz",
+        f"E in      : {controls.get('pulse_energy_before_optics_uJ', 'na')} uJ",
+        f"route     : {controls.get('generation_method', 'holographic')}  ell={controls.get('ell', 'na')}",
+        f"sample    : {controls.get('material_name', 'na')}  n={controls.get('refractive_index', 'na')}",
+        f"target z  : {controls.get('focus_depth_um', 'na')} um",
+        f"selected z: {_fmt(diagnostics.get('selected_plane_z_um'))} um",
+        f"   reason : {diagnostics.get('selected_plane_reason', 'na')}",
+        f"scan      : {controls.get('writing_mode', 'na')} @ {controls.get('scan_speed_mm_s', 'na')} mm/s",
+        "claim     : optical fluence only",
+    ]
+
+
+def _exposure_card_lines(controls: Mapping[str, Any], exposure: Mapping[str, Any]) -> list[str]:
+    return [
+        f"mode       : {controls.get('writing_mode', 'na')}  axis={controls.get('scan_axis', 'na')}",
+        f"scan speed : {controls.get('scan_speed_mm_s', 'na')} mm/s",
+        f"pulse pitch: {_fmt(exposure.get('pulse_spacing_um'))} um",
+        f"pulses/spot: {_fmt(exposure.get('pulses_per_spot'))}",
+        f"line time  : {_fmt(exposure.get('line_duration_s'))} s",
+        f"total pulse: {exposure.get('total_pulses_on_line', 'na')}",
+        f"continuity : {_continuity(exposure)}",
+        "status     : exposure bookkeeping only",
+    ]
+
+
+def _continuity(exposure: Mapping[str, Any]) -> str:
+    warnings = exposure.get("warnings", []) or []
+    if not warnings:
+        return "ok"
+    return textwrap.shorten("; ".join(str(w) for w in warnings), width=42, placeholder="...")
+
+
+def _exposure_status(exposure: Mapping[str, Any] | None) -> str:
+    if not exposure:
+        return "missing"
+    return "caution" if (exposure.get("warnings") or []) else "pass"
+
+
+def _claim_boundary_lines(diagnostics: Mapping[str, Any]) -> list[str]:
+    lines = [
+        f"display trust : {str(diagnostics.get('warning_level', 'pass')).upper()}",
+        f"selected plane: {_fmt(diagnostics.get('selected_plane_z_um'))} um "
+        f"({diagnostics.get('selected_plane_reason', 'na')})",
+        f"global peak near boundary: {diagnostics.get('global_peak_near_boundary')}",
+        f"captured-power drift: {_fmt_pct(diagnostics.get('captured_power_drift_fraction'))}",
+    ]
+    for msg in diagnostics.get("warning_messages", []) or []:
+        lines.append(f"warning: {msg}")
+    lines += [
+        "",
+        "This panel shows OPTICAL FLUENCE only.",
+        "Not absorbed energy. Not a deposited-energy volume.",
+        "Not material modification. Not a written feature.",
+        "Not plasma, nonlinear, or thermal accumulation.",
+        "Dose, thresholds, and material response are future stages.",
+    ]
+    return lines
 
