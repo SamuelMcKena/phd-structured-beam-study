@@ -20,6 +20,10 @@ from vbb_study.digital_twin.energy_accounting import (
     fresnel_normal_incidence_transmission,
 )
 from vbb_study.digital_twin.exposure_bookkeeping import line_exposure_summary
+from vbb_study.digital_twin.lab_perturbations import (
+    classification_rows_for_controls,
+    stage8c3_default_controls,
+)
 
 MODEL_STATUS_DIAGNOSTIC = "diagnostic_preview"
 MODEL_STATUS_OPTICAL = "optical_prediction"
@@ -72,6 +76,8 @@ class LabStageControl:
     handoff_to_next_stage: str = ""
     available_metrics: list[str] = field(default_factory=list)
     missing_metrics: list[str] = field(default_factory=list)
+    control_classifications: list[Mapping[str, Any]] = field(default_factory=list)
+    affected_outputs: list[str] = field(default_factory=list)
     status_level: str = "diagnostic_only"
 
     def __post_init__(self) -> None:
@@ -85,6 +91,20 @@ class LabStageControl:
         object.__setattr__(self, "warnings", list(self.warnings))
         object.__setattr__(self, "available_metrics", list(self.available_metrics))
         object.__setattr__(self, "missing_metrics", list(self.missing_metrics))
+        rows = [dict(r) for r in self.control_classifications]
+        if not rows and self.editable_inputs:
+            rows = classification_rows_for_controls(self.editable_inputs)
+        affected = list(self.affected_outputs)
+        if not affected:
+            seen: list[str] = []
+            for row in rows:
+                for item in str(row.get("affects", "")).split(","):
+                    name = item.strip()
+                    if name and name not in seen:
+                        seen.append(name)
+            affected = seen
+        object.__setattr__(self, "control_classifications", rows)
+        object.__setattr__(self, "affected_outputs", affected)
 
 
 @dataclass(frozen=True)
@@ -129,6 +149,8 @@ class LabRealismReport:
                     "status_level": stage.status_level,
                     "warnings": "; ".join(stage.warnings),
                     "missing_metrics": "; ".join(stage.missing_metrics),
+                    "control_classifications": _compact_classifications(stage.control_classifications),
+                    "affected_outputs": ", ".join(stage.affected_outputs),
                     "handoff_to_next_stage": stage.handoff_to_next_stage,
                 }
             )
@@ -147,7 +169,7 @@ class LabRealismReport:
 
 def default_lab_controls() -> dict[str, Any]:
     """Return editable defaults used by the Stage 8C.1 cockpit notebook."""
-    return {
+    controls = {
         "planning_mode": True,
         "save_outputs": False,
         "figure_dpi": 180,
@@ -238,6 +260,8 @@ def default_lab_controls() -> dict[str, Any]:
         "enable_microscope_proxy": False,
         "enable_calibrated_prediction": False,
     }
+    controls.update(stage8c3_default_controls())
+    return controls
 
 
 def validate_future_physics_disabled(controls: Mapping[str, Any]) -> None:
@@ -250,16 +274,43 @@ def validate_future_physics_disabled(controls: Mapping[str, Any]) -> None:
         )
 
 
+def _effective_pulse_energy_uJ(c: Mapping[str, Any]) -> float:
+    energy = float(c["pulse_energy_before_optics_uJ"])
+    if c.get("enable_pulse_energy_jitter") and float(c.get("pulse_energy_jitter_rms_fraction", 0.0)) > 0:
+        rng = np.random.default_rng(int(c.get("pulse_energy_jitter_seed", 23)))
+        energy *= max(0.0, 1.0 + float(rng.normal(0.0, float(c["pulse_energy_jitter_rms_fraction"]))))
+    return float(energy)
+
+
+def _effective_repetition_rate_hz(c: Mapping[str, Any]) -> float:
+    rep_rate = float(c["repetition_rate_Hz"])
+    if c.get("enable_repetition_rate_error"):
+        rep_rate *= max(0.0, 1.0 + float(c.get("repetition_rate_error_fraction", 0.0)))
+    return float(rep_rate)
+
+
+def _effective_pulse_duration_fs(c: Mapping[str, Any]) -> float:
+    duration = float(c["pulse_duration_fs"])
+    if c.get("enable_pulse_duration_error"):
+        duration *= max(1e-9, 1.0 + float(c.get("pulse_duration_error_fraction", 0.0)))
+    return float(duration)
+
+
+def _effective_average_power_limit_w(c: Mapping[str, Any]) -> float | None:
+    if not c.get("enable_average_power_limit", True):
+        return None
+    limit = c.get("average_power_limit_W")
+    return None if limit is None else float(limit)
+
+
 def build_laser_source_from_controls(controls: Mapping[str, Any]) -> LaserSource:
     c = _with_defaults(controls)
     return LaserSource(
         wavelength_nm=float(c["wavelength_nm"]),
-        pulse_duration_fs=float(c["pulse_duration_fs"]),
-        repetition_rate_Hz=float(c["repetition_rate_Hz"]),
-        pulse_energy_before_optics_uJ=float(c["pulse_energy_before_optics_uJ"]),
-        average_power_limit_W=(
-            None if c["average_power_limit_W"] is None else float(c["average_power_limit_W"])
-        ),
+        pulse_duration_fs=_effective_pulse_duration_fs(c),
+        repetition_rate_Hz=_effective_repetition_rate_hz(c),
+        pulse_energy_before_optics_uJ=_effective_pulse_energy_uJ(c),
+        average_power_limit_W=_effective_average_power_limit_w(c),
         beam_radius_mm=float(c["beam_radius_mm"]),
         polarisation_state=str(c["polarisation_state"]),
     )
@@ -344,7 +395,7 @@ def build_exposure_summary_from_controls(
     repetition_rate_Hz: float | None = None,
 ) -> dict[str, Any]:
     c = _with_defaults(controls)
-    rep_rate = float(repetition_rate_Hz if repetition_rate_Hz is not None else c["repetition_rate_Hz"])
+    rep_rate = float(repetition_rate_Hz if repetition_rate_Hz is not None else _effective_repetition_rate_hz(c))
     return dict(
         line_exposure_summary(
             pulse_energy_at_sample_uJ=float(pulse_energy_at_sample_uJ),
@@ -372,10 +423,11 @@ def build_lab_realism_report(
         energy_ledger = build_energy_ledger_from_controls(c)
 
     if exposure_summary is None:
+        source = build_laser_source_from_controls(c)
         exposure_summary = build_exposure_summary_from_controls(
             c,
             pulse_energy_at_sample_uJ=float(energy_ledger.energy_at_sample_uJ),
-            repetition_rate_Hz=float(c["repetition_rate_Hz"]),
+            repetition_rate_Hz=float(source.repetition_rate_Hz),
         )
 
     stages = [
@@ -397,8 +449,11 @@ def build_lab_realism_report(
 
 
 def _laser_source_stage(c: Mapping[str, Any]) -> LabStageControl:
-    avg_power = average_power_w(c["pulse_energy_before_optics_uJ"], c["repetition_rate_Hz"])
-    limit = c.get("average_power_limit_W")
+    pulse_energy = _effective_pulse_energy_uJ(c)
+    repetition_rate = _effective_repetition_rate_hz(c)
+    pulse_duration = _effective_pulse_duration_fs(c)
+    avg_power = average_power_w(pulse_energy, repetition_rate)
+    limit = _effective_average_power_limit_w(c)
     warnings: list[str] = []
     status = "pass"
     if limit is not None and avg_power > float(limit):
@@ -413,6 +468,14 @@ def _laser_source_stage(c: Mapping[str, Any]) -> LabStageControl:
             "pulse_duration_fs",
             "repetition_rate_Hz",
             "pulse_energy_before_optics_uJ",
+            "enable_pulse_energy_jitter",
+            "pulse_energy_jitter_rms_fraction",
+            "pulse_energy_jitter_seed",
+            "enable_repetition_rate_error",
+            "repetition_rate_error_fraction",
+            "enable_pulse_duration_error",
+            "pulse_duration_error_fraction",
+            "enable_average_power_limit",
             "average_power_limit_W",
             "beam_radius_mm",
             "polarisation_state",
@@ -420,6 +483,9 @@ def _laser_source_stage(c: Mapping[str, Any]) -> LabStageControl:
         computed_outputs={
             "average_power_before_optics_W": avg_power,
             "power_limit_status": "below_limit" if not warnings else "above_limit",
+            "effective_pulse_energy_before_optics_uJ": pulse_energy,
+            "effective_repetition_rate_Hz": repetition_rate,
+            "effective_pulse_duration_fs": pulse_duration,
         },
         units={
             "wavelength_nm": "nm",
@@ -459,6 +525,20 @@ def _pre_slm_stage(c: Mapping[str, Any]) -> LabStageControl:
             "pointing_offset_x_um",
             "pointing_offset_y_um",
             "aperture_radius_mm",
+            "enable_beam_decentre",
+            "beam_decentre_x_um",
+            "beam_decentre_y_um",
+            "enable_beam_tilt",
+            "beam_tilt_x_mrad",
+            "beam_tilt_y_mrad",
+            "enable_beam_ellipticity",
+            "beam_radius_x_um",
+            "beam_radius_y_um",
+            "beam_rotation_deg",
+            "enable_input_aperture",
+            "input_aperture_radius_um",
+            "input_aperture_decentre_x_um",
+            "input_aperture_decentre_y_um",
         ),
         computed_outputs={
             "energy_after_pre_slm_uJ": energy_after,
@@ -518,6 +598,32 @@ def _slm1_stage(c: Mapping[str, Any]) -> LabStageControl:
             "slm_active_width_px",
             "slm_active_height_px",
             "slm1_diffraction_efficiency",
+            "enable_slm_phase_centre_offset",
+            "slm_phase_centre_offset_x_um",
+            "slm_phase_centre_offset_y_um",
+            "enable_vortex_centre_offset",
+            "vortex_centre_offset_x_um",
+            "vortex_centre_offset_y_um",
+            "enable_slm_phase_quantisation",
+            "slm_phase_levels",
+            "enable_slm_pixelation",
+            "enable_slm_fill_factor",
+            "slm_fill_factor",
+            "enable_slm_dead_pixels",
+            "dead_pixel_fraction",
+            "dead_pixel_seed",
+            "enable_slm_phase_noise",
+            "slm_phase_noise_rms_rad",
+            "slm_phase_noise_seed",
+            "enable_slm_active_area",
+            "slm_active_width_um",
+            "slm_active_height_um",
+            "slm_active_area_decentre_x_um",
+            "slm_active_area_decentre_y_um",
+            "enable_slm_rotation",
+            "slm_rotation_deg",
+            "enable_mask_rotation",
+            "phase_mask_rotation_deg",
         ),
         computed_outputs={
             "slm_sampling_status": sampling,
@@ -555,6 +661,17 @@ def _slm2_stage(c: Mapping[str, Any]) -> LabStageControl:
             "slm2_conjugate_mode",
             "physical_axicon_enabled",
             "physical_axicon_angle_deg",
+            "enable_axicon_centre_offset",
+            "axicon_centre_offset_x_um",
+            "axicon_centre_offset_y_um",
+            "enable_physical_axicon_misalignment",
+            "physical_axicon_apex_offset_x_um",
+            "physical_axicon_apex_offset_y_um",
+            "physical_axicon_tilt_x_mrad",
+            "physical_axicon_tilt_y_mrad",
+            "physical_axicon_angle_error_deg",
+            "enable_axicon_apex_defect",
+            "axicon_apex_defect_radius_um",
         ),
         computed_outputs={
             "route_status": route_status,
@@ -585,6 +702,19 @@ def _first_order_stage(c: Mapping[str, Any]) -> LabStageControl:
             "selected_first_order_fraction",
             "filter_radius_px_or_lpmm",
             "zero_order_leakage_fraction",
+            "enable_zero_order_leakage",
+            "zero_order_mode",
+            "enable_unwanted_order_leakage",
+            "unwanted_order_fraction",
+            "unwanted_order_kx_shift",
+            "unwanted_order_ky_shift",
+            "enable_first_order_filter",
+            "first_order_filter_radius_px",
+            "enable_first_order_filter_decentre",
+            "first_order_filter_decentre_x_px",
+            "first_order_filter_decentre_y_px",
+            "enable_first_order_filter_clipping",
+            "first_order_filter_clipping_fraction_override",
         ),
         computed_outputs={
             "carrier_frequency_lpmm": "not available from current engine",
@@ -607,7 +737,24 @@ def _relay_stage(c: Mapping[str, Any]) -> LabStageControl:
     return LabStageControl(
         stage_name="relay_optics",
         enabled=True,
-        editable_inputs=_pick(c, "relay_transmission", "relay_magnification", "relay_aberration_enabled"),
+        editable_inputs=_pick(
+            c,
+            "relay_transmission",
+            "relay_magnification",
+            "relay_aberration_enabled",
+            "enable_relay_magnification_error",
+            "relay_magnification_error_fraction",
+            "enable_relay_decentre",
+            "relay_decentre_x_um",
+            "relay_decentre_y_um",
+            "enable_relay_tilt",
+            "relay_tilt_x_mrad",
+            "relay_tilt_y_mrad",
+            "enable_relay_aperture",
+            "relay_aperture_radius_um",
+            "relay_aperture_decentre_x_um",
+            "relay_aperture_decentre_y_um",
+        ),
         computed_outputs={
             "energy_after_relay_uJ": "computed in energy ledger",
             "effective_beam_scale": c["relay_magnification"],
@@ -650,6 +797,20 @@ def _objective_stage(c: Mapping[str, Any]) -> LabStageControl:
             "objective_effective_focal_length_mm",
             "objective_pupil_diameter_mm",
             "pupil_diameter_override_mm",
+            "enable_pupil_clipping",
+            "pupil_radius_um",
+            "pupil_decentre_x_um",
+            "pupil_decentre_y_um",
+            "pupil_fill_target_fraction",
+            "enable_zernike_aberrations",
+            "zernike_defocus_waves",
+            "zernike_astig_0_waves",
+            "zernike_astig_45_waves",
+            "zernike_coma_x_waves",
+            "zernike_coma_y_waves",
+            "zernike_spherical_waves",
+            "zernike_trefoil_x_waves",
+            "zernike_trefoil_y_waves",
         ),
         computed_outputs={
             "pupil_radius_mm": pupil_radius,
@@ -688,6 +849,19 @@ def _sample_stage(c: Mapping[str, Any]) -> LabStageControl:
             "sample_interface_transmission",
             "use_fresnel_interface_estimate",
             "surface_tilt_mrad",
+            "enable_defocus",
+            "focus_offset_um",
+            "enable_focus_depth_error",
+            "focus_depth_error_um",
+            "enable_sample_tilt",
+            "sample_tilt_x_mrad",
+            "sample_tilt_y_mrad",
+            "enable_surface_offset",
+            "sample_surface_z_um",
+            "enable_refractive_index_error",
+            "refractive_index_error",
+            "enable_sample_thickness_limit",
+            "enable_interface_reflection",
         ),
         computed_outputs={
             "fresnel_normal_incidence_transmission": fresnel,
@@ -745,6 +919,16 @@ def _propagation_stage(c: Mapping[str, Any], field_summary: Mapping[str, Any] | 
             "crop_window_um",
             "require_real_field",
             "allow_synthetic_demo_field",
+            "enable_pointing_jitter",
+            "pointing_jitter_rms_urad",
+            "pointing_jitter_seed",
+            "enable_stage_position_jitter",
+            "stage_jitter_x_um",
+            "stage_jitter_y_um",
+            "stage_jitter_z_um",
+            "stage_jitter_seed",
+            "enable_focus_drift",
+            "focus_drift_um_per_min",
         ),
         computed_outputs=outputs,
         model_status=MODEL_STATUS_OPTICAL,
@@ -800,6 +984,16 @@ def _field_to_fluence_stage(c: Mapping[str, Any], diagnostics: Mapping[str, Any]
             "central_roi_half_width_um",
             "display_scaling",
             "display_percentile_clip",
+            "enable_camera_crop",
+            "camera_crop_width_um",
+            "camera_crop_height_um",
+            "camera_crop_centre_x_um",
+            "camera_crop_centre_y_um",
+            "enable_detector_noise",
+            "detector_noise_fraction",
+            "detector_noise_seed",
+            "enable_display_autoscale",
+            "display_autoscale",
         ),
         computed_outputs=outputs,
         model_status=MODEL_STATUS_FLUENCE,
@@ -889,6 +1083,16 @@ def _compact_mapping(mapping: Mapping[str, Any], limit: int = 6) -> str:
     return "; ".join(parts)
 
 
+def _compact_classifications(rows: list[Mapping[str, Any]], limit: int = 4) -> str:
+    parts = [
+        f"{row.get('control')}:{row.get('classification')}"
+        for row in rows[:limit]
+    ]
+    if len(rows) > limit:
+        parts.append(f"... +{len(rows) - limit}")
+    return "; ".join(parts)
+
+
 def _fmt_value(value: Any) -> str:
     if isinstance(value, float):
         if np.isfinite(value):
@@ -900,7 +1104,9 @@ def _fmt_value(value: Any) -> str:
 
 
 def _sample_interface_transmission(c: Mapping[str, Any]) -> float:
-    if c.get("use_fresnel_interface_estimate"):
-        return fresnel_normal_incidence_transmission(1.0, float(c["refractive_index"]))
+    if c.get("use_fresnel_interface_estimate") or c.get("enable_interface_reflection"):
+        refractive_index = float(c["refractive_index"])
+        if c.get("enable_refractive_index_error"):
+            refractive_index += float(c.get("refractive_index_error", 0.0))
+        return fresnel_normal_incidence_transmission(1.0, refractive_index)
     return float(c["sample_interface_transmission"])
-

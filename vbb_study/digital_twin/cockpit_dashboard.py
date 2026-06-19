@@ -255,6 +255,7 @@ def build_warning_flags(
     power_limit_exceeded: bool | None = None,
     pulse_overlap_fraction: float | None = None,
     captured_power_drift_fraction: float | None = None,
+    perturbation_result: Any | None = None,
 ) -> dict[str, dict[str, str]]:
     """Build cockpit warning flags for hardware-feasibility panels."""
     flags = {
@@ -265,6 +266,19 @@ def build_warning_flags(
         "power_limit": {"status": "pass", "message": "average power within configured limit"},
         "pulse_overlap": {"status": "pass", "message": "pulse spacing supports continuous scan bookkeeping"},
     }
+    if perturbation_result is not None:
+        uncoupled = getattr(perturbation_result, "uncoupled_enabled_controls", [])
+        active = getattr(perturbation_result, "active_controls", [])
+        if uncoupled:
+            flags["active_lab_realism"] = {
+                "status": "caution",
+                "message": f"{len(uncoupled)} enabled lab-realism control(s) are report-only/future",
+            }
+        elif active:
+            flags["active_lab_realism"] = {
+                "status": "pass",
+                "message": f"{len(active)} active perturbation control(s) coupled downstream",
+            }
 
     diag = dict(diagnostics or {})
     drift = captured_power_drift_fraction
@@ -362,6 +376,8 @@ def plot_integrated_cockpit_dashboard(
     display_scaling: str = "percentile",
     display_percentile_clip: tuple[float, float] = (0.5, 99.5),
     title: str = "Stage 8C.2 Integrated Beam-to-Write Cockpit",
+    perturbation_result: Any | None = None,
+    degradation_metrics: Mapping[str, Any] | None = None,
 ) -> "matplotlib.figure.Figure":
     """Render the integrated optical/energy/exposure cockpit dashboard.
 
@@ -400,6 +416,7 @@ def plot_integrated_cockpit_dashboard(
         energy_ledger=energy_ledger,
         exposure_summary=exposure_summary,
         diagnostics=diagnostics,
+        perturbation_result=perturbation_result,
     )
 
     overall_status = compute_overall_status(
@@ -558,7 +575,8 @@ def plot_integrated_cockpit_dashboard(
 
     # --- interpretation / claim boundary + future-disabled ---
     _card(fig.add_subplot(gs[7, 0:8]), "Interpretation & claim boundary",
-          _claim_boundary_lines(diagnostics), status=overall_status, body_fs=10.5)
+          _claim_boundary_lines(diagnostics, perturbation_result, degradation_metrics),
+          status=overall_status, body_fs=10.5)
     _card(fig.add_subplot(gs[7, 8:12]), "Future physics - disabled",
           _future_disabled_text().split("\n"), status="disabled_future", body_fs=9.5)
 
@@ -570,6 +588,8 @@ def plot_integrated_cockpit_dashboard(
         "selected_plane_z_um": diagnostics["selected_plane_z_um"],
         "warning_level": diagnostics.get("warning_level", "pass"),
         "overall_status": overall_status,
+        "stage8c3_active_controls": len(getattr(perturbation_result, "active_controls", []) or []),
+        "stage8c3_uncoupled_controls": len(getattr(perturbation_result, "uncoupled_enabled_controls", []) or []),
     }
     fig.stage8c1_metadata = meta  # type: ignore[attr-defined]
     fig.stage8c2_metadata = meta  # type: ignore[attr-defined]
@@ -1094,14 +1114,46 @@ def _exposure_status(exposure: Mapping[str, Any] | None) -> str:
     return "caution" if (exposure.get("warnings") or []) else "pass"
 
 
-def _claim_boundary_lines(diagnostics: Mapping[str, Any]) -> list[str]:
+def _claim_boundary_lines(
+    diagnostics: Mapping[str, Any],
+    perturbation_result: Any | None = None,
+    degradation_metrics: Mapping[str, Any] | None = None,
+) -> list[str]:
     lines = [
         f"display trust : {str(diagnostics.get('warning_level', 'pass')).upper()}",
         f"selected plane: {_fmt(diagnostics.get('selected_plane_z_um'))} um "
         f"({diagnostics.get('selected_plane_reason', 'na')})",
         f"global peak near boundary: {diagnostics.get('global_peak_near_boundary')}",
         f"captured-power drift: {_fmt_pct(diagnostics.get('captured_power_drift_fraction'))}",
+        "Active perturbation sensitivity available:",
+        "  outputs/figures/digital_twin/stage8c3_misalignment_sensitivity_sweep_preview.png",
     ]
+    if perturbation_result is not None:
+        active = getattr(perturbation_result, "active_controls", []) or []
+        uncoupled = getattr(perturbation_result, "uncoupled_enabled_controls", []) or []
+        lines += [
+            "",
+            "Active lab realism perturbations:",
+            f"ACTIVE: {len(active)} coupled control(s)",
+            f"REPORT_ONLY/FUTURE: {len(uncoupled)} enabled uncoupled control(s)",
+        ]
+        for row in list(active)[:3]:
+            lines.append(f"  ACTIVE {row.control}: {row.classification}")
+        for row in list(uncoupled)[:3]:
+            label = "FUTURE" if row.classification == "future_not_implemented" else "REPORT_ONLY"
+            lines.append(f"  {label} {row.control}: {row.classification}")
+    if degradation_metrics:
+        lines += [
+            "",
+            "Compact degradation metrics:",
+            f"centroid shift: ({_fmt(degradation_metrics.get('centroid_x_um'))}, {_fmt(degradation_metrics.get('centroid_y_um'))}) um",
+            f"symmetry score: {_fmt(degradation_metrics.get('symmetry_score'))}",
+            f"azimuthal uniformity: {_fmt(degradation_metrics.get('azimuthal_uniformity_score'))}",
+            f"core fill: {_fmt(degradation_metrics.get('core_fill_fraction'))}",
+            f"peak fluence change: {_fmt_pct(degradation_metrics.get('peak_fluence_change_fraction'))}",
+            f"pupil clipping: {_fmt_pct(degradation_metrics.get('pupil_clipped_power_fraction'))}",
+            f"captured-power drift: {_fmt_pct(degradation_metrics.get('captured_power_drift_fraction'))}",
+        ]
     for msg in diagnostics.get("warning_messages", []) or []:
         lines.append(f"warning: {msg}")
     lines += [
@@ -1113,4 +1165,3 @@ def _claim_boundary_lines(diagnostics: Mapping[str, Any]) -> list[str]:
         "Dose, thresholds, and material response are future stages.",
     ]
     return lines
-
