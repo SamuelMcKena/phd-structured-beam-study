@@ -106,7 +106,7 @@ class EnergyLedgerRow:
 class EnergyLedger:
     """Complete sequential energy accounting through all optical components."""
 
-    source: LaserSource
+    source: LaserSource | None
     rows: List[EnergyLedgerRow]
     energy_at_sample_uJ: float
     total_throughput_fraction: float
@@ -206,6 +206,8 @@ def compute_energy_ledger(
     repetition_rate_Hz: float,
     components: Sequence[OpticalComponent],
     average_power_limit_W: float | None = None,
+    *,
+    source: LaserSource | None = None,
 ) -> EnergyLedger:
     """
     Compute sequential energy flow through all optical components.
@@ -215,21 +217,18 @@ def compute_energy_ledger(
     Returns an EnergyLedger with a row for each component plus summary.
     Appends warnings for low throughput, power-limit violations, zero energy.
     """
+    if source is not None:
+        pulse_energy_before_optics_uJ = source.pulse_energy_before_optics_uJ
+        repetition_rate_Hz = source.repetition_rate_Hz
+        if average_power_limit_W is None:
+            average_power_limit_W = source.average_power_limit_W
+
     if pulse_energy_before_optics_uJ <= 0:
         raise ValueError(
             f"pulse_energy_before_optics_uJ must be positive, got {pulse_energy_before_optics_uJ}"
         )
     if repetition_rate_Hz <= 0:
         raise ValueError(f"repetition_rate_Hz must be positive, got {repetition_rate_Hz}")
-
-    # Build a minimal LaserSource for the ledger record
-    source = LaserSource(
-        wavelength_nm=1030.0,  # placeholder — caller should override if needed
-        pulse_duration_fs=200.0,
-        repetition_rate_Hz=repetition_rate_Hz,
-        pulse_energy_before_optics_uJ=pulse_energy_before_optics_uJ,
-        average_power_limit_W=average_power_limit_W,
-    )
 
     rows: List[EnergyLedgerRow] = []
     ledger_warnings: List[str] = []
@@ -368,12 +367,16 @@ def scale_intensity_to_fluence_j_cm2(
     intensity = np.asarray(intensity, dtype=float)
     if intensity.size == 0:
         raise ValueError("intensity array is empty.")
+    if not np.all(np.isfinite(intensity)):
+        raise ValueError("intensity array contains non-finite values (NaN/inf).")
     if np.any(intensity < 0):
         raise ValueError("intensity array contains negative values.")
-    if dx_um <= 0:
+    if not np.isfinite(dx_um) or dx_um <= 0:
         raise ValueError(f"dx_um must be positive, got {dx_um}")
-    if dy_um <= 0:
+    if not np.isfinite(dy_um) or dy_um <= 0:
         raise ValueError(f"dy_um must be positive, got {dy_um}")
+    if not np.isfinite(pulse_energy_uJ):
+        raise ValueError(f"pulse_energy_uJ must be finite, got {pulse_energy_uJ}")
     if pulse_energy_uJ < 0:
         raise ValueError(f"pulse_energy_uJ must be non-negative, got {pulse_energy_uJ}")
 

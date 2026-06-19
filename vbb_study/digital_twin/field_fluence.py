@@ -93,6 +93,8 @@ class FluenceStackResult:
     fluence_zyx_j_cm2: np.ndarray
     pulse_energy_uJ: float
     transverse_energy_by_z_uJ: np.ndarray
+    raw_transverse_integral_by_z: np.ndarray
+    raw_captured_power_fraction_by_z: np.ndarray
     peak_fluence_by_z_j_cm2: np.ndarray
     peak_z_um: float
     propagation_energy_drift_fraction: float
@@ -229,6 +231,10 @@ def scale_stack_to_fluence(
     raw_integrals = np.array(
         [float(np.sum(intensity[i])) * dx_um * dy_um for i in range(nz)], dtype=float
     )
+    if float(np.max(raw_integrals)) > 0.0:
+        raw_captured_power_fraction = raw_integrals / float(np.max(raw_integrals))
+    else:
+        raw_captured_power_fraction = np.full(nz, np.nan, dtype=float)
 
     fluence_zyx = np.empty_like(intensity, dtype=float)
     transverse_energy_by_z = np.empty(nz, dtype=float)
@@ -266,12 +272,15 @@ def scale_stack_to_fluence(
         "dy_um": dy_um,
         "peak_plane_index": peak_plane_idx,
         "raw_transverse_integral_by_z": raw_integrals.tolist(),
+        "raw_captured_power_fraction_by_z": raw_captured_power_fraction.tolist(),
         **dict(stack.metadata),
     }
     return FluenceStackResult(
         fluence_zyx_j_cm2=fluence_zyx,
         pulse_energy_uJ=energy,
         transverse_energy_by_z_uJ=transverse_energy_by_z,
+        raw_transverse_integral_by_z=raw_integrals,
+        raw_captured_power_fraction_by_z=raw_captured_power_fraction,
         peak_fluence_by_z_j_cm2=peak_fluence_by_z,
         peak_z_um=peak_z_um,
         propagation_energy_drift_fraction=drift,
@@ -358,6 +367,8 @@ def field_fluence_summary(
             "peak_z_um": res.peak_z_um,
             "peak_fluence_j_cm2": float(np.max(res.peak_fluence_by_z_j_cm2)),
             "propagation_energy_drift_fraction": res.propagation_energy_drift_fraction,
+            "raw_transverse_integral_by_z": res.raw_transverse_integral_by_z.tolist(),
+            "raw_captured_power_fraction_by_z": res.raw_captured_power_fraction_by_z.tolist(),
             "max_transverse_energy_residual_uJ": float(
                 np.max(np.abs(res.transverse_energy_by_z_uJ - res.pulse_energy_uJ))
             ),

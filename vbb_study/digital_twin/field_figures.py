@@ -58,6 +58,20 @@ def _extent_um(n: int, d_um: float) -> tuple[float, float, float, float]:
     return (-half, half, -half, half)
 
 
+def _extent_from_coords(x_um: np.ndarray, y_um: np.ndarray) -> tuple[float, float, float, float]:
+    """Return imshow extent from pixel-centre coordinate arrays."""
+    x = np.asarray(x_um, dtype=float)
+    y = np.asarray(y_um, dtype=float)
+    dx = float(np.mean(np.abs(np.diff(x)))) if x.size > 1 else 1.0
+    dy = float(np.mean(np.abs(np.diff(y)))) if y.size > 1 else 1.0
+    return (
+        float(np.min(x) - 0.5 * dx),
+        float(np.max(x) + 0.5 * dx),
+        float(np.min(y) - 0.5 * dy),
+        float(np.max(y) + 0.5 * dy),
+    )
+
+
 def plot_stage8c_field_fluence_preview(
     stack_or_plane: OpticalFieldStack | OpticalFieldPlane,
     fluence_result: FluenceStackResult | FluencePlaneResult,
@@ -156,7 +170,7 @@ def _plot_plane(
     fig.suptitle(title, fontsize=12)
 
     ny, nx = plane.intensity.shape
-    extent = _extent_um(nx, plane.dx_um)
+    extent = _extent_from_coords(plane.x_um, plane.y_um)
 
     im0 = axes[0].imshow(plane.intensity, origin="lower", extent=extent, cmap="inferno", aspect="equal")
     axes[0].set_title("XY intensity (a.u.)")
@@ -212,7 +226,7 @@ def _plot_stack(
 
     nz, ny, nx = stack.intensity_zyx.shape
     peak_idx = int(np.argmax(res.peak_fluence_by_z_j_cm2))
-    extent_xy = _extent_um(nx, stack.dx_um)
+    extent_xy = _extent_from_coords(stack.x_um, stack.y_um)
 
     # (0,0) XY intensity at peak plane
     im = axes[0, 0].imshow(
@@ -236,7 +250,12 @@ def _plot_stack(
     yc = ny // 2
     xz = res.fluence_zyx_j_cm2[:, yc, :].T  # shape [x, z]
     z = np.asarray(stack.z_um, dtype=float)
-    extent_xz = (float(z[0]), float(z[-1]), -0.5 * nx * stack.dx_um, 0.5 * nx * stack.dx_um)
+    extent_xz = (
+        float(np.min(z)),
+        float(np.max(z)),
+        float(np.min(stack.x_um) - 0.5 * stack.dx_um),
+        float(np.max(stack.x_um) + 0.5 * stack.dx_um),
+    )
     im = axes[0, 2].imshow(xz, origin="lower", extent=extent_xz, cmap="viridis", aspect="auto")
     axes[0, 2].set_title("XZ fluence (y=0 slice)")
     axes[0, 2].set_xlabel("z (µm)")
@@ -251,12 +270,12 @@ def _plot_stack(
     axes[1, 0].set_ylabel("peak fluence (J/cm²)")
     axes[1, 0].legend(fontsize=8)
 
-    # (1,1) transverse energy conservation vs z
-    axes[1, 1].plot(z, res.transverse_energy_by_z_uJ, color="#2ca02c")
-    axes[1, 1].axhline(res.pulse_energy_uJ, color="#888", ls=":", lw=1, label="pulse energy")
-    axes[1, 1].set_title("Per-plane integrated energy vs z")
+    # (1,1) raw captured transverse power drift vs z
+    axes[1, 1].plot(z, res.raw_captured_power_fraction_by_z, color="#2ca02c")
+    axes[1, 1].axhline(1.0, color="#888", ls=":", lw=1, label="max raw integral")
+    axes[1, 1].set_title("Raw captured power fraction vs z")
     axes[1, 1].set_xlabel("z (µm)")
-    axes[1, 1].set_ylabel("energy (µJ)")
+    axes[1, 1].set_ylabel("fraction of max raw integral")
     axes[1, 1].legend(fontsize=8)
 
     # (1,2) text panel

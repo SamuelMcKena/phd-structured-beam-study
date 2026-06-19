@@ -78,6 +78,28 @@ from vbb_study.digital_twin.field_figures import (
     plot_stage8c_field_fluence_preview,
     CaveatsRequiredError,
 )
+from vbb_study.digital_twin.lab_realism_controls import (
+    LabStageControl,
+    LabStageResult,
+    LabRealismReport,
+    REQUIRED_STAGE_NAMES,
+    ALLOWED_STATUS_LEVELS,
+    default_lab_controls,
+    validate_future_physics_disabled,
+    build_laser_source_from_controls,
+    build_energy_components_from_controls,
+    build_energy_ledger_from_controls,
+    build_exposure_summary_from_controls,
+    build_lab_realism_report,
+)
+from vbb_study.digital_twin.cockpit_dashboard import (
+    build_cockpit_summary,
+    compute_peak_location_diagnostics,
+    choose_display_plane,
+    build_warning_flags,
+    plot_integrated_cockpit_dashboard,
+    make_interpretation_text,
+)
 
 __all__ = [
     # energy accounting
@@ -126,4 +148,24 @@ __all__ = [
     # field figures (Stage 8C)
     "plot_stage8c_field_fluence_preview",
     "CaveatsRequiredError",
+    # lab realism controls (Stage 8C.1)
+    "LabStageControl",
+    "LabStageResult",
+    "LabRealismReport",
+    "REQUIRED_STAGE_NAMES",
+    "ALLOWED_STATUS_LEVELS",
+    "default_lab_controls",
+    "validate_future_physics_disabled",
+    "build_laser_source_from_controls",
+    "build_energy_components_from_controls",
+    "build_energy_ledger_from_controls",
+    "build_exposure_summary_from_controls",
+    "build_lab_realism_report",
+    # integrated cockpit dashboard (Stage 8C.1)
+    "build_cockpit_summary",
+    "compute_peak_location_diagnostics",
+    "choose_display_plane",
+    "build_warning_flags",
+    "plot_integrated_cockpit_dashboard",
+    "make_interpretation_text",
 ]

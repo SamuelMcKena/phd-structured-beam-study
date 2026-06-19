@@ -81,7 +81,36 @@ class OpticalFieldPlane:
     z_um: float | None
     field_label: str
     source_status: str
+    x_um: np.ndarray | None = None
+    y_um: np.ndarray | None = None
     metadata: Mapping[str, Any] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        arr = validate_intensity_plane(self.intensity, name="intensity")
+        dxv, dyv = _validate_positive_sampling(self.dx_um, self.dy_um)
+        ny, nx = arr.shape
+        if self.x_um is None:
+            x = _centered_coords_um(nx, dxv)
+        else:
+            x = _validate_monotonic_coords(self.x_um, name="x_um")
+            if x.size != nx:
+                raise InvalidOpticalFieldError(
+                    f"len(x_um)={x.size} does not match intensity.shape[1]={nx}."
+                )
+        if self.y_um is None:
+            y = _centered_coords_um(ny, dyv)
+        else:
+            y = _validate_monotonic_coords(self.y_um, name="y_um")
+            if y.size != ny:
+                raise InvalidOpticalFieldError(
+                    f"len(y_um)={y.size} does not match intensity.shape[0]={ny}."
+                )
+        object.__setattr__(self, "intensity", arr)
+        object.__setattr__(self, "dx_um", dxv)
+        object.__setattr__(self, "dy_um", dyv)
+        object.__setattr__(self, "x_um", x)
+        object.__setattr__(self, "y_um", y)
+        object.__setattr__(self, "metadata", dict(self.metadata or {}))
 
     @property
     def is_governed_source(self) -> bool:
@@ -160,6 +189,15 @@ def _validate_positive_sampling(dx_um: float, dy_um: float) -> tuple[float, floa
     return float(dx_um), float(dy_um)
 
 
+def _centered_coords_um(n: int, spacing_um: float) -> np.ndarray:
+    """Return coordinates centred on zero using the pixel-centre convention."""
+    if n <= 0:
+        raise InvalidOpticalFieldError(f"coordinate length must be positive; got {n}.")
+    if not np.isfinite(spacing_um) or spacing_um <= 0:
+        raise InvalidOpticalFieldError(f"spacing_um must be positive and finite; got {spacing_um}.")
+    return (np.arange(int(n), dtype=float) - (int(n) - 1) / 2.0) * float(spacing_um)
+
+
 def _validate_monotonic_coords(coords: np.ndarray, *, name: str) -> np.ndarray:
     arr = np.asarray(coords, dtype=float)
     if arr.ndim != 1 or arr.size == 0:
@@ -196,6 +234,9 @@ def plane_from_arrays(
     field_label: str = "array_field",
     source_status: str = SOURCE_PROVIDED_ARRAY,
     metadata: Mapping[str, Any] | None = None,
+    *,
+    x_um: np.ndarray | None = None,
+    y_um: np.ndarray | None = None,
 ) -> OpticalFieldPlane:
     """Build a canonical :class:`OpticalFieldPlane` from a raw intensity array.
 
@@ -214,6 +255,8 @@ def plane_from_arrays(
         z_um=None if z_um is None else float(z_um),
         field_label=str(field_label),
         source_status=str(source_status),
+        x_um=x_um,
+        y_um=y_um,
         metadata=dict(metadata or {}),
     )
 
@@ -374,6 +417,47 @@ def _sampling_um_from_object(obj: Any, n_y: int, n_x: int) -> tuple[float, float
     return float(dx_um), float(dy_um), z_um
 
 
+def _xy_coords_um_from_object(
+    obj: Any,
+    n_y: int,
+    n_x: int,
+    dx_um: float,
+    dy_um: float,
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    """Extract transverse coordinate arrays for a 2D field object."""
+    metadata: dict[str, Any] = {}
+    x_um = y_um = None
+
+    if _has(obj, "x_um") and _get(obj, "x_um") is not None:
+        x_um = np.asarray(_get(obj, "x_um"), dtype=float)
+    if _has(obj, "y_um") and _get(obj, "y_um") is not None:
+        y_um = np.asarray(_get(obj, "y_um"), dtype=float)
+
+    grid = _get(obj, "grid", None) if _has(obj, "grid") else None
+    if grid is not None:
+        if x_um is None and _get(grid, "x") is not None:
+            x_um = np.asarray(_get(grid, "x"), dtype=float) * _UM_PER_M
+        if y_um is None and _get(grid, "y") is not None:
+            y_um = np.asarray(_get(grid, "y"), dtype=float) * _UM_PER_M
+        if x_um is None and _get(grid, "X") is not None:
+            X = np.asarray(_get(grid, "X"), dtype=float)
+            if X.ndim == 2 and X.shape[1] == n_x:
+                x_um = X[0, :] * _UM_PER_M
+        if y_um is None and _get(grid, "Y") is not None:
+            Y = np.asarray(_get(grid, "Y"), dtype=float)
+            if Y.ndim == 2 and Y.shape[0] == n_y:
+                y_um = Y[:, 0] * _UM_PER_M
+
+    if x_um is None or x_um.size != n_x:
+        x_um = _centered_coords_um(n_x, dx_um)
+        metadata["reconstructed_x_from_spacing"] = True
+    if y_um is None or y_um.size != n_y:
+        y_um = _centered_coords_um(n_y, dy_um)
+        metadata["reconstructed_y_from_spacing"] = True
+
+    return x_um, y_um, metadata
+
+
 def _describe_keys(obj: Any) -> str:
     if _is_mapping(obj):
         return ", ".join(sorted(str(k) for k in obj.keys())) or "<empty mapping>"
@@ -409,6 +493,7 @@ def extract_plane_from_surfacefield(
     intensity = validate_intensity_plane(intensity, name="surface_field intensity")
     ny, nx = intensity.shape
     dx_um, dy_um, z_um = _sampling_um_from_object(surface_field, ny, nx)
+    x_um, y_um, coord_metadata = _xy_coords_um_from_object(surface_field, ny, nx, dx_um, dy_um)
     if preferred_z_um is not None:
         z_um = float(preferred_z_um)
 
@@ -423,6 +508,7 @@ def extract_plane_from_surfacefield(
         metadata["origin_metadata"] = dict(src_metadata)
     if _has(surface_field, "medium_before"):
         metadata["medium_before"] = _get(surface_field, "medium_before")
+    metadata.update(coord_metadata)
 
     return OpticalFieldPlane(
         intensity=intensity,
@@ -431,6 +517,8 @@ def extract_plane_from_surfacefield(
         z_um=z_um,
         field_label=label,
         source_status=str(source_status),
+        x_um=x_um,
+        y_um=y_um,
         metadata=metadata,
     )
 
@@ -489,19 +577,46 @@ def extract_stack_from_surfacefield(
         z_um = np.asarray(z_m, dtype=float) * _UM_PER_M
 
         crop_grid = _get(obj, "crop_grid")
-        if crop_grid is not None and _get(crop_grid, "x") is not None:
-            x_m = np.asarray(_get(crop_grid, "x"), dtype=float)
-            x_um = x_m * _UM_PER_M
-            # crop grid is square in this engine: y uses the same coordinate array.
-            y_um = x_um.copy()
-            if x_um.size != nx:
-                # Fall back to pixel-pitch reconstruction if the crop differs.
-                dx_um = _uniform_spacing(x_um, "crop_grid['x']")
-                x_um = (np.arange(nx) - nx / 2.0) * dx_um
-                y_um = (np.arange(ny) - ny / 2.0) * dx_um
+        coord_metadata: dict[str, Any] = {}
+        if crop_grid is not None and (
+            _get(crop_grid, "x") is not None or _get(crop_grid, "dx") is not None
+        ):
+            dx_um = None
+            dy_um = None
+            x_um = None
+            y_um = None
+
+            if _get(crop_grid, "x") is not None:
+                x_um = np.asarray(_get(crop_grid, "x"), dtype=float) * _UM_PER_M
+                if x_um.size >= 2:
+                    dx_um = _uniform_spacing(x_um, "crop_grid['x']")
+            if _get(crop_grid, "y") is not None:
+                y_um = np.asarray(_get(crop_grid, "y"), dtype=float) * _UM_PER_M
+                if y_um.size >= 2:
+                    dy_um = _uniform_spacing(y_um, "crop_grid['y']")
+            elif x_um is not None:
+                y_um = x_um.copy()
+                dy_um = dx_um
+                coord_metadata["assumed_y_equals_x"] = True
+
+            if dx_um is None and _get(crop_grid, "dx") is not None:
+                dx_um = float(_get(crop_grid, "dx")) * _UM_PER_M
+            if dy_um is None:
+                dy_um = dx_um
+
+            if dx_um is None or dy_um is None:
+                raise UnsupportedSurfaceFieldError(
+                    "Volume crop_grid has neither usable coordinates nor spacing."
+                )
+            if x_um is None or x_um.size != nx:
+                x_um = _centered_coords_um(nx, dx_um)
+                coord_metadata["reconstructed_x_from_spacing"] = True
+            if y_um is None or y_um.size != ny:
+                y_um = _centered_coords_um(ny, dy_um)
+                coord_metadata["reconstructed_y_from_spacing"] = True
         else:
             raise UnsupportedSurfaceFieldError(
-                "Volume dict has 'intensity_stack' but no 'crop_grid' with an 'x' axis; "
+                "Volume dict has 'intensity_stack' but no 'crop_grid' with an 'x' axis or 'dx'; "
                 "cannot determine transverse sampling."
             )
 
@@ -510,6 +625,7 @@ def extract_stack_from_surfacefield(
             "origin_type": type(surface_field).__name__,
             "propagation_method": _get(obj, "propagation_method", None),
             "peak_index": _get(obj, "peak_index", None),
+            **coord_metadata,
         }
         return stack_from_arrays(
             intensity_zyx=stack,
