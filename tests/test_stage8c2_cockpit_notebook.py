@@ -77,3 +77,34 @@ def test_demo_field_not_saved_as_preview():
     # The visual-check save must exclude unit_test_or_demo_only fields.
     src = _source()
     assert 'stack.source_status != "unit_test_or_demo_only"' in src
+
+
+def test_runtime_check_cell_present():
+    """The notebook must guard against stale imports / wrong path / blank figures."""
+    src = _source()
+    assert "RUNTIME CHECK" in src
+    assert "autoreload" in src
+    assert 'run_line_magic("matplotlib", "inline")' in src
+    # Prints the resolved module path so the user can confirm the right code is loaded.
+    assert "cockpit   :" in src
+    assert "cd.__file__" in src or "Path(cd.__file__)" in src
+    # Fails loudly rather than silently rendering the old dashboard.
+    assert "Stale cockpit_dashboard import" in src
+
+
+def test_dashboard_cell_dedupes_inline_render():
+    """display(fig) + plt.close(fig) keeps exactly one inline image (no Agg blank / dup)."""
+    src = _source()
+    assert "plt.close(fig)" in src
+
+
+def test_single_dashboard_creating_cell():
+    """Exactly one cell should build the dashboard figure (no stale duplicate)."""
+    nb = _load()
+    n = sum(
+        1 for c in nb["cells"]
+        if c.get("cell_type") == "code"
+        and "plot_integrated_cockpit_dashboard(" in "".join(c.get("source", []))
+        and "fig =" in "".join(c.get("source", []))
+    )
+    assert n == 1, f"expected exactly one dashboard-creating cell, found {n}"
