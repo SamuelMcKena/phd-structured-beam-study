@@ -148,6 +148,15 @@ class ComponentPlaneRun:
     final_export_allowed: bool = False
     model_status: str = "optical_prediction"
 
+    @property
+    def reference_plane_state(self) -> ComponentPlaneState:
+        """Stage 8C.3R.1 alias: the free-space reference plane (n=1.0), in air.
+
+        This is the intended sample-entrance reference plane.  No material model is
+        active; it is not an in-material plane.
+        """
+        return self.sample_entrance_state
+
 
 # ---------------------------------------------------------------------------
 # Control access helpers
@@ -457,7 +466,7 @@ def run_component_plane_pipeline(
     sample_pulse_energy = E_in_nominal * transmitted_fraction
 
     sample_entrance_state = ComponentPlaneState(
-        plane_name="sample_entrance_field",
+        plane_name="free_space_reference_plane",
         field=E.copy(),
         x_um=x_um,
         y_um=y_um,
@@ -466,7 +475,11 @@ def run_component_plane_pipeline(
         pulse_energy_before_uJ=E_in_nominal,
         pulse_energy_after_uJ=sample_pulse_energy,
         transmitted_fraction=transmitted_fraction,
-        applied_components=("propagation_entrance",),
+        applied_components=("free_space_reference_entrance",),
+        metadata={
+            "reference_plane": "intended sample-entrance reference plane, n=1.0",
+            "no_material_model": True,
+        },
     )
 
     # --- Propagation -------------------------------------------------------

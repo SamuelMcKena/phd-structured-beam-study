@@ -134,6 +134,29 @@ def _shift_to_align(plane: np.ndarray, dx_px: int, dy_px: int) -> np.ndarray:
     return np.roll(np.roll(plane, -dy_px, axis=0), -dx_px, axis=1)
 
 
+def _ring_fit_quality(plane: np.ndarray, x: np.ndarray, y: np.ndarray,
+                      cx: float, cy: float) -> tuple[float, float]:
+    """Return (ring_fit_quality, ring_radius_um).
+
+    Fit quality = 1 - normalised radial spread of the bright-ring pixels about the
+    ring centre; 1.0 means a perfectly circular ring.
+    """
+    pk = float(np.max(plane))
+    if pk <= 0:
+        return 0.0, 0.0
+    mask = plane >= 0.5 * pk
+    if not np.any(mask):
+        return 0.0, 0.0
+    X, Y = np.meshgrid(x, y)
+    r = np.hypot(X[mask] - cx, Y[mask] - cy)
+    w = plane[mask]
+    mean_r = float(np.average(r, weights=w))
+    if mean_r <= 1e-9:
+        return 1.0, 0.0
+    std_r = float(np.sqrt(np.average((r - mean_r) ** 2, weights=w)))
+    return float(np.clip(1.0 - std_r / mean_r, 0.0, 1.0)), mean_r
+
+
 # ---------------------------------------------------------------------------
 # Metric blocks
 # ---------------------------------------------------------------------------
@@ -170,9 +193,11 @@ def compute_axis_tracking(
     ss_tot = float(np.sum((cx - cx.mean()) ** 2) + np.sum((cy - cy.mean()) ** 2)) + 1e-30
     fit_quality = float(np.clip(1.0 - ss_res / ss_tot, 0.0, 1.0))
 
+    ring_fit_q, ring_radius_um = _ring_fit_quality(plane, x, y, ring_x, ring_y)
     half = 0.5 * float(x.max() - x.min())
     ring_radius = float(np.hypot(peak_x - ring_x, peak_y - ring_y))
     fov_margin = float(half - (np.hypot(ring_x, ring_y) + ring_radius))
+    core_fill = _core_fill_fraction(plane, x, y, core_radius_um)
 
     return {
         "commanded_axis_x_um": 0.0,
@@ -181,6 +206,8 @@ def compute_axis_tracking(
         "intensity_centroid_y_um": cen_y,
         "ring_centre_x_um": ring_x,
         "ring_centre_y_um": ring_y,
+        "ring_fit_quality": ring_fit_q,
+        "ring_radius_um": ring_radius_um,
         "peak_x_um": peak_x,
         "peak_y_um": peak_y,
         "radial_axis_error_um": float(np.hypot(ring_x, ring_y)),
@@ -188,6 +215,11 @@ def compute_axis_tracking(
         "out_of_frame_fraction": _out_of_frame_fraction(plane),
         "axis_intercept_at_surface_x_um": float(ix0),
         "axis_intercept_at_surface_y_um": float(iy0),
+        # Stage 8C.3R.1 reference-plane names (z0 = first reference plane in the stack)
+        "axis_intercept_at_z0_x_um": float(ix0 + sx * float(z[0])),
+        "axis_intercept_at_z0_y_um": float(iy0 + sy * float(z[0])),
+        "reference_plane_axis_error_um": float(np.hypot(ring_x, ring_y)),
+        "valid_z_fit_range_um": (float(z.min()), float(z.max())),
         "target_plane_axis_error_um": float(np.hypot(cen_x, cen_y)),
         "beam_steering_angle_x_mrad": float(np.arctan(sx) * 1000.0),
         "beam_steering_angle_y_mrad": float(np.arctan(sy) * 1000.0),
@@ -195,10 +227,8 @@ def compute_axis_tracking(
         "centre_trajectory_x_um": cx.tolist(),
         "centre_trajectory_y_um": cy.tolist(),
         "plane_index": plane_index,
-        "core_fill_fraction": _core_fill_fraction(plane, x, y, core_radius_um),
-        "central_darkness_contrast": float(
-            np.clip(1.0 - _core_fill_fraction(plane, x, y, core_radius_um), 0.0, 1.0)
-        ),
+        "core_fill_fraction": core_fill,
+        "central_darkness_contrast": float(np.clip(1.0 - core_fill, 0.0, 1.0)),
     }
 
 
@@ -222,10 +252,13 @@ def compute_energy_throughput(run: ComponentPlaneRun) -> dict[str, Any]:
     return {
         "input_pulse_energy_uJ": float(st.input_pulse_energy_uJ),
         "sample_pulse_energy_uJ": sample_energy,
+        # Stage 8C.3R.1 free-space reference-plane name (n=1.0); alias of sample energy.
+        "reference_plane_pulse_energy_uJ": sample_energy,
         "transmitted_fraction": float(st.transmitted_fraction),
         "throughput_loss_fraction": float(1.0 - st.transmitted_fraction),
         "peak_fluence_J_cm2": peak_fluence,
         "peak_to_sample_energy_ratio": float(peak_fluence / max(sample_energy, 1e-12)),
+        "peak_to_reference_energy_ratio": float(peak_fluence / max(sample_energy, 1e-12)),
         "renormalisation_factor": 1.0,  # no per-plane renormalisation is applied
         "renormalisation_note": "no per-plane re-normalisation to pre-clip energy (display-only scaling excluded)",
         "per_plane_ledger": rows,
@@ -406,6 +439,42 @@ def build_component_plane_scenarios() -> dict[str, ComponentPlaneScenario]:
             severe_label="coma 0.8, astig 0.6, defocus 0.7 waves",
             expected_class="deformation",
             note="pupil phase aberration -> lopsided ring + axial shift",
+        ),
+        "zernike_defocus": ComponentPlaneScenario(
+            key="zernike_defocus",
+            title="Scenario 5a - individual defocus",
+            physical_placement="objective pupil plane phase (waves)",
+            mild_controls={"enable_zernike_aberrations": True, "zernike_defocus_waves": 0.2},
+            severe_controls={"enable_zernike_aberrations": True, "zernike_defocus_waves": 1.0},
+            mild_label="defocus 0.2 waves", severe_label="defocus 1.0 waves",
+            expected_class="deformation", note="pure defocus -> axial peak shift",
+        ),
+        "zernike_astigmatism": ComponentPlaneScenario(
+            key="zernike_astigmatism",
+            title="Scenario 5b - individual astigmatism (0 deg)",
+            physical_placement="objective pupil plane phase (waves)",
+            mild_controls={"enable_zernike_aberrations": True, "zernike_astig_0_waves": 0.2},
+            severe_controls={"enable_zernike_aberrations": True, "zernike_astig_0_waves": 0.8},
+            mild_label="astig0 0.2 waves", severe_label="astig0 0.8 waves",
+            expected_class="deformation", note="pure astigmatism -> elliptical ring",
+        ),
+        "zernike_coma": ComponentPlaneScenario(
+            key="zernike_coma",
+            title="Scenario 5c - individual coma (x)",
+            physical_placement="objective pupil plane phase (waves)",
+            mild_controls={"enable_zernike_aberrations": True, "zernike_coma_x_waves": 0.2},
+            severe_controls={"enable_zernike_aberrations": True, "zernike_coma_x_waves": 0.8},
+            mild_label="coma_x 0.2 waves", severe_label="coma_x 0.8 waves",
+            expected_class="deformation", note="pure coma -> lopsided ring",
+        ),
+        "zernike_spherical": ComponentPlaneScenario(
+            key="zernike_spherical",
+            title="Scenario 5d - individual spherical",
+            physical_placement="objective pupil plane phase (waves)",
+            mild_controls={"enable_zernike_aberrations": True, "zernike_spherical_waves": 0.2},
+            severe_controls={"enable_zernike_aberrations": True, "zernike_spherical_waves": 0.8},
+            mild_label="spherical 0.2 waves", severe_label="spherical 0.8 waves",
+            expected_class="deformation", note="pure spherical -> radial redistribution + axial shift",
         ),
         "zero_order_leakage": ComponentPlaneScenario(
             key="zero_order_leakage",
@@ -622,8 +691,8 @@ def plot_component_plane_reality_preview(
     thumbs = [
         (in_amp, "input |E|  (input complex field)", "magma"),
         (slm_phase, "SLM phase arg(E)  (phase-mask plane)", "twilight"),
-        (samp_int, "sample-entrance |E|^2  (pupil/entrance)", "viridis"),
-        (F0[sel], "baseline sample XY fluence", "viridis"),
+        (samp_int, "free-space reference |E|^2  (n=1.0)", "viridis"),
+        (F0[sel], "baseline reference-plane XY fluence", "viridis"),
     ]
     for col, (arr, lab, cmap) in enumerate(thumbs):
         ax = fig.add_subplot(gs[0, col])
@@ -691,7 +760,7 @@ def plot_component_plane_reality_preview(
         f"input pulse energy : {be['input_pulse_energy_uJ']:.2f} uJ",
         "                     base / mild / severe",
         f"transmitted frac   : {be['transmitted_fraction']:.3f} / {me['transmitted_fraction']:.3f} / {se['transmitted_fraction']:.3f}",
-        f"sample energy uJ   : {be['sample_pulse_energy_uJ']:.2f} / {me['sample_pulse_energy_uJ']:.2f} / {se['sample_pulse_energy_uJ']:.2f}",
+        f"ref-plane energy uJ: {be['sample_pulse_energy_uJ']:.2f} / {me['sample_pulse_energy_uJ']:.2f} / {se['sample_pulse_energy_uJ']:.2f}",
         f"peak fluence       : {be['peak_fluence_J_cm2']:.2f} / {me['peak_fluence_J_cm2']:.2f} / {se['peak_fluence_J_cm2']:.2f}",
         f"peak/energy ratio  : {be['peak_to_sample_energy_ratio']:.3f} / {me['peak_to_sample_energy_ratio']:.3f} / {se['peak_to_sample_energy_ratio']:.3f}",
         f"renorm factor      : {se['renormalisation_factor']:.1f} (no pre-clip renorm)",

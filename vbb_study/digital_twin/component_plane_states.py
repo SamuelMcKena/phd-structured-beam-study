@@ -142,6 +142,15 @@ class PropagatedFieldStack:
     def dy_um(self) -> float:
         return float(np.mean(np.abs(np.diff(self.y_um))))
 
+    @property
+    def reference_plane_pulse_energy_uJ(self) -> float:
+        """Stage 8C.3R.1 free-space reference-plane energy (n=1.0).
+
+        Alias of ``sample_pulse_energy_uJ``: the genuinely transmitted energy at the
+        intended sample-entrance reference plane in air.  No material model is active.
+        """
+        return float(self.sample_pulse_energy_uJ)
+
     def plane_state(self, name: str) -> ComponentPlaneState | None:
         for s in self.plane_states:
             if s.plane_name == name:

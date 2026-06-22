@@ -151,6 +151,19 @@ from vbb_study.digital_twin.component_plane_metrics import (
     run_component_plane_scenario,
     plot_component_plane_reality_preview,
 )
+from vbb_study.digital_twin.component_plane_validation import (
+    canonical_free_space_reference,
+    zero_control_equivalence,
+    compute_energy_audit,
+    validate_beam_tilt,
+    fov_convergence_check,
+)
+from vbb_study.digital_twin.component_plane_figures import (
+    plot_reference_plane_energy_axis_validation,
+    plot_individual_sensitivity_atlas,
+    plot_fov_convergence_check,
+    DEFAULT_ATLAS_SCENARIOS,
+)
 
 __all__ = [
     # energy accounting
@@ -262,4 +275,14 @@ __all__ = [
     "build_component_plane_scenarios",
     "run_component_plane_scenario",
     "plot_component_plane_reality_preview",
+    # free-space reference-plane validation (Stage 8C.3R.1)
+    "canonical_free_space_reference",
+    "zero_control_equivalence",
+    "compute_energy_audit",
+    "validate_beam_tilt",
+    "fov_convergence_check",
+    "plot_reference_plane_energy_axis_validation",
+    "plot_individual_sensitivity_atlas",
+    "plot_fov_convergence_check",
+    "DEFAULT_ATLAS_SCENARIOS",
 ]
