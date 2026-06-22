@@ -45,6 +45,10 @@ from vbb_study.digital_twin.component_plane_metrics import (
     _peak_xy,
     _cosine_similarity,
 )
+from vbb_study.digital_twin.annular_axis_tracking import (
+    estimate_annular_axis,
+    track_axis_trajectory,
+)
 
 _UM = 1e-6
 
@@ -331,6 +335,7 @@ def validate_beam_tilt(
     st = run.propagated_stack
     I = np.asarray(st.intensity_zyx, dtype=float)
     x = np.asarray(st.x_um, dtype=float)
+    y = np.asarray(st.y_um, dtype=float)
     z = np.asarray(st.z_um, dtype=float)
 
     # Expected slopes from the phase ramp.
@@ -341,26 +346,20 @@ def validate_beam_tilt(
     exp_sx = float(kx / kz)
     exp_sy = float(ky / kz)
 
-    # Measure on the valid (formed-beam) z range only.
-    plane_max = I.max(axis=(1, 2))
-    valid = plane_max > 0.3 * float(plane_max.max())
-    if valid.sum() < 3:
-        valid = np.ones_like(plane_max, dtype=bool)
-    zc = z[valid]
-    cx = np.array([_centroid(I[i], x, x)[0] for i in range(I.shape[0])])[valid]
-    cy = np.array([_centroid(I[i], x, x)[1] for i in range(I.shape[0])])[valid]
-    mx, bx = np.polyfit(zc, cx, 1)
-    my, by = np.polyfit(zc, cy, 1)
-    res = (cx - (bx + mx * zc)) ** 2 + (cy - (by + my * zc)) ** 2
-    tot = (cx - cx.mean()) ** 2 + (cy - cy.mean()) ** 2
-    fit_q = float(np.clip(1.0 - res.sum() / (tot.sum() + 1e-30), 0.0, 1.0))
+    # Measure from the robust fitted ring/core axis trajectory (NOT the
+    # azimuthally-degenerate brightest pixel), over the valid z range only.
+    traj = track_axis_trajectory(I, x, y, z, estimator_mode="auto")
+    mx = float(traj["measured_slope_x"]); my = float(traj["measured_slope_y"])
+    fit_q = float(traj["trajectory_fit_quality"])
+    zc_lo, zc_hi = traj["valid_z_fit_range_um"]
 
     dx_um = float(st.dx_um)
-    z_span = float(zc.max() - zc.min())
+    z_span = float(zc_hi - zc_lo) if np.isfinite(zc_hi) else 0.0
     px_disp = abs(float(np.hypot(mx, my)) * z_span / dx_um)
     abs_err = float(np.hypot(mx - exp_sx, my - exp_sy))
     exp_mag = max(float(np.hypot(exp_sx, exp_sy)), 1e-12)
     rel_err = abs_err / exp_mag
+    zc = np.array([zc_lo, zc_hi])
     return {
         "commanded_tilt_x_mrad": float(tilt_x_mrad),
         "commanded_tilt_y_mrad": float(tilt_y_mrad),
@@ -370,9 +369,13 @@ def validate_beam_tilt(
         "measured_slope_y": float(my),
         "absolute_slope_error": abs_err,
         "relative_slope_error": float(rel_err),
+        "absolute_error": abs_err,
+        "relative_error": float(rel_err),
         "trajectory_fit_quality": fit_q,
+        "fit_quality": fit_q,
         "valid_z_fit_range_um": (float(zc.min()), float(zc.max())),
         "grid_pixels_of_displacement": float(px_disp),
+        "grid_resolved_displacement": float(px_disp),
         "agrees_within_tolerance": bool(rel_err <= TOL_TILT_SLOPE_REL),
         "propagation_medium": "free_space_n_1.0",
     }
@@ -386,13 +389,27 @@ def validate_beam_tilt(
 def _fov_metrics(run: ComponentPlaneRun) -> dict[str, float]:
     st = run.propagated_stack
     fl = stack_to_fluence(st)
-    sel = _peak_plane_index(st.intensity_zyx)
+    I = np.asarray(st.intensity_zyx, float)
+    x = np.asarray(st.x_um, float)
+    y = np.asarray(st.y_um, float)
+    sel = _peak_plane_index(I)
     ax = compute_axis_tracking(st, plane_index=sel, core_radius_um=2.0)
+    est = estimate_annular_axis(I[sel], x, y)
+    traj = track_axis_trajectory(I, x, y, np.asarray(st.z_um, float))
     return {
         "peak_fluence": float(np.max(fl.peak_fluence_by_z_j_cm2)),
-        "peak_x_um": float(ax["peak_x_um"]),
-        "peak_y_um": float(ax["peak_y_um"]),
-        "steering_x_mrad": float(ax["beam_steering_angle_x_mrad"]),
+        # robust annular axis metrics (PRIMARY)
+        "ring_centre_x_um": float(est["ring_centre_x_um"]),
+        "ring_centre_y_um": float(est["ring_centre_y_um"]),
+        "core_centre_x_um": float(est["core_centre_x_um"]),
+        "core_centre_y_um": float(est["core_centre_y_um"]),
+        "axis_intercept_x_um": float(traj["axis_intercept_at_z0_x_um"]),
+        "axis_intercept_y_um": float(traj["axis_intercept_at_z0_y_um"]),
+        "axis_error_um": float(est["beam_axis_error_um"]),
+        "steering_x_mrad": float(traj["beam_steering_angle_x_mrad"]),
+        # raw brightest pixel kept for DIAGNOSTIC ONLY
+        "raw_peak_x_um": float(ax["peak_x_um"]),
+        "raw_peak_y_um": float(ax["peak_y_um"]),
         "captured_power_drift": float(fl.propagation_energy_drift_fraction),
         "field_of_view_margin_um": float(ax["field_of_view_margin_um"]),
         "out_of_frame_fraction": float(ax["out_of_frame_fraction"]),
@@ -405,7 +422,13 @@ def fov_convergence_check(
     config: ComponentPlaneConfig | None = None,
     expand_factor: float = 1.5,
 ) -> dict[str, Any]:
-    """Compare standard vs expanded grid/FOV and assign a reliability label."""
+    """Compare standard vs expanded grid/FOV and assign a reliability label.
+
+    For annular fields the reliability is driven by the fitted ring/core centre
+    and axis-trajectory convergence plus peak-fluence / captured-power
+    convergence and FOV margin -- NOT by the azimuthally-degenerate raw peak
+    position (which is reported diagnostically only).
+    """
     config = config or ComponentPlaneConfig()
     controls = dict(controls or {})
     expanded = replace(config, grid_N=int(round(config.grid_N * expand_factor)))
@@ -414,16 +437,26 @@ def fov_convergence_check(
     exp = _fov_metrics(run_component_plane_pipeline(controls, config=expanded))
 
     peak_rel = abs(std["peak_fluence"] - exp["peak_fluence"]) / max(exp["peak_fluence"], 1e-30)
-    peak_pos = float(np.hypot(std["peak_x_um"] - exp["peak_x_um"], std["peak_y_um"] - exp["peak_y_um"]))
+    ring_diff = float(np.hypot(std["ring_centre_x_um"] - exp["ring_centre_x_um"],
+                               std["ring_centre_y_um"] - exp["ring_centre_y_um"]))
+    core_diff = float(np.hypot(std["core_centre_x_um"] - exp["core_centre_x_um"],
+                               std["core_centre_y_um"] - exp["core_centre_y_um"]))
+    axis_traj_diff = float(np.hypot(std["axis_intercept_x_um"] - exp["axis_intercept_x_um"],
+                                    std["axis_intercept_y_um"] - exp["axis_intercept_y_um"]))
+    axis_err_diff = abs(std["axis_error_um"] - exp["axis_error_um"])
+    raw_peak_diff = float(np.hypot(std["raw_peak_x_um"] - exp["raw_peak_x_um"],
+                                   std["raw_peak_y_um"] - exp["raw_peak_y_um"]))
     slope_diff = abs(std["steering_x_mrad"] - exp["steering_x_mrad"])
     drift_diff = abs(std["captured_power_drift"] - exp["captured_power_drift"])
 
-    # Gross non-convergence between standard and expanded FOV means the standard
-    # grid does not contain the beam meaningfully -> invalid (not merely caution).
+    dx_um = float(config.dx_um)
+    # Reliability is driven by ring/core/trajectory + peak fluence + power + FOV,
+    # never by the raw annular peak position.
     if (std["out_of_frame_fraction"] > 0.02 or std["field_of_view_margin_um"] < 0.0
-            or peak_rel > 0.25):
+            or peak_rel > 0.25 or ring_diff > 5.0 * dx_um):
         reliability = "invalid_out_of_frame"
-    elif peak_rel > TOL_FOV_PEAK_REL or std["out_of_frame_fraction"] > 0.005:
+    elif (peak_rel > TOL_FOV_PEAK_REL or std["out_of_frame_fraction"] > 0.005
+          or ring_diff > 1.5 * dx_um or axis_traj_diff > 2.0 * dx_um):
         reliability = "caution_crop_limited"
     else:
         reliability = "numerically_reliable"
@@ -434,7 +467,12 @@ def fov_convergence_check(
         "standard_grid_N": int(config.grid_N),
         "expanded_grid_N": int(expanded.grid_N),
         "peak_fluence_rel_diff": float(peak_rel),
-        "peak_position_diff_um": peak_pos,
+        "ring_centre_difference_um": ring_diff,
+        "core_centre_difference_um": core_diff,
+        "axis_trajectory_difference_um": axis_traj_diff,
+        "axis_error_difference_um": axis_err_diff,
+        "raw_peak_position_difference_um": raw_peak_diff,  # diagnostic only
+        "raw_peak_status": "not_a_primary_axis_metric_for_annular_fields",
         "axis_trajectory_slope_diff_mrad": float(slope_diff),
         "captured_power_drift_diff": float(drift_diff),
         "field_of_view_margin_um": std["field_of_view_margin_um"],

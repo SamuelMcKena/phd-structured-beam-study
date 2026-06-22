@@ -29,6 +29,11 @@ from vbb_study.digital_twin.component_plane_pipeline import (
     run_component_plane_pipeline,
 )
 from vbb_study.digital_twin.component_plane_states import PropagatedFieldStack
+from vbb_study.digital_twin.annular_axis_tracking import (
+    RAW_PEAK_LABEL,
+    estimate_annular_axis,
+    track_axis_trajectory,
+)
 
 FINAL_EXPORT_ALLOWED = False
 FIGURE_STATUS = "diagnostic_allowed"
@@ -168,7 +173,13 @@ def compute_axis_tracking(
     plane_index: int | None = None,
     core_radius_um: float = 6.0,
 ) -> dict[str, Any]:
-    """Commanded-axis vs actual-beam-axis metrics, incl. a z-trajectory fit."""
+    """Commanded-axis vs actual-beam-axis metrics, incl. a z-trajectory fit.
+
+    Stage 8C.3R.2 deliberately makes the fitted annular ring/core centre the
+    primary axis estimate.  ``peak_x_um``/``peak_y_um`` remain as backward-
+    compatible aliases for the raw brightest-pixel diagnostic, but they do not
+    drive steering, FOV convergence, or axis-error metrics.
+    """
     I = np.asarray(stack.intensity_zyx, dtype=float)
     x = np.asarray(stack.x_um, dtype=float)
     y = np.asarray(stack.y_um, dtype=float)
@@ -179,25 +190,15 @@ def compute_axis_tracking(
     plane = I[plane_index]
 
     cen_x, cen_y = _centroid(plane, x, y)
-    ring_x, ring_y = _ring_centre(plane, x, y)
-    peak_x, peak_y = _peak_xy(plane, x, y)
-
-    # z-trajectory of the intensity centroid (fit a straight beam axis).
-    cx = np.array([_centroid(I[i], x, y)[0] for i in range(I.shape[0])])
-    cy = np.array([_centroid(I[i], x, y)[1] for i in range(I.shape[0])])
-    sx, ix0 = np.polyfit(z, cx, 1)
-    sy, iy0 = np.polyfit(z, cy, 1)
-    fit_x = ix0 + sx * z
-    fit_y = iy0 + sy * z
-    ss_res = float(np.sum((cx - fit_x) ** 2) + np.sum((cy - fit_y) ** 2))
-    ss_tot = float(np.sum((cx - cx.mean()) ** 2) + np.sum((cy - cy.mean()) ** 2)) + 1e-30
-    fit_quality = float(np.clip(1.0 - ss_res / ss_tot, 0.0, 1.0))
-
-    ring_fit_q, ring_radius_um = _ring_fit_quality(plane, x, y, ring_x, ring_y)
-    half = 0.5 * float(x.max() - x.min())
-    ring_radius = float(np.hypot(peak_x - ring_x, peak_y - ring_y))
-    fov_margin = float(half - (np.hypot(ring_x, ring_y) + ring_radius))
+    est = estimate_annular_axis(plane, x, y)
+    traj = track_axis_trajectory(I, x, y, z, estimator_mode="auto")
+    ring_x, ring_y = float(est["ring_centre_x_um"]), float(est["ring_centre_y_um"])
+    peak_x, peak_y = float(est["brightest_pixel_x_um"]), float(est["brightest_pixel_y_um"])
+    fit_quality = float(traj["trajectory_fit_quality"])
     core_fill = _core_fill_fraction(plane, x, y, core_radius_um)
+    axis_x = float(est["beam_axis_x_um"])
+    axis_y = float(est["beam_axis_y_um"])
+    axis_error = float(np.hypot(axis_x, axis_y)) if np.isfinite(axis_x) else float("nan")
 
     return {
         "commanded_axis_x_um": 0.0,
@@ -206,26 +207,54 @@ def compute_axis_tracking(
         "intensity_centroid_y_um": cen_y,
         "ring_centre_x_um": ring_x,
         "ring_centre_y_um": ring_y,
-        "ring_fit_quality": ring_fit_q,
-        "ring_radius_um": ring_radius_um,
+        "ring_fit_quality": float(est["ring_fit_quality"]),
+        "ring_fit_method": est["ring_fit_method"],
+        "ring_fit_reliable": bool(est["ring_fit_reliable"]),
+        "ring_radius_um": float(est["ring_radius_um"]),
+        "ring_circularity": float(est["ring_circularity"]),
+        "azimuthal_uniformity": float(est["azimuthal_uniformity"]),
+        "core_centre_x_um": float(est["core_centre_x_um"]),
+        "core_centre_y_um": float(est["core_centre_y_um"]),
+        "core_fit_quality": float(est["core_fit_quality"]),
+        "core_fit_reliable": bool(est["core_fit_reliable"]),
+        "roi_intensity_centroid_x_um": float(est["roi_intensity_centroid_x_um"]),
+        "roi_intensity_centroid_y_um": float(est["roi_intensity_centroid_y_um"]),
+        "phase_singularity_x_um": float(est["phase_singularity_x_um"]),
+        "phase_singularity_y_um": float(est["phase_singularity_y_um"]),
+        "phase_singularity_reliable": bool(est["phase_singularity_reliable"]),
+        "beam_axis_x_um": axis_x,
+        "beam_axis_y_um": axis_y,
+        "beam_axis_method": est["beam_axis_method"],
+        "beam_axis_fit_quality": float(est["beam_axis_fit_quality"]),
+        "beam_axis_reliability": est["beam_axis_reliability"],
+        "beam_axis_error_um": axis_error,
+        "brightest_pixel_x_um": peak_x,
+        "brightest_pixel_y_um": peak_y,
+        "brightest_pixel_status": RAW_PEAK_LABEL,
         "peak_x_um": peak_x,
         "peak_y_um": peak_y,
-        "radial_axis_error_um": float(np.hypot(ring_x, ring_y)),
-        "field_of_view_margin_um": fov_margin,
-        "out_of_frame_fraction": _out_of_frame_fraction(plane),
-        "axis_intercept_at_surface_x_um": float(ix0),
-        "axis_intercept_at_surface_y_um": float(iy0),
+        "peak_status": RAW_PEAK_LABEL,
+        "radial_axis_error_um": axis_error,
+        "field_of_view_margin_um": float(est["field_of_view_margin_um"]),
+        "out_of_frame_fraction": float(est["out_of_frame_fraction"]),
+        "axis_intercept_at_surface_x_um": float(traj["axis_intercept_at_z0_x_um"]),
+        "axis_intercept_at_surface_y_um": float(traj["axis_intercept_at_z0_y_um"]),
         # Stage 8C.3R.1 reference-plane names (z0 = first reference plane in the stack)
-        "axis_intercept_at_z0_x_um": float(ix0 + sx * float(z[0])),
-        "axis_intercept_at_z0_y_um": float(iy0 + sy * float(z[0])),
-        "reference_plane_axis_error_um": float(np.hypot(ring_x, ring_y)),
-        "valid_z_fit_range_um": (float(z.min()), float(z.max())),
-        "target_plane_axis_error_um": float(np.hypot(cen_x, cen_y)),
-        "beam_steering_angle_x_mrad": float(np.arctan(sx) * 1000.0),
-        "beam_steering_angle_y_mrad": float(np.arctan(sy) * 1000.0),
+        "axis_intercept_at_z0_x_um": float(traj["axis_intercept_at_z0_x_um"]),
+        "axis_intercept_at_z0_y_um": float(traj["axis_intercept_at_z0_y_um"]),
+        "reference_plane_axis_error_um": float(traj["reference_plane_axis_error_um"]),
+        "valid_z_fit_range_um": tuple(traj["valid_z_fit_range_um"]),
+        "valid_plane_fraction": float(traj["valid_plane_fraction"]),
+        "target_plane_axis_error_um": axis_error,
+        "beam_steering_angle_x_mrad": float(traj["beam_steering_angle_x_mrad"]),
+        "beam_steering_angle_y_mrad": float(traj["beam_steering_angle_y_mrad"]),
         "trajectory_fit_quality": fit_quality,
-        "centre_trajectory_x_um": cx.tolist(),
-        "centre_trajectory_y_um": cy.tolist(),
+        "centre_trajectory_x_um": list(traj["axis_x_by_z_um"]),
+        "centre_trajectory_y_um": list(traj["axis_y_by_z_um"]),
+        "axis_x_by_z_um": list(traj["axis_x_by_z_um"]),
+        "axis_y_by_z_um": list(traj["axis_y_by_z_um"]),
+        "per_plane_axis_method": list(traj["per_plane_method"]),
+        "per_plane_axis_reliability": list(traj["per_plane_reliability"]),
         "plane_index": plane_index,
         "core_fill_fraction": core_fill,
         "central_darkness_contrast": float(np.clip(1.0 - core_fill, 0.0, 1.0)),
@@ -579,6 +608,135 @@ def run_component_plane_scenario(
             "warnings": list(severe.warnings),
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Stage 8C.3R.2 individual diagnostic response curves (multi-point sweeps)
+# ---------------------------------------------------------------------------
+
+DIAGNOSTIC_SWEEP_LABEL = (
+    "Diagnostic sensitivity sweep. Not an experimentally measured laboratory tolerance."
+)
+
+
+@dataclass(frozen=True)
+class ResponseCurveFamily:
+    key: str
+    title: str
+    param_label: str
+    param_values: tuple[float, ...]
+    control_fn: Any                      # value -> controls dict
+    expected_class: str = "deformation"
+
+
+@dataclass(frozen=True)
+class ResponseCurveResult:
+    family: ResponseCurveFamily
+    param_values: tuple[float, ...]
+    rows: tuple[Mapping[str, Any], ...]
+    label: str = DIAGNOSTIC_SWEEP_LABEL
+    final_export_allowed: bool = False
+
+
+def build_response_curve_families() -> dict[str, ResponseCurveFamily]:
+    """The ten physically-represented free-space perturbation families."""
+    z = (0.0, 0.2, 0.4, 0.6, 0.8, 1.0)
+    return {
+        "vortex_offset": ResponseCurveFamily(
+            "vortex_offset", "Vortex-centre offset (axicon fixed)", "vortex offset (um)",
+            (0.0, 2.0, 4.0, 6.0, 8.0, 10.0),
+            lambda v: {"enable_vortex_centre_offset": True, "vortex_centre_offset_x_um": v}),
+        "axicon_offset": ResponseCurveFamily(
+            "axicon_offset", "Axicon-centre offset (vortex fixed)", "axicon offset (um)",
+            (0.0, 2.0, 4.0, 6.0, 8.0, 10.0),
+            lambda v: {"enable_axicon_centre_offset": True, "axicon_centre_offset_x_um": v}),
+        "beam_decentre": ResponseCurveFamily(
+            "beam_decentre", "Input decentre (fixed SLM area 40 um)", "beam decentre (um)",
+            (0.0, 3.0, 6.0, 9.0, 12.0, 16.0),
+            lambda v: {"enable_beam_decentre": True, "beam_decentre_x_um": v,
+                       "enable_slm_active_area": True, "slm_active_width_um": 40.0, "slm_active_height_um": 40.0},
+            expected_class="clipping"),
+        "beam_tilt": ResponseCurveFamily(
+            "beam_tilt", "Input beam tilt", "tilt (mrad)",
+            (0.0, 4.0, 8.0, 12.0, 18.0, 24.0),
+            lambda v: {"enable_beam_tilt": True, "beam_tilt_x_mrad": v},
+            expected_class="translation"),
+        "pupil_decentre": ResponseCurveFamily(
+            "pupil_decentre", "Pupil decentre (radius 18 um)", "pupil decentre (um)",
+            (0.0, 2.0, 4.0, 6.0, 8.0, 10.0),
+            lambda v: {"enable_pupil_clipping": True, "pupil_radius_um": 18.0, "pupil_decentre_x_um": v},
+            expected_class="clipping"),
+        "defocus": ResponseCurveFamily(
+            "defocus", "Defocus", "defocus (waves)", z,
+            lambda v: {"enable_zernike_aberrations": True, "zernike_defocus_waves": v}),
+        "astigmatism": ResponseCurveFamily(
+            "astigmatism", "Astigmatism (0 deg)", "astig (waves)", z,
+            lambda v: {"enable_zernike_aberrations": True, "zernike_astig_0_waves": v}),
+        "coma": ResponseCurveFamily(
+            "coma", "Coma (x)", "coma (waves)", z,
+            lambda v: {"enable_zernike_aberrations": True, "zernike_coma_x_waves": v}),
+        "spherical": ResponseCurveFamily(
+            "spherical", "Spherical", "spherical (waves)", z,
+            lambda v: {"enable_zernike_aberrations": True, "zernike_spherical_waves": v}),
+        "zero_order": ResponseCurveFamily(
+            "zero_order", "Zero-order leakage fraction", "leakage fraction",
+            (0.0, 0.05, 0.1, 0.2, 0.3, 0.4),
+            lambda v: {"enable_zero_order_leakage": True, "zero_order_leakage_fraction": v},
+            expected_class="core_contamination"),
+    }
+
+
+def _single_run_axis_reliability(axis: Mapping[str, Any], ring_fit_quality: float) -> str:
+    if float(axis["out_of_frame_fraction"]) > 0.02 or float(axis["field_of_view_margin_um"]) < 0.0:
+        return "invalid_out_of_frame"
+    if float(axis["out_of_frame_fraction"]) > 0.005 or ring_fit_quality < 0.5:
+        return "caution_crop_limited"
+    return "numerically_reliable"
+
+
+def run_response_curve(
+    family: str | ResponseCurveFamily,
+    *,
+    config: ComponentPlaneConfig | None = None,
+) -> ResponseCurveResult:
+    """Run a multi-point parameter sweep and return per-point diagnostic metrics."""
+    if isinstance(family, str):
+        family = build_response_curve_families()[family]
+    config = config or ComponentPlaneConfig()
+
+    baseline = run_component_plane_pipeline({}, config=config)
+    base_st = baseline.propagated_stack
+    sel = _peak_plane_index(base_st.intensity_zyx)
+    x = np.asarray(base_st.x_um, float)
+    y = np.asarray(base_st.y_um, float)
+
+    rows: list[dict[str, Any]] = []
+    for v in family.param_values:
+        run = run_component_plane_pipeline(family.control_fn(v), config=config)
+        st = run.propagated_stack
+        en = compute_energy_throughput(run)
+        ax = compute_axis_tracking(st, plane_index=sel, core_radius_um=2.0)
+        est = estimate_annular_axis(st.intensity_zyx[sel], x, y)
+        cls = classify_translation_vs_deformation(base_st, st, plane_index=sel, core_radius_um=2.0)
+        rows.append({
+            "param_value": float(v),
+            "diagnostic_label": DIAGNOSTIC_SWEEP_LABEL,
+            "transmitted_fraction": float(en["transmitted_fraction"]),
+            "reference_plane_pulse_energy_uJ": float(en["reference_plane_pulse_energy_uJ"]),
+            "axis_error_um": float(est["beam_axis_error_um"]),
+            "axis_method": est["beam_axis_method"],
+            "axis_reliability": est["beam_axis_reliability"],
+            "azimuthal_uniformity": float(est["azimuthal_uniformity"]),
+            "ring_fit_quality": float(est["ring_fit_quality"]),
+            "ring_circularity": float(est["ring_circularity"]),
+            "residual_shape_deformation": float(cls["residual_shape_deformation_score"]),
+            "core_contamination_fraction": float(cls["core_contamination_fraction"]),
+            "core_fill_fraction": float(est["core_fill_fraction"]),
+            "central_darkness_contrast": float(est["central_darkness_contrast"]),
+            "peak_to_reference_energy_ratio": float(en["peak_to_reference_energy_ratio"]),
+            "numerical_reliability": _single_run_axis_reliability(ax, float(est["ring_fit_quality"])),
+        })
+    return ResponseCurveResult(family=family, param_values=tuple(family.param_values), rows=tuple(rows))
 
 
 # ---------------------------------------------------------------------------

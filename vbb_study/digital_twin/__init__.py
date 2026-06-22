@@ -143,12 +143,17 @@ from vbb_study.digital_twin.component_plane_pipeline import (
 from vbb_study.digital_twin.component_plane_metrics import (
     ComponentPlaneScenario,
     ComponentPlaneScenarioResult,
+    ResponseCurveFamily,
+    ResponseCurveResult,
+    DIAGNOSTIC_SWEEP_LABEL,
     stack_to_fluence,
     compute_axis_tracking,
     compute_energy_throughput,
     classify_translation_vs_deformation,
     build_component_plane_scenarios,
     run_component_plane_scenario,
+    build_response_curve_families,
+    run_response_curve,
     plot_component_plane_reality_preview,
 )
 from vbb_study.digital_twin.component_plane_validation import (
@@ -162,7 +167,16 @@ from vbb_study.digital_twin.component_plane_figures import (
     plot_reference_plane_energy_axis_validation,
     plot_individual_sensitivity_atlas,
     plot_fov_convergence_check,
+    plot_annular_axis_tracking_validation,
+    plot_individual_response_curves,
+    plot_free_space_study_summary,
     DEFAULT_ATLAS_SCENARIOS,
+)
+from vbb_study.digital_twin.annular_axis_tracking import (
+    RAW_PEAK_LABEL,
+    AnnularAxisEstimate,
+    estimate_annular_axis,
+    track_axis_trajectory,
 )
 
 __all__ = [
@@ -268,13 +282,22 @@ __all__ = [
     "WARNING_ONLY_CONTROLS",
     "ComponentPlaneScenario",
     "ComponentPlaneScenarioResult",
+    "ResponseCurveFamily",
+    "ResponseCurveResult",
+    "DIAGNOSTIC_SWEEP_LABEL",
     "stack_to_fluence",
     "compute_axis_tracking",
     "compute_energy_throughput",
     "classify_translation_vs_deformation",
     "build_component_plane_scenarios",
     "run_component_plane_scenario",
+    "build_response_curve_families",
+    "run_response_curve",
     "plot_component_plane_reality_preview",
+    "RAW_PEAK_LABEL",
+    "AnnularAxisEstimate",
+    "estimate_annular_axis",
+    "track_axis_trajectory",
     # free-space reference-plane validation (Stage 8C.3R.1)
     "canonical_free_space_reference",
     "zero_control_equivalence",
@@ -284,5 +307,8 @@ __all__ = [
     "plot_reference_plane_energy_axis_validation",
     "plot_individual_sensitivity_atlas",
     "plot_fov_convergence_check",
+    "plot_annular_axis_tracking_validation",
+    "plot_individual_response_curves",
+    "plot_free_space_study_summary",
     "DEFAULT_ATLAS_SCENARIOS",
 ]
