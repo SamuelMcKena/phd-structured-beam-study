@@ -14,7 +14,10 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 from vbb_study.digital_twin.field_coupling import OpticalFieldStack
 from vbb_study.digital_twin.field_fluence import FluenceStackResult, scale_stack_to_fluence
-from vbb_study.digital_twin.lab_perturbations import apply_lab_perturbations_to_stack
+from vbb_study.digital_twin.lab_perturbations import (
+    apply_lab_perturbations_to_stack,
+    physical_placement_rows_for_controls,
+)
 
 FINAL_EXPORT_ALLOWED = False
 FIGURE_STATUS = "diagnostic_allowed"
@@ -23,7 +26,7 @@ MODEL_STATUS = "diagnostic_preview"
 
 @dataclass(frozen=True)
 class SensitivityScenario:
-    """One Stage 8C.3B active-perturbation severity sweep scenario."""
+    """One Stage 8C.3C active-perturbation severity sweep scenario."""
 
     key: str
     title: str
@@ -35,11 +38,13 @@ class SensitivityScenario:
     degradation_metric: str
     worse_direction: str
     expected_visible_change: str
+    physical_interpretation: str = ""
+    counts_as_genuine_degradation: bool = True
 
 
 @dataclass(frozen=True)
 class SensitivitySweepResult:
-    """Computed fields/metrics for a Stage 8C.3B sensitivity sweep."""
+    """Computed fields/metrics for a Stage 8C.3C sensitivity sweep."""
 
     scenario: SensitivityScenario
     baseline_stack: OpticalFieldStack
@@ -74,7 +79,7 @@ def compute_degradation_metrics(
     central_roi_half_width_um: float = 10.0,
     perturbation_metadata: Mapping[str, Any] | None = None,
     first_order_selected_fraction: float | None = None,
-) -> dict[str, float]:
+) -> dict[str, Any]:
     """Compute robust scalar degradation metrics from a field/fluence stack."""
     if not isinstance(stack, OpticalFieldStack):
         raise TypeError(f"stack must be OpticalFieldStack; got {type(stack).__name__}.")
@@ -116,13 +121,29 @@ def compute_degradation_metrics(
         first_order = float((perturbation_metadata or {}).get("first_order_selected_fraction", np.nan))
 
     peak_fluence = _global_peak_fluence(fluence_result, fallback=peak_value)
-    baseline_similarity = 1.0
+    unregistered_similarity = 1.0
+    registered_similarity = 1.0
+    centroid_shift_um = 0.0
+    residual_shape_deformation = 0.0
+    translation_dominated = False
     if baseline_stack is not None:
-        baseline_similarity = _stack_similarity(baseline_stack, stack)
+        reg = _translation_registration_metrics(
+            baseline_stack,
+            stack,
+            plane_index=plane_index,
+        )
+        unregistered_similarity = reg["unregistered_similarity_score"]
+        registered_similarity = reg["registered_similarity_score"]
+        centroid_shift_um = reg["centroid_shift_um"]
+        residual_shape_deformation = reg["residual_shape_deformation_score"]
+        translation_dominated = reg["translation_dominated_boolean"]
     elif baseline_metrics is not None and np.isfinite(float(baseline_metrics.get("peak_x_um", np.nan))):
         dx = peak_x - float(baseline_metrics.get("peak_x_um", 0.0))
         dy = peak_y - float(baseline_metrics.get("peak_y_um", 0.0))
-        baseline_similarity = float(np.exp(-np.hypot(dx, dy) / max(float(np.ptp(x)), 1e-9)))
+        centroid_shift_um = float(np.hypot(dx, dy))
+        unregistered_similarity = float(np.exp(-centroid_shift_um / max(float(np.ptp(x)), 1e-9)))
+        registered_similarity = unregistered_similarity
+        residual_shape_deformation = max(0.0, 1.0 - registered_similarity)
 
     peak_change = 0.0
     if baseline_fluence_result is not None:
@@ -157,7 +178,12 @@ def compute_degradation_metrics(
         "pupil_clipped_power_fraction": pupil_clip,
         "first_order_selected_fraction": float(first_order) if first_order is not None else float("nan"),
         "symmetry_score": symmetry,
-        "baseline_similarity_score": baseline_similarity,
+        "baseline_similarity_score": unregistered_similarity,
+        "unregistered_similarity_score": unregistered_similarity,
+        "registered_similarity_score": registered_similarity,
+        "centroid_shift_um": centroid_shift_um,
+        "translation_dominated_boolean": bool(translation_dominated),
+        "residual_shape_deformation_score": residual_shape_deformation,
         "global_peak_fluence": peak_fluence,
     }
 
@@ -190,6 +216,11 @@ def metric_delta_table(
         "first_order_selected_fraction",
         "symmetry_score",
         "baseline_similarity_score",
+        "unregistered_similarity_score",
+        "registered_similarity_score",
+        "centroid_shift_um",
+        "residual_shape_deformation_score",
+        "translation_dominated_boolean",
     ]:
         b = float(baseline_metrics.get(key, np.nan))
         p = float(perturbed_metrics.get(key, np.nan))
@@ -198,12 +229,207 @@ def metric_delta_table(
 
 
 def build_stage8c3_sensitivity_scenarios() -> dict[str, SensitivityScenario]:
-    """Return the required Stage 8C.3B mild/severe perturbation scenarios."""
+    """Return the required Stage 8C.3C translation-vs-degradation scenarios."""
     return {
-        "phase_center_offset": SensitivityScenario(
-            key="phase_center_offset",
-            title="Scenario A - SLM/vortex/axicon centre offset",
-            scenario_name="SLM/vortex/axicon centre offset",
+        "relative_vortex_axicon_misregistration": SensitivityScenario(
+            key="relative_vortex_axicon_misregistration",
+            title="Scenario A - relative vortex/axicon misregistration",
+            scenario_name="Relative vortex/axicon misregistration",
+            mild_controls={
+                "enable_vortex_centre_offset": True,
+                "vortex_centre_offset_x_um": 3.0,
+            },
+            severe_controls={
+                "enable_vortex_centre_offset": True,
+                "vortex_centre_offset_x_um": 8.0,
+            },
+            mild_label="vortex x=3 um; axicon fixed",
+            severe_label="vortex x=8 um; axicon fixed",
+            degradation_metric="residual_shape_deformation_score",
+            worse_direction="higher",
+            expected_visible_change="off-centre hollow core, azimuthal imbalance, ring asymmetry after recentering",
+            physical_interpretation="relative phase-mask misregistration; not a common-mode translation headline",
+        ),
+        "axicon_relative_misregistration": SensitivityScenario(
+            key="axicon_relative_misregistration",
+            title="Scenario A-reverse - axicon shifted, vortex fixed",
+            scenario_name="Axicon relative misregistration",
+            mild_controls={
+                "enable_axicon_centre_offset": True,
+                "axicon_centre_offset_x_um": 3.0,
+            },
+            severe_controls={
+                "enable_axicon_centre_offset": True,
+                "axicon_centre_offset_x_um": 8.0,
+            },
+            mild_label="axicon x=3 um; vortex fixed",
+            severe_label="axicon x=8 um; vortex fixed",
+            degradation_metric="residual_shape_deformation_score",
+            worse_direction="higher",
+            expected_visible_change="reverse relative phase-mask error; residual asymmetry remains after recentering",
+            physical_interpretation="reverse relative phase-mask misregistration",
+        ),
+        "beam_decentre_slm_aperture": SensitivityScenario(
+            key="beam_decentre_slm_aperture",
+            title="Scenario B - input beam decentre + finite SLM aperture",
+            scenario_name="Input beam decentre relative to fixed phase mask",
+            mild_controls={
+                "enable_beam_decentre": True,
+                "beam_decentre_x_um": 3.6,
+                "enable_slm_active_area": True,
+                "slm_active_width_um": 32.0,
+                "slm_active_height_um": 32.0,
+            },
+            severe_controls={
+                "enable_beam_decentre": True,
+                "beam_decentre_x_um": 9.6,
+                "enable_slm_active_area": True,
+                "slm_active_width_um": 20.0,
+                "slm_active_height_um": 20.0,
+            },
+            mild_label="beam decentre=0.15R; finite SLM aperture",
+            severe_label="beam decentre=0.40R; tighter SLM aperture",
+            degradation_metric="residual_shape_deformation_score",
+            worse_direction="higher",
+            expected_visible_change="asymmetric illumination, aperture artefacts, side-lobe imbalance and throughput loss",
+            physical_interpretation="input amplitude decentre before fixed phase mask, with finite SLM active area",
+        ),
+        "beam_tilt_finite_pupil": SensitivityScenario(
+            key="beam_tilt_finite_pupil",
+            title="Scenario C - beam tilt + finite pupil",
+            scenario_name="Beam tilt plus finite pupil",
+            mild_controls={
+                "enable_beam_tilt": True,
+                "beam_tilt_x_mrad": 2.0,
+                "enable_pupil_clipping": True,
+                "pupil_radius_um": 14.0,
+            },
+            severe_controls={
+                "enable_beam_tilt": True,
+                "beam_tilt_x_mrad": 16.0,
+                "enable_pupil_clipping": True,
+                "pupil_radius_um": 11.0,
+            },
+            mild_label="tilt x=2 mrad; finite pupil",
+            severe_label="tilt x=16 mrad; finite pupil",
+            degradation_metric="residual_shape_deformation_score",
+            worse_direction="higher",
+            expected_visible_change="XZ lean/shift, peak-trajectory change and target-depth centroid motion",
+            physical_interpretation="input phase ramp before propagation, shown here as diagnostic walk-off",
+        ),
+        "pupil_decentre_clipping": SensitivityScenario(
+            key="pupil_decentre_clipping",
+            title="Scenario D - objective pupil decentre and clipping",
+            scenario_name="Objective pupil clipping / decentre",
+            mild_controls={
+                "enable_pupil_clipping": True,
+                "pupil_decentre_x_um": 2.5,
+                "pupil_radius_um": 12.0,
+            },
+            severe_controls={
+                "enable_pupil_clipping": True,
+                "pupil_decentre_x_um": 7.0,
+                "pupil_radius_um": 8.0,
+            },
+            mild_label="pupil decentre=0.10R; moderate clipping",
+            severe_label="pupil decentre=0.35R; strong clipping",
+            degradation_metric="pupil_clipped_power_fraction",
+            worse_direction="higher",
+            expected_visible_change="asymmetric side lobes; clipped-power fraction rises; peak fluence changes",
+            physical_interpretation="objective pupil-plane decentre/clipping",
+        ),
+        "low_order_aberrations": SensitivityScenario(
+            key="low_order_aberrations",
+            title="Scenario E - low-order aberrations",
+            scenario_name="Coma, astigmatism, defocus and spherical aberration",
+            mild_controls={
+                "enable_zernike_aberrations": True,
+                "zernike_coma_x_waves": 0.10,
+                "zernike_astig_0_waves": 0.10,
+                "zernike_defocus_waves": 0.10,
+                "zernike_spherical_waves": 0.10,
+            },
+            severe_controls={
+                "enable_zernike_aberrations": True,
+                "zernike_coma_x_waves": 0.80,
+                "zernike_astig_0_waves": 0.60,
+                "zernike_defocus_waves": 0.70,
+                "zernike_spherical_waves": 0.70,
+            },
+            mild_label="coma/astig/defocus/spherical=0.10 waves",
+            severe_label="coma 0.80, astig 0.60, defocus/spherical 0.70 waves",
+            degradation_metric="residual_shape_deformation_score",
+            worse_direction="higher",
+            expected_visible_change="lopsided ring, astigmatic ellipticity, peak-z shift and axial redistribution",
+            physical_interpretation="objective pupil-plane phase aberrations",
+        ),
+        "zero_order_leakage": SensitivityScenario(
+            key="zero_order_leakage",
+            title="Scenario F - zero-order leakage",
+            scenario_name="Zero-order leakage",
+            mild_controls={
+                "enable_zero_order_leakage": True,
+                "zero_order_leakage_fraction": 0.02,
+            },
+            severe_controls={
+                "enable_zero_order_leakage": True,
+                "zero_order_leakage_fraction": 0.18,
+            },
+            mild_label="zero-order leakage=0.02",
+            severe_label="zero-order leakage=0.18",
+            degradation_metric="core_fill_fraction",
+            worse_direction="higher",
+            expected_visible_change="hollow core fills; central darkness contrast worsens",
+            physical_interpretation="residual unmodulated/order leakage contaminates the core",
+        ),
+        "combined_lab_stress": SensitivityScenario(
+            key="combined_lab_stress",
+            title="Scenario G - diagnostic combined lab stress test",
+            scenario_name="Combined diagnostic stress test",
+            mild_controls={
+                "enable_beam_decentre": True,
+                "beam_decentre_x_um": 3.6,
+                "enable_vortex_centre_offset": True,
+                "vortex_centre_offset_x_um": 3.0,
+                "enable_beam_tilt": True,
+                "beam_tilt_x_mrad": 2.0,
+                "enable_pupil_clipping": True,
+                "pupil_radius_um": 12.0,
+                "pupil_decentre_x_um": 2.0,
+                "enable_zernike_aberrations": True,
+                "zernike_coma_x_waves": 0.10,
+                "enable_zero_order_leakage": True,
+                "zero_order_leakage_fraction": 0.05,
+            },
+            severe_controls={
+                "enable_beam_decentre": True,
+                "beam_decentre_x_um": 9.6,
+                "enable_slm_active_area": True,
+                "slm_active_width_um": 20.0,
+                "slm_active_height_um": 20.0,
+                "enable_vortex_centre_offset": True,
+                "vortex_centre_offset_x_um": 8.0,
+                "enable_beam_tilt": True,
+                "beam_tilt_x_mrad": 14.0,
+                "enable_pupil_clipping": True,
+                "pupil_radius_um": 8.0,
+                "pupil_decentre_x_um": 7.0,
+                "enable_zernike_aberrations": True,
+                "zernike_coma_x_waves": 0.60,
+                "enable_zero_order_leakage": True,
+                "zero_order_leakage_fraction": 0.10,
+            },
+            mild_label="mild combined diagnostic stress",
+            severe_label="severe combined diagnostic stress",
+            degradation_metric="residual_shape_deformation_score",
+            worse_direction="higher",
+            expected_visible_change="decentred, clipped, tilted, coma-biased, core-contaminated stress case",
+            physical_interpretation="diagnostic stress test only; not a realistic expected lab state",
+        ),
+        "vortex_axicon_coshift_translation": SensitivityScenario(
+            key="vortex_axicon_coshift_translation",
+            title="Translation diagnostic - co-shifted vortex and axicon",
+            scenario_name="Co-shifted vortex+axicon translation diagnostic",
             mild_controls={
                 "enable_vortex_centre_offset": True,
                 "vortex_centre_offset_x_um": 3.0,
@@ -218,65 +444,11 @@ def build_stage8c3_sensitivity_scenarios() -> dict[str, SensitivityScenario]:
             },
             mild_label="vortex x=3 um; axicon x=3 um",
             severe_label="vortex x=8 um; axicon x=8 um",
-            degradation_metric="azimuthal_uniformity_score",
-            worse_direction="lower",
-            expected_visible_change="ring lopsided; dark core shifts/fills; symmetry and azimuthal uniformity drop",
-        ),
-        "beam_tilt": SensitivityScenario(
-            key="beam_tilt",
-            title="Scenario B - beam tilt / pointing",
-            scenario_name="Beam tilt / pointing",
-            mild_controls={
-                "enable_beam_tilt": True,
-                "beam_tilt_x_mrad": 1.5,
-            },
-            severe_controls={
-                "enable_beam_tilt": True,
-                "beam_tilt_x_mrad": 5.0,
-            },
-            mild_label="beam tilt x=1.5 mrad",
-            severe_label="beam tilt x=5.0 mrad",
-            degradation_metric="centroid_x_span_um",
+            degradation_metric="centroid_shift_um",
             worse_direction="higher",
-            expected_visible_change="XZ path skews; peak trajectory span increases",
-        ),
-        "pupil_clipping": SensitivityScenario(
-            key="pupil_clipping",
-            title="Scenario C - pupil clipping / decentre",
-            scenario_name="Objective pupil clipping / decentre",
-            mild_controls={
-                "enable_pupil_clipping": True,
-                "pupil_decentre_x_um": 3.0,
-                "pupil_radius_um": 11.0,
-            },
-            severe_controls={
-                "enable_pupil_clipping": True,
-                "pupil_decentre_x_um": 8.0,
-                "pupil_radius_um": 7.0,
-            },
-            mild_label="pupil radius=11 um; decentre x=3 um",
-            severe_label="pupil radius=7 um; decentre x=8 um",
-            degradation_metric="pupil_clipped_power_fraction",
-            worse_direction="higher",
-            expected_visible_change="asymmetric side lobes; clipped-power fraction rises; peak fluence changes",
-        ),
-        "zero_order_leakage": SensitivityScenario(
-            key="zero_order_leakage",
-            title="Scenario D - zero-order leakage",
-            scenario_name="Zero-order leakage",
-            mild_controls={
-                "enable_zero_order_leakage": True,
-                "zero_order_leakage_fraction": 0.02,
-            },
-            severe_controls={
-                "enable_zero_order_leakage": True,
-                "zero_order_leakage_fraction": 0.10,
-            },
-            mild_label="zero-order leakage=0.02",
-            severe_label="zero-order leakage=0.10",
-            degradation_metric="core_fill_fraction",
-            worse_direction="higher",
-            expected_visible_change="hollow core fills; central darkness contrast worsens",
+            expected_visible_change="mostly common-mode translation; recenter before claiming deformation",
+            physical_interpretation="translation/steering diagnostic, not primary misalignment degradation",
+            counts_as_genuine_degradation=False,
         ),
     }
 
@@ -285,7 +457,7 @@ def compute_misalignment_sensitivity_sweep(
     baseline_stack: OpticalFieldStack,
     pulse_energy_uJ: float,
     *,
-    scenario: str | SensitivityScenario = "phase_center_offset",
+    scenario: str | SensitivityScenario = "relative_vortex_axicon_misregistration",
     baseline_fluence: FluenceStackResult | None = None,
     selected_plane_index: int | None = None,
     target_depth_um: float | None = None,
@@ -345,6 +517,9 @@ def compute_misalignment_sensitivity_sweep(
         central_roi_half_width_um=central_roi_half_width_um,
     )
     metric = scenario_def.degradation_metric
+    audit_controls = dict(scenario_def.mild_controls)
+    audit_controls.update(dict(scenario_def.severe_controls))
+    placement_rows = physical_placement_rows_for_controls(audit_controls, only=audit_controls.keys())
     mild_worse = _is_metric_worse(
         float(mild_metrics.get(metric, np.nan)),
         float(baseline_metrics.get(metric, np.nan)),
@@ -372,13 +547,20 @@ def compute_misalignment_sensitivity_sweep(
         selected_plane_index=selected_plane_index,
         central_roi_half_width_um=float(central_roi_half_width_um),
         metadata={
-            "stage": "stage8c3b_misalignment_sensitivity_sweep",
+            "stage": "stage8c3c_genuine_degradation_sweep",
             "scenario": scenario_def.key,
             "mild_worse_than_baseline": mild_worse,
             "severe_worse_than_mild": severe_worse_than_mild,
             "mild_baseline_similarity": float(mild_metrics.get("baseline_similarity_score", np.nan)),
             "severe_baseline_similarity": float(severe_metrics.get("baseline_similarity_score", np.nan)),
+            "mild_registered_similarity": float(mild_metrics.get("registered_similarity_score", np.nan)),
+            "severe_registered_similarity": float(severe_metrics.get("registered_similarity_score", np.nan)),
+            "mild_residual_shape_deformation": float(mild_metrics.get("residual_shape_deformation_score", np.nan)),
+            "severe_residual_shape_deformation": float(severe_metrics.get("residual_shape_deformation_score", np.nan)),
+            "translation_dominated_severe": bool(severe_metrics.get("translation_dominated_boolean", False)),
+            "counts_as_genuine_degradation": bool(scenario_def.counts_as_genuine_degradation),
             "degradation_metric": metric,
+            "physical_placement_audit": tuple(placement_rows),
         },
     )
 
@@ -387,7 +569,7 @@ def plot_misalignment_sensitivity_sweep(
     baseline_stack: OpticalFieldStack,
     pulse_energy_uJ: float,
     *,
-    scenario: str | SensitivityScenario = "phase_center_offset",
+    scenario: str | SensitivityScenario = "relative_vortex_axicon_misregistration",
     baseline_fluence: FluenceStackResult | None = None,
     selected_plane_index: int | None = None,
     target_depth_um: float | None = None,
@@ -395,11 +577,11 @@ def plot_misalignment_sensitivity_sweep(
     output_path: str | Path | None = None,
     show_caveats: bool = True,
     dpi: int = 180,
-    title: str = "Stage 8C.3B Active Perturbation Sensitivity Sweep",
+    title: str = "Stage 8C.3C Translation versus Genuine Degradation",
 ) -> "matplotlib.figure.Figure":
     """Render a polished aligned/mild/severe/difference diagnostic sweep."""
     if output_path is not None and not show_caveats:
-        raise ValueError("Refusing to save Stage 8C.3B sweep without caveats.")
+        raise ValueError("Refusing to save Stage 8C.3C sweep without caveats.")
     sweep = compute_misalignment_sensitivity_sweep(
         baseline_stack,
         pulse_energy_uJ,
@@ -431,17 +613,17 @@ def plot_misalignment_sensitivity_sweep(
     xz_diff = xz_maps[2] - xz_maps[0]
     roi_diff = roi_maps[2] - roi_maps[0]
 
-    fig = plt.figure(figsize=(18.2, 12.6), facecolor="white")
+    fig = plt.figure(figsize=(18.2, 13.5), facecolor="white")
     gs = fig.add_gridspec(
         4,
         4,
-        height_ratios=[1.08, 1.03, 1.03, 0.95],
+        height_ratios=[1.02, 1.00, 1.00, 1.20],
         width_ratios=[1.0, 1.0, 1.0, 1.08],
         left=0.090,
         right=0.965,
         top=0.830,
-        bottom=0.055,
-        hspace=0.42,
+        bottom=0.052,
+        hspace=0.44,
         wspace=0.20,
     )
     fig.suptitle(
@@ -468,8 +650,8 @@ def plot_misalignment_sensitivity_sweep(
     fig.text(
         0.52,
         0.872,
-        "Active perturbations are optical/fluence lab-realism diagnostics only; "
-        "they do not predict material modification.",
+        "Similarity is reported before and after centroid registration; "
+        "translation-dominated cases are not called shape degradation.",
         fontsize=10,
         ha="left",
         va="center",
@@ -624,7 +806,7 @@ def plot_misalignment_sensitivity_sweep(
     )
 
     fig.stage8c3_metadata = {  # type: ignore[attr-defined]
-        "stage": "stage8c3b_misalignment_sensitivity_sweep",
+        "stage": "stage8c3c_genuine_degradation_sweep",
         "figure_status": FIGURE_STATUS,
         "model_status": MODEL_STATUS,
         "final_export_allowed": False,
@@ -634,6 +816,10 @@ def plot_misalignment_sensitivity_sweep(
         "shared_roi_vmax": float(sweep.shared_scales["roi_vmax"]),
         "mild_baseline_similarity": float(sweep.metadata["mild_baseline_similarity"]),
         "severe_baseline_similarity": float(sweep.metadata["severe_baseline_similarity"]),
+        "mild_registered_similarity": float(sweep.metadata["mild_registered_similarity"]),
+        "severe_registered_similarity": float(sweep.metadata["severe_registered_similarity"]),
+        "severe_residual_shape_deformation": float(sweep.metadata["severe_residual_shape_deformation"]),
+        "translation_dominated_severe": bool(sweep.metadata["translation_dominated_severe"]),
         "severe_worse_than_mild": bool(sweep.metadata["severe_worse_than_mild"]),
         "degradation_metric": scenario_def.degradation_metric,
     }
@@ -648,12 +834,12 @@ def plot_misalignment_sensitivity_sweep(
             bbox_inches="tight",
             metadata={
                 "Title": title,
-                "stage": "stage8c3b_misalignment_sensitivity_sweep",
+                "stage": "stage8c3c_genuine_degradation_sweep",
                 "scenario": scenario_def.key,
                 "figure_status": FIGURE_STATUS,
                 "model_status": MODEL_STATUS,
                 "final_export_allowed": "False",
-                "Description": "Stage 8C.3B active perturbation severity sweep; optical fluence diagnostic only.",
+                "Description": "Stage 8C.3C active perturbation severity sweep; optical fluence diagnostic only.",
             },
         )
     return fig
@@ -801,7 +987,7 @@ def _scenario_from_value(scenario: str | SensitivityScenario) -> SensitivityScen
     scenarios = build_stage8c3_sensitivity_scenarios()
     key = str(scenario)
     if key not in scenarios:
-        raise KeyError(f"Unknown Stage 8C.3B sensitivity scenario {key!r}; allowed: {sorted(scenarios)}.")
+        raise KeyError(f"Unknown Stage 8C.3C sensitivity scenario {key!r}; allowed: {sorted(scenarios)}.")
     return scenarios[key]
 
 
@@ -924,7 +1110,8 @@ def _baseline_metric_lines(metrics: Mapping[str, float]) -> list[str]:
         f"core fill     : {_fmt_num(metrics.get('core_fill_fraction'))}",
         f"symmetry      : {_fmt_num(metrics.get('symmetry_score'))}",
         f"pupil clipped : {_fmt_pct_value(metrics.get('pupil_clipped_power_fraction'))}",
-        f"baseline sim. : {_fmt_num(metrics.get('baseline_similarity_score'))}",
+        f"unreg/reg sim : {_fmt_num(metrics.get('unregistered_similarity_score'))}/{_fmt_num(metrics.get('registered_similarity_score'))}",
+        f"residual def. : {_fmt_num(metrics.get('residual_shape_deformation_score'))}",
     ]
 
 
@@ -932,11 +1119,10 @@ def _degradation_metric_lines(
     baseline: Mapping[str, float],
     metrics: Mapping[str, float],
 ) -> list[str]:
-    centroid_shift = _xy_shift(baseline, metrics, "centroid_x_um", "centroid_y_um")
     peak_shift_xy = _xy_shift(baseline, metrics, "peak_x_um", "peak_y_um")
     peak_shift_z = float(metrics.get("peak_z_um", np.nan)) - float(baseline.get("peak_z_um", np.nan))
     return [
-        f"centroid shift: {_fmt_num(centroid_shift)} um",
+        f"centroid shift: {_fmt_num(metrics.get('centroid_shift_um'))} um",
         f"peak shift    : {_fmt_num(peak_shift_xy)} um xy, dz={_fmt_num(peak_shift_z)}",
         f"peak fluence  : {_fmt_signed_pct(metrics.get('peak_fluence_change_fraction'))}",
         f"az uniformity : {_fmt_num(metrics.get('azimuthal_uniformity_score'))} ({_fmt_delta(metrics, baseline, 'azimuthal_uniformity_score')})",
@@ -944,7 +1130,10 @@ def _degradation_metric_lines(
         f"core fill     : {_fmt_num(metrics.get('core_fill_fraction'))} ({_fmt_delta(metrics, baseline, 'core_fill_fraction')})",
         f"symmetry      : {_fmt_num(metrics.get('symmetry_score'))} ({_fmt_delta(metrics, baseline, 'symmetry_score')})",
         f"pupil clipped : {_fmt_pct_value(metrics.get('pupil_clipped_power_fraction'))}",
-        f"baseline sim. : {_fmt_num(metrics.get('baseline_similarity_score'))}",
+        f"unreg sim     : {_fmt_num(metrics.get('unregistered_similarity_score'))}",
+        f"registered sim: {_fmt_num(metrics.get('registered_similarity_score'))}",
+        f"residual def. : {_fmt_num(metrics.get('residual_shape_deformation_score'))}",
+        f"translation?  : {bool(metrics.get('translation_dominated_boolean'))}",
     ]
 
 
@@ -956,14 +1145,15 @@ def _sweep_summary_lines(sweep: SensitivitySweepResult) -> list[str]:
     return [
         f"scenario      : {sweep.scenario.scenario_name}",
         f"expected      : {sweep.scenario.expected_visible_change}",
+        f"placement     : {sweep.scenario.physical_interpretation}",
         f"severity metric: {metric}",
-        f"baseline/mild/severe:",
-        f"  {_fmt_num(base)} -> {_fmt_num(mild)} -> {_fmt_num(severe)}",
+        f"base/mild/sev : {_fmt_num(base)} -> {_fmt_num(mild)} -> {_fmt_num(severe)}",
         f"severe worse  : {bool(sweep.metadata.get('severe_worse_than_mild'))}",
-        f"similarity    : mild {_fmt_num(sweep.mild_metrics.get('baseline_similarity_score'))}",
-        f"                severe {_fmt_num(sweep.severe_metrics.get('baseline_similarity_score'))}",
-        "claim boundary: optical fluence only",
-        "no material response predicted",
+        f"unreg sim m/s : {_fmt_num(sweep.mild_metrics.get('unregistered_similarity_score'))} / {_fmt_num(sweep.severe_metrics.get('unregistered_similarity_score'))}",
+        f"reg sim m/s   : {_fmt_num(sweep.mild_metrics.get('registered_similarity_score'))} / {_fmt_num(sweep.severe_metrics.get('registered_similarity_score'))}",
+        f"residual def. : severe {_fmt_num(sweep.severe_metrics.get('residual_shape_deformation_score'))}",
+        f"translation?  : {bool(sweep.severe_metrics.get('translation_dominated_boolean'))}",
+        "claim boundary: optical fluence only; no material response",
     ]
 
 
@@ -1161,15 +1351,105 @@ def _global_peak_fluence(fluence_result: FluenceStackResult | None, fallback: fl
     return float(np.max(fluence_result.fluence_zyx_j_cm2))
 
 
+def _translation_registration_metrics(
+    baseline: OpticalFieldStack,
+    perturbed: OpticalFieldStack,
+    *,
+    plane_index: int,
+) -> dict[str, Any]:
+    a = np.asarray(baseline.intensity_zyx, dtype=float)
+    b = np.asarray(perturbed.intensity_zyx, dtype=float)
+    x = np.asarray(baseline.x_um, dtype=float)
+    y = np.asarray(baseline.y_um, dtype=float)
+    if a.shape != b.shape:
+        return {
+            "unregistered_similarity_score": float("nan"),
+            "registered_similarity_score": float("nan"),
+            "centroid_shift_um": float("nan"),
+            "translation_dominated_boolean": False,
+            "residual_shape_deformation_score": float("nan"),
+        }
+    plane_index = int(np.clip(plane_index, 0, a.shape[0] - 1))
+    base_cx, base_cy = _centroid(a[plane_index], x, y)
+    pert_cx, pert_cy = _centroid(b[plane_index], x, y)
+    dx = float(pert_cx - base_cx)
+    dy = float(pert_cy - base_cy)
+    centroid_shift = float(np.hypot(dx, dy))
+    unregistered = _array_similarity(a, b)
+    registered_stack = _shift_stack_xy_for_registration(b, x, y, -dx, -dy)
+    registered = _array_similarity(a, registered_stack)
+    residual = float(np.clip(1.0 - registered, 0.0, 1.0))
+    pixel_um = max(_median_spacing(x), _median_spacing(y), 1e-9)
+    translation_dominated = (
+        np.isfinite(centroid_shift)
+        and centroid_shift >= 0.75 * pixel_um
+        and np.isfinite(unregistered)
+        and np.isfinite(registered)
+        and registered >= 0.90
+        and (registered - unregistered) >= 0.025
+        and residual <= 0.10
+    )
+    return {
+        "unregistered_similarity_score": float(unregistered),
+        "registered_similarity_score": float(registered),
+        "centroid_shift_um": centroid_shift,
+        "translation_dominated_boolean": bool(translation_dominated),
+        "residual_shape_deformation_score": residual,
+    }
+
+
 def _stack_similarity(baseline: OpticalFieldStack, perturbed: OpticalFieldStack) -> float:
     a = np.asarray(baseline.intensity_zyx, dtype=float)
     b = np.asarray(perturbed.intensity_zyx, dtype=float)
+    if a.shape != b.shape:
+        return float("nan")
+    return _array_similarity(a, b)
+
+
+def _array_similarity(a: np.ndarray, b: np.ndarray) -> float:
     if a.shape != b.shape:
         return float("nan")
     a_norm = a.ravel() / max(float(np.linalg.norm(a.ravel())), 1e-12)
     b_norm = b.ravel() / max(float(np.linalg.norm(b.ravel())), 1e-12)
     relative_distance = float(np.linalg.norm(a_norm - b_norm) / np.sqrt(2.0))
     return float(np.clip(1.0 - relative_distance, 0.0, 1.0))
+
+
+def _shift_stack_xy_for_registration(
+    I: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    dx_um: float,
+    dy_um: float,
+) -> np.ndarray:
+    if dx_um == 0.0 and dy_um == 0.0:
+        return np.asarray(I, dtype=float)
+    return np.asarray([_shift_plane_xy_for_registration(plane, x, y, dx_um, dy_um) for plane in I], dtype=float)
+
+
+def _shift_plane_xy_for_registration(
+    plane: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    dx_um: float,
+    dy_um: float,
+) -> np.ndarray:
+    tmp = np.empty_like(plane, dtype=float)
+    xp = x - float(dx_um)
+    for j in range(plane.shape[0]):
+        tmp[j] = np.interp(xp, x, plane[j], left=0.0, right=0.0)
+    yp = y - float(dy_um)
+    out = np.empty_like(tmp, dtype=float)
+    for i in range(tmp.shape[1]):
+        out[:, i] = np.interp(yp, y, tmp[:, i], left=0.0, right=0.0)
+    return out
+
+
+def _median_spacing(coords: np.ndarray) -> float:
+    arr = np.asarray(coords, dtype=float)
+    if arr.size < 2:
+        return 1.0
+    return float(np.median(np.abs(np.diff(arr))))
 
 
 def _nearest_index(coords: np.ndarray, value: float) -> int:

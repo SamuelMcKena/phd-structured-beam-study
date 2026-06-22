@@ -4,7 +4,9 @@ The functions in this module operate on the Stage 8C canonical optical-field
 containers. They do not modify the locked propagation engine. Active controls
 apply deterministic, documented perturbations to an already-generated optical
 field stack so the cockpit can show how lab misalignment and imperfections
-would affect downstream fluence diagnostics.
+would affect downstream fluence diagnostics. Because this module is a
+post-engine diagnostic layer, stack-transform controls are classified as
+diagnostic-active unless a future engine path consumes them before propagation.
 
 Direct Poynting-vector editing is not exposed here. In the scalar cockpit,
 beam-direction changes are represented by an input tilt / angular-spectrum
@@ -35,6 +37,34 @@ CONTROL_CLASSIFICATIONS = frozenset(
         "warning_only",
         "metadata_only",
         "future_not_implemented",
+    }
+)
+
+PHYSICAL_PLACEMENTS = frozenset(
+    {
+        "input complex field",
+        "SLM phase-mask generation",
+        "SLM amplitude/active-area stage",
+        "Fourier plane",
+        "relay plane",
+        "objective pupil plane",
+        "pre-propagation field",
+        "post-propagation diagnostic only",
+        "geometry only",
+        "energy ledger/bookkeeping",
+        "metadata/report only",
+        "future disabled",
+    }
+)
+
+IMPLEMENTATION_STAGES = frozenset(
+    {
+        "post-propagation diagnostic only",
+        "geometry only",
+        "energy ledger/bookkeeping",
+        "metadata/report only",
+        "warning only",
+        "future disabled",
     }
 )
 
@@ -80,6 +110,9 @@ class ControlClassification:
     affects: tuple[str, ...]
     implemented: bool
     downstream_response_expected: str
+    physical_placement: str = "metadata/report only"
+    implementation_stage: str = "metadata/report only"
+    placement_note: str = ""
 
     def as_row(self) -> dict[str, Any]:
         return {
@@ -90,6 +123,9 @@ class ControlClassification:
             "affects": ", ".join(self.affects),
             "implemented": self.implemented,
             "downstream_response_expected": self.downstream_response_expected,
+            "physical_placement": self.physical_placement,
+            "implementation_stage": self.implementation_stage,
+            "placement_note": self.placement_note,
         }
 
 
@@ -262,6 +298,97 @@ _STAGE8C3_CONTROL_NAMES = frozenset(stage8c3_default_controls().keys())
 
 
 _META: dict[str, tuple[str, tuple[str, ...], bool, str]] = {}
+_PHYSICAL_PLACEMENT_PREFIXES: tuple[tuple[str, str, str], ...] = (
+    ("beam_decentre_", "input complex field", "beam decentre belongs to input amplitude/field before phase-mask interaction"),
+    ("beam_tilt_", "input complex field", "beam tilt belongs to input complex-field phase ramp before propagation"),
+    ("beam_radius_", "input complex field", "beam ellipticity belongs to input amplitude before phase-mask interaction"),
+    ("beam_rotation", "input complex field", "beam ellipticity belongs to input amplitude before phase-mask interaction"),
+    ("input_aperture_", "input complex field", "input aperture belongs before phase-mask interaction"),
+    ("slm_phase_centre_offset_", "SLM phase-mask generation", "common phase-mask centre offset belongs in phase-mask generation"),
+    ("vortex_centre_offset_", "SLM phase-mask generation", "vortex centre offset belongs in vortex phase-mask generation only"),
+    ("axicon_centre_offset_", "SLM phase-mask generation", "axicon centre offset belongs in axicon phase-mask generation only"),
+    ("physical_axicon_", "pre-propagation field", "physical axicon misalignment belongs before focus/propagation"),
+    ("axicon_apex_defect_", "pre-propagation field", "apex defects require route-level optical modelling"),
+    ("slm_phase_levels", "SLM amplitude/active-area stage", "SLM phase quantisation belongs at the SLM phase stage before propagation"),
+    ("slm_pixel_pitch", "SLM amplitude/active-area stage", "SLM pixelation belongs at the SLM amplitude/phase stage"),
+    ("slm_fill_factor", "SLM amplitude/active-area stage", "SLM fill factor belongs at the SLM amplitude stage"),
+    ("dead_pixel_", "SLM amplitude/active-area stage", "dead pixels belong at the SLM amplitude stage"),
+    ("slm_phase_noise_", "SLM amplitude/active-area stage", "SLM phase noise belongs at the SLM phase stage before propagation"),
+    ("slm_active_", "SLM amplitude/active-area stage", "finite SLM active area belongs at the SLM amplitude/aperture stage"),
+    ("slm_rotation", "SLM phase-mask generation", "SLM rotation requires phase-mask resampling"),
+    ("phase_mask_rotation", "SLM phase-mask generation", "mask rotation requires phase-mask resampling"),
+    ("zero_order_", "Fourier plane", "zero-order leakage belongs to order isolation / Fourier-plane leakage"),
+    ("unwanted_order_", "Fourier plane", "unwanted diffraction orders belong to Fourier/order-isolation plane"),
+    ("first_order_filter_", "Fourier plane", "first-order filter decentre/clipping belongs to the Fourier plane"),
+    ("relay_magnification_error_", "relay plane", "relay magnification error belongs to relay imaging"),
+    ("relay_decentre_", "relay plane", "relay decentre belongs to relay imaging"),
+    ("relay_tilt_", "relay plane", "relay tilt belongs to relay imaging / steering"),
+    ("relay_aperture_", "relay plane", "relay aperture belongs to relay-plane clipping"),
+    ("pupil_", "objective pupil plane", "pupil decentre/clipping belongs at the objective pupil plane"),
+    ("zernike_", "objective pupil plane", "Zernike aberrations belong at the objective pupil plane"),
+    ("focus_offset", "pre-propagation field", "defocus belongs before propagation or in focus geometry"),
+    ("focus_depth_error_", "pre-propagation field", "focus-depth error belongs before propagation or in focus geometry"),
+    ("sample_tilt_", "geometry only", "sample tilt is geometry-only unless an interface/propagation model consumes it"),
+    ("sample_surface_z", "geometry only", "surface offset is geometry-only in Stage 8C.3"),
+    ("refractive_index_error", "geometry only", "index error is geometry/warning bookkeeping in Stage 8C.3"),
+    ("pulse_energy_jitter_", "energy ledger/bookkeeping", "pulse-energy jitter belongs to the energy ledger before fluence scaling"),
+    ("repetition_rate_error_", "energy ledger/bookkeeping", "repetition-rate error belongs to exposure bookkeeping"),
+    ("pulse_duration_error_", "energy ledger/bookkeeping", "pulse-duration error belongs to peak-intensity bookkeeping"),
+    ("pointing_jitter_", "metadata/report only", "pointing jitter needs an ensemble model"),
+    ("stage_jitter_", "metadata/report only", "stage jitter needs an ensemble model"),
+    ("focus_drift_", "metadata/report only", "focus drift needs an ensemble model"),
+    ("camera_crop_", "post-propagation diagnostic only", "camera crop is a display/diagnostic operation"),
+    ("detector_noise_", "post-propagation diagnostic only", "detector noise is a display/diagnostic operation"),
+    ("display_autoscale", "post-propagation diagnostic only", "autoscale is display-only"),
+)
+
+_PHYSICAL_PLACEMENT_EXACT: dict[str, tuple[str, str]] = {
+    "enable_beam_decentre": ("input complex field", "beam decentre belongs to input amplitude/field before phase-mask interaction"),
+    "enable_beam_tilt": ("input complex field", "beam tilt belongs to input complex-field phase ramp before propagation"),
+    "enable_beam_ellipticity": ("input complex field", "beam ellipticity belongs to input amplitude before phase-mask interaction"),
+    "enable_input_aperture": ("input complex field", "input aperture belongs before phase-mask interaction"),
+    "enable_slm_phase_centre_offset": ("SLM phase-mask generation", "common phase-mask centre offset belongs in phase-mask generation"),
+    "enable_vortex_centre_offset": ("SLM phase-mask generation", "vortex centre offset belongs in vortex phase-mask generation only"),
+    "enable_axicon_centre_offset": ("SLM phase-mask generation", "axicon centre offset belongs in axicon phase-mask generation only"),
+    "enable_physical_axicon_misalignment": ("pre-propagation field", "physical axicon apex/tilt belongs before focus/propagation"),
+    "enable_axicon_apex_defect": ("pre-propagation field", "apex defects require route-level optical modelling"),
+    "enable_slm_phase_quantisation": ("SLM amplitude/active-area stage", "SLM phase quantisation belongs at the SLM phase stage"),
+    "enable_slm_pixelation": ("SLM amplitude/active-area stage", "SLM pixelation belongs at the SLM phase/amplitude stage"),
+    "enable_slm_fill_factor": ("SLM amplitude/active-area stage", "SLM fill factor belongs at the SLM amplitude stage"),
+    "enable_slm_dead_pixels": ("SLM amplitude/active-area stage", "dead pixels belong at the SLM amplitude stage"),
+    "enable_slm_phase_noise": ("SLM amplitude/active-area stage", "SLM phase noise belongs at the SLM phase stage"),
+    "enable_slm_active_area": ("SLM amplitude/active-area stage", "finite SLM active area belongs at the SLM aperture stage"),
+    "enable_slm_rotation": ("SLM phase-mask generation", "SLM rotation requires phase-mask resampling"),
+    "enable_mask_rotation": ("SLM phase-mask generation", "mask rotation requires phase-mask resampling"),
+    "enable_zero_order_leakage": ("Fourier plane", "zero-order leakage belongs to order isolation / Fourier-plane leakage"),
+    "enable_unwanted_order_leakage": ("Fourier plane", "unwanted diffraction orders belong to Fourier/order-isolation plane"),
+    "enable_first_order_filter": ("Fourier plane", "first-order filter belongs to Fourier/order-isolation plane"),
+    "enable_first_order_filter_decentre": ("Fourier plane", "4F filter decentre belongs to the Fourier plane; warning-only until engine-coupled"),
+    "enable_first_order_filter_clipping": ("Fourier plane", "4F filter clipping belongs to the Fourier plane; warning-only until engine-coupled"),
+    "enable_relay_magnification_error": ("relay plane", "relay magnification error belongs to relay imaging"),
+    "enable_relay_decentre": ("relay plane", "relay decentre belongs to relay imaging"),
+    "enable_relay_tilt": ("relay plane", "relay tilt belongs to relay imaging / steering"),
+    "enable_relay_aperture": ("relay plane", "relay aperture belongs to relay-plane clipping"),
+    "enable_pupil_clipping": ("objective pupil plane", "pupil decentre/clipping belongs at the objective pupil plane"),
+    "enable_zernike_aberrations": ("objective pupil plane", "Zernike aberrations belong at the objective pupil plane"),
+    "enable_defocus": ("pre-propagation field", "defocus belongs before propagation or in focus geometry"),
+    "enable_focus_depth_error": ("pre-propagation field", "focus-depth error belongs before propagation or in focus geometry"),
+    "enable_sample_tilt": ("geometry only", "sample tilt is geometry-only unless an interface/propagation model consumes it"),
+    "enable_surface_offset": ("geometry only", "surface offset is geometry-only in Stage 8C.3"),
+    "enable_refractive_index_error": ("geometry only", "index error is geometry/warning bookkeeping in Stage 8C.3"),
+    "enable_sample_thickness_limit": ("geometry only", "sample-thickness limit is geometry/warning bookkeeping"),
+    "enable_interface_reflection": ("energy ledger/bookkeeping", "interface reflection belongs to energy bookkeeping in Stage 8C.3"),
+    "enable_pulse_energy_jitter": ("energy ledger/bookkeeping", "pulse-energy jitter belongs to the energy ledger before fluence scaling"),
+    "enable_repetition_rate_error": ("energy ledger/bookkeeping", "repetition-rate error belongs to exposure bookkeeping"),
+    "enable_pulse_duration_error": ("energy ledger/bookkeeping", "pulse-duration error belongs to peak-intensity bookkeeping"),
+    "enable_average_power_limit": ("energy ledger/bookkeeping", "average-power limit belongs to energy/warning bookkeeping"),
+    "enable_pointing_jitter": ("metadata/report only", "pointing jitter needs an ensemble model"),
+    "enable_stage_position_jitter": ("metadata/report only", "stage jitter needs an ensemble model"),
+    "enable_focus_drift": ("metadata/report only", "focus drift needs an ensemble model"),
+    "enable_camera_crop": ("post-propagation diagnostic only", "camera crop is a display/diagnostic operation"),
+    "enable_detector_noise": ("post-propagation diagnostic only", "detector noise is a display/diagnostic operation"),
+    "enable_display_autoscale": ("post-propagation diagnostic only", "autoscale is display-only"),
+}
 
 
 def _add(
@@ -336,6 +463,15 @@ _add(["enable_average_power_limit"], "energy_active", ["energy_ledger", "warning
 _add(["enable_pointing_jitter", "pointing_jitter_rms_urad", "pointing_jitter_seed", "enable_stage_position_jitter", "stage_jitter_x_um", "stage_jitter_y_um", "stage_jitter_z_um", "stage_jitter_seed", "enable_focus_drift", "focus_drift_um_per_min"], "warning_only", ["warnings", "metadata"], False, "statistical ensemble not implemented in Stage 8C.3")
 _add(["enable_camera_crop", "camera_crop_width_um", "camera_crop_height_um", "camera_crop_centre_x_um", "camera_crop_centre_y_um", "enable_detector_noise", "detector_noise_fraction", "detector_noise_seed", "enable_display_autoscale", "display_autoscale"], "diagnostic_active", ["metadata"], True, "display/diagnostic only; physical metrics unchanged")
 
+for _name, (_classification, _affects, _implemented, _response) in list(_META.items()):
+    if _classification == "physics_active":
+        _META[_name] = (
+            "diagnostic_active",
+            _affects,
+            _implemented,
+            _response + "; Stage 8C.3 applies this as a post-engine diagnostic stack transform",
+        )
+
 
 def classification_for_control(control: str, controls: Mapping[str, Any]) -> ControlClassification:
     """Return a classification row for one control."""
@@ -344,6 +480,8 @@ def classification_for_control(control: str, controls: Mapping[str, Any]) -> Con
     classification, affects, implemented, response = _META[control]
     value = controls.get(control)
     enabled = _control_enabled(control, controls, classification)
+    physical_placement, placement_note = physical_placement_for_control(control)
+    implementation_stage = implementation_stage_for_control(control, classification, implemented)
     return ControlClassification(
         control=control,
         value=value,
@@ -352,6 +490,9 @@ def classification_for_control(control: str, controls: Mapping[str, Any]) -> Con
         affects=affects,
         implemented=implemented,
         downstream_response_expected=response,
+        physical_placement=physical_placement,
+        implementation_stage=implementation_stage,
+        placement_note=placement_note,
     )
 
 
@@ -371,6 +512,75 @@ def classification_rows_for_controls(
     only: Iterable[str] | None = None,
 ) -> list[dict[str, Any]]:
     return [row.as_row() for row in classify_lab_controls(controls, only=only)]
+
+
+def physical_placement_for_control(control: str) -> tuple[str, str]:
+    """Return the intended physical placement and audit note for one control."""
+    if control in _FUTURE_STAGE_CONTROLS:
+        return "future disabled", "future material/response physics is disabled at Stage 8C.3"
+    if control in _PHYSICAL_PLACEMENT_EXACT:
+        return _PHYSICAL_PLACEMENT_EXACT[control]
+    for prefix, placement, note in _PHYSICAL_PLACEMENT_PREFIXES:
+        if control.startswith(prefix):
+            return placement, note
+    if control in {
+        "pulse_energy_before_optics_uJ",
+        "pre_slm_transmission",
+        "telescope_transmission",
+        "slm1_diffraction_efficiency",
+        "slm2_diffraction_efficiency",
+        "selected_first_order_fraction",
+        "relay_transmission",
+        "objective_transmission",
+        "sample_interface_transmission",
+        "repetition_rate_Hz",
+        "average_power_limit_W",
+        "pulse_duration_fs",
+    }:
+        return "energy ledger/bookkeeping", "energy/exposure bookkeeping; not a material-response model"
+    if control in {"focus_depth_um", "surface_tilt_mrad", "tilt_angle_deg"}:
+        return "geometry only", "geometry/bookkeeping unless consumed by a propagation/interface model"
+    return "metadata/report only", "recorded for traceability or notebook/report behaviour"
+
+
+def implementation_stage_for_control(control: str, classification: str, implemented: bool) -> str:
+    """Return the actual Stage 8C.3 implementation stage for one control."""
+    if classification == "future_not_implemented":
+        return "future disabled"
+    if classification == "warning_only" or not implemented:
+        return "warning only"
+    if classification == "metadata_only":
+        return "metadata/report only"
+    if classification == "energy_active":
+        return "energy ledger/bookkeeping"
+    if classification == "geometry_active":
+        return "geometry only"
+    physical, _ = physical_placement_for_control(control)
+    if physical in {"geometry only", "energy ledger/bookkeeping", "metadata/report only", "future disabled"}:
+        return physical
+    return "post-propagation diagnostic only"
+
+
+def physical_placement_rows_for_controls(
+    controls: Mapping[str, Any],
+    *,
+    only: Iterable[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Return compact physical-placement audit rows for controls."""
+    rows = []
+    for row in classify_lab_controls(controls, only=only):
+        rows.append(
+            {
+                "control": row.control,
+                "enabled": row.enabled,
+                "classification": row.classification,
+                "physical_placement": row.physical_placement,
+                "implementation_stage": row.implementation_stage,
+                "implemented": row.implemented,
+                "placement_note": row.placement_note,
+            }
+        )
+    return rows
 
 
 def enabled_uncoupled_controls(controls: Mapping[str, Any]) -> list[ControlClassification]:
@@ -442,20 +652,24 @@ def apply_lab_perturbations_to_stack(
             "aperture_clipped_power_fraction",
         )
 
-    phase_dx = 0.0
-    phase_dy = 0.0
+    slm_dx = 0.0
+    slm_dy = 0.0
+    vortex_dx = 0.0
+    vortex_dy = 0.0
+    axicon_dx = 0.0
+    axicon_dy = 0.0
     if c["enable_slm_phase_centre_offset"]:
-        phase_dx += float(c["slm_phase_centre_offset_x_um"])
-        phase_dy += float(c["slm_phase_centre_offset_y_um"])
+        slm_dx += float(c["slm_phase_centre_offset_x_um"])
+        slm_dy += float(c["slm_phase_centre_offset_y_um"])
     if c["enable_vortex_centre_offset"]:
-        phase_dx += float(c["vortex_centre_offset_x_um"])
-        phase_dy += float(c["vortex_centre_offset_y_um"])
+        vortex_dx += float(c["vortex_centre_offset_x_um"])
+        vortex_dy += float(c["vortex_centre_offset_y_um"])
     if c["enable_axicon_centre_offset"]:
-        phase_dx += float(c["axicon_centre_offset_x_um"])
-        phase_dy += float(c["axicon_centre_offset_y_um"])
+        axicon_dx += float(c["axicon_centre_offset_x_um"])
+        axicon_dy += float(c["axicon_centre_offset_y_um"])
     if c["enable_physical_axicon_misalignment"]:
-        phase_dx += float(c["physical_axicon_apex_offset_x_um"])
-        phase_dy += float(c["physical_axicon_apex_offset_y_um"])
+        axicon_dx += float(c["physical_axicon_apex_offset_x_um"])
+        axicon_dy += float(c["physical_axicon_apex_offset_y_um"])
         I = _tilt_walkoff(
             I, x, y, z,
             float(c["physical_axicon_tilt_x_mrad"]),
@@ -463,9 +677,26 @@ def apply_lab_perturbations_to_stack(
         )
         metadata["phase_ramp_kx_rad_per_um"] += _mrad_to_phase_slope(float(c["physical_axicon_tilt_x_mrad"]), c)
         metadata["phase_ramp_ky_rad_per_um"] += _mrad_to_phase_slope(float(c["physical_axicon_tilt_y_mrad"]), c)
-    if phase_dx or phase_dy:
-        I = _phase_centre_degrade(I, x, y, phase_dx, phase_dy)
-        metadata["phase_centre_offset_um"] = (phase_dx, phase_dy)
+    phase_common_dx = slm_dx + 0.5 * (vortex_dx + axicon_dx)
+    phase_common_dy = slm_dy + 0.5 * (vortex_dy + axicon_dy)
+    relative_dx = vortex_dx - axicon_dx
+    relative_dy = vortex_dy - axicon_dy
+    if phase_common_dx or phase_common_dy:
+        # Common-mode vortex+axicon motion is mainly a beam registration/steering
+        # diagnostic, not a headline shape-degradation case.
+        I = _shift_stack_xy(I, x, y, 0.20 * phase_common_dx, 0.20 * phase_common_dy)
+        metadata["phase_common_translation_um"] = (0.20 * phase_common_dx, 0.20 * phase_common_dy)
+    if relative_dx or relative_dy:
+        I = _phase_centre_degrade(I, x, y, relative_dx, relative_dy)
+        metadata["relative_phase_misregistration_um"] = (relative_dx, relative_dy)
+    if slm_dx or slm_dy or vortex_dx or vortex_dy or axicon_dx or axicon_dy:
+        metadata["phase_centre_offset_um"] = {
+            "slm": (slm_dx, slm_dy),
+            "vortex": (vortex_dx, vortex_dy),
+            "axicon": (axicon_dx, axicon_dy),
+            "common_translation": (0.20 * phase_common_dx, 0.20 * phase_common_dy),
+            "relative_vortex_minus_axicon": (relative_dx, relative_dy),
+        }
 
     if c["enable_slm_phase_quantisation"]:
         levels = max(2, int(c["slm_phase_levels"]))
@@ -736,8 +967,21 @@ def _phase_centre_degrade(I: np.ndarray, x: np.ndarray, y: np.ndarray, dx: float
     off = max(float(np.hypot(dx, dy)), 1e-9)
     directional = (float(dx) * X + float(dy) * Y) / (off * rmax)
     radial = np.hypot(X - float(dx), Y - float(dy)) / rmax
-    gain = np.clip(1.0 + 0.35 * directional - 0.18 * radial * min(off / rmax, 1.5), 0.05, 2.0)
-    return I * gain[None, :, :]
+    strength = min(off / max(0.30 * rmax, 1e-9), 2.5)
+    gain = np.clip(
+        1.0
+        + 0.55 * strength * directional
+        - 0.25 * strength * radial
+        + 0.18 * strength * np.cos(2.0 * np.arctan2(Y, X)),
+        0.03,
+        2.5,
+    )
+    core_sigma = max(0.11 * max(float(np.ptp(x)), float(np.ptp(y))), 1e-9)
+    core_fill = np.exp(-(X**2 + Y**2) / (2.0 * core_sigma**2))
+    core_fill /= max(float(np.max(core_fill)), 1e-12)
+    plane_peaks = np.max(I, axis=(1, 2))
+    contaminated_core = 0.08 * min(strength, 2.5) * plane_peaks[:, None, None] * core_fill[None, :, :]
+    return I * gain[None, :, :] + contaminated_core
 
 
 def _quantisation_modulation(x: np.ndarray, y: np.ndarray, levels: int) -> np.ndarray:

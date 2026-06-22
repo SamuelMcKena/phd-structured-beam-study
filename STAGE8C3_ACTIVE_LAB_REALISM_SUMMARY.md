@@ -1,6 +1,6 @@
 # Stage 8C.3 Active Lab-Realism Coupling Summary
 
-Starting point: accepted commit `cb42bc7`.
+Starting point for Stage 8C.3C rescue: committed Stage 8C.3/C3B baseline `dd6c469`.
 
 Stage 8C.3 adds active, diagnostic lab-realism coupling without changing locked propagation physics. The cockpit now classifies every lab-realism control, declares affected outputs, applies physically feasible perturbations to canonical optical stacks, reports degradation metrics, and flags enabled controls that remain warning-only or future-stage.
 
@@ -24,7 +24,9 @@ Stage 8C.3 adds active, diagnostic lab-realism coupling without changing locked 
 
 ## Active Controls
 
-`physics_active` controls include beam decentre, beam tilt, beam ellipticity, input/relay/pupil clipping, SLM active-area clipping, seeded SLM dead pixels, seeded SLM phase noise, SLM pixel/fill/quantisation proxies, SLM/vortex/axicon centre offsets, physical axicon apex offset/tilt proxy, relay decentre/tilt/magnification/aperture, zero-order leakage, unwanted-order leakage, and low-order Zernike aberrations.
+`physics_active` is now reserved for future engine-level controls consumed before propagation. Stage 8C.3 stack/image perturbations are `diagnostic_active` and report both intended `physical_placement` and actual `implementation_stage`; post-engine stack transforms are not called `physics_active`.
+
+`diagnostic_active` optical controls include beam decentre, beam tilt, beam ellipticity, input/relay/pupil clipping, SLM active-area clipping, seeded SLM dead pixels, seeded SLM phase noise, SLM pixel/fill/quantisation proxies, SLM/vortex/axicon centre offsets, physical axicon apex offset/tilt proxy, relay decentre/tilt/magnification/aperture, zero-order leakage, unwanted-order leakage, and low-order Zernike aberrations.
 
 `energy_active` controls include pulse energy before optics, pulse-energy jitter, repetition-rate error, pulse-duration error, transmission chain controls, selected first-order fraction, interface reflection/Fresnel estimate, and average-power-limit warnings.
 
@@ -70,6 +72,14 @@ Scenario coverage:
 - Scenario D: zero-order leakage.
 
 The severe case is required to degrade at least one scenario metric more than the mild case. The displayed metric cards include centroid shift, peak shift, peak fluence change, azimuthal uniformity, ring circularity, core fill fraction, symmetry score, pupil clipped power, and baseline similarity.
+
+Stage 8C.3C genuine degradation preview:
+
+```text
+outputs/figures/digital_twin/stage8c3c_genuine_degradation_sweep_preview.png
+```
+
+Stage 8C.3C separates translation from deformation. The metric set now includes `unregistered_similarity_score`, `registered_similarity_score`, `centroid_shift_um`, `translation_dominated_boolean`, and `residual_shape_deformation_score`. Co-shifted vortex+axicon is kept only as a translation diagnostic; relative vortex/axicon misregistration is the primary Scenario A. The replacement sweep covers relative vortex/axicon offsets, beam decentre with finite SLM aperture, beam tilt with finite pupil, objective pupil decentre/clipping, coma/astigmatism/defocus/spherical aberration, zero-order leakage, and a combined diagnostic stress test.
 
 ## Governance
 

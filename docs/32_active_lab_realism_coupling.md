@@ -8,10 +8,10 @@ All saved figures remain stamped with `final_export_allowed=False` and `figure_s
 
 Each lab-realism control is classified and declares affected outputs.
 
-- `physics_active`: changes field, phase, amplitude, angular-spectrum proxy, fluence, or degradation metrics.
+- `physics_active`: reserved for future engine-level controls consumed before propagation. Stage 8C.3 post-engine stack/image transforms are not labelled `physics_active`.
 - `energy_active`: changes energy ledger, pulse energy, repetition rate, interface transmission, fluence scaling, or exposure bookkeeping.
 - `geometry_active`: changes sample, focus, pupil, or exposure geometry. Some geometry controls move markers while leaving the field unchanged, and that is stated in the control row.
-- `diagnostic_active`: changes selected plane, ROI, display/crop/noise diagnostics, warnings, or metadata.
+- `diagnostic_active`: changes selected plane, ROI, display/crop/noise diagnostics, warnings, metadata, or Stage 8C.3 post-engine optical/fluence stack diagnostics.
 - `warning_only`: accepted as an experimental control but not coupled to the field in Stage 8C.3; dashboard warnings flag it if enabled.
 - `metadata_only`: recorded for traceability but not an active scalar optical primitive.
 - `future_not_implemented`: intentionally disabled future physics.
@@ -20,15 +20,18 @@ Affected-output labels are restricted to:
 
 `field`, `phase`, `amplitude`, `angular_spectrum`, `energy_ledger`, `fourier_filter`, `pupil`, `sample_geometry`, `fluence`, `exposure_bookkeeping`, `warnings`, `metadata`, and `future_stage`.
 
-## Active Perturbations
+## Active Perturbations And Physical Placement
 
 The active perturbation pass is implemented in `vbb_study/digital_twin/lab_perturbations.py`. It operates on the canonical `OpticalFieldStack` after the locked field engine has produced a baseline stack.
 
-- Beam decentre shifts the transverse intensity stack and changes centroid / fluence metrics.
-- Beam tilt is represented as the scalar phase-ramp equivalent plus z-dependent walk-off metadata.
+Every classified row now reports both `physical_placement` and `implementation_stage`. The placement tells where the perturbation belongs in a real optical model; the implementation stage tells what Stage 8C.3 actually does today. If a control is implemented as a post-propagation diagnostic stack transform, it is `diagnostic_active`, not `physics_active`.
+
+- Beam decentre belongs at the input complex field before phase-mask interaction; Stage 8C.3 applies a diagnostic transverse shift.
+- Beam tilt belongs as an input complex-field phase ramp before propagation; Stage 8C.3 records the phase-ramp equivalent and visualises z-dependent walk-off.
 - Beam ellipticity applies an anisotropic amplitude envelope.
 - Input, relay, SLM active-area, and pupil apertures clip the amplitude and report clipped power.
-- Vortex, SLM phase-centre, and axicon centre offsets degrade phase-mask registration and ring symmetry.
+- Vortex centre offset belongs in vortex phase-mask generation only; axicon centre offset belongs in axicon phase-mask generation only. Relative vortex/axicon offset degrades phase-mask registration and ring symmetry.
+- Co-shifted vortex and axicon centres are treated as common-mode translation/steering diagnostics and must not be used as the primary "misalignment ruins the beam" case.
 - Physical axicon apex offset maps to the same centre-offset perturbation; physical tilt maps to the same steering proxy.
 - SLM phase quantisation, pixelation, fill factor, seeded dead pixels, seeded phase noise, and active-area clipping perturb amplitude / phase proxies.
 - Zero-order leakage adds a residual unmodulated component and fills the dark core.
@@ -79,9 +82,15 @@ For intensity-only stacks, the dashboard visualises the corresponding z-dependen
 
 `vbb_study/digital_twin/active_realism_metrics.py` computes:
 
-`centroid_x_um`, `centroid_y_um`, `peak_x_um`, `peak_y_um`, `peak_z_um`, `ring_circularity_score`, `azimuthal_uniformity_score`, `side_lobe_imbalance`, `core_fill_fraction`, `central_darkness_contrast`, `peak_fluence_change_fraction`, `target_depth_peak_fluence`, `central_roi_peak_fluence`, `captured_power_drift_fraction`, `pupil_clipped_power_fraction`, `first_order_selected_fraction`, `symmetry_score`, and `baseline_similarity_score`.
+`centroid_x_um`, `centroid_y_um`, `peak_x_um`, `peak_y_um`, `peak_z_um`, `ring_circularity_score`, `azimuthal_uniformity_score`, `side_lobe_imbalance`, `core_fill_fraction`, `central_darkness_contrast`, `peak_fluence_change_fraction`, `target_depth_peak_fluence`, `central_roi_peak_fluence`, `captured_power_drift_fraction`, `pupil_clipped_power_fraction`, `first_order_selected_fraction`, `symmetry_score`, `baseline_similarity_score`, `unregistered_similarity_score`, `registered_similarity_score`, `centroid_shift_um`, `translation_dominated_boolean`, and `residual_shape_deformation_score`.
 
 Additional trajectory-span metrics are included for steering diagnostics.
+
+The registration rule is:
+
+- if unregistered similarity is low but registered similarity recovers near one, the perturbation is mainly translation or steering
+- residual shape deformation is `1 - registered_similarity_score`
+- translated beams are not called badly degraded unless residual deformation remains after recentering
 
 Expected responses:
 
@@ -113,12 +122,12 @@ Preview path:
 outputs/figures/digital_twin/stage8c3_baseline_vs_perturbed_preview.png
 ```
 
-## Stage 8C.3B Sensitivity Sweep
+## Stage 8C.3C Translation Versus Genuine Degradation
 
-Stage 8C.3B adds a polished severity-sweep figure intended for review meetings, not debugging. It is saved as:
+Stage 8C.3C replaces the Stage 8C.3B primary co-shift scenario with genuine degradation scenarios and a separate translation diagnostic. The primary preview is saved as:
 
 ```text
-outputs/figures/digital_twin/stage8c3_misalignment_sensitivity_sweep_preview.png
+outputs/figures/digital_twin/stage8c3c_genuine_degradation_sweep_preview.png
 ```
 
 The sweep layout uses four columns:
@@ -132,12 +141,17 @@ Rows show XY fluence, XZ fluence, central ROI/core fluence, and metric cards. Ba
 
 The scenario registry includes:
 
-- Scenario A: SLM/vortex/axicon centre offset, with 3 um mild and 8 um severe offsets.
-- Scenario B: beam tilt / pointing, with 1.5 mrad mild and 5.0 mrad severe tilt.
-- Scenario C: pupil clipping / decentre, with stronger pupil decentre and smaller radius in the severe case.
-- Scenario D: zero-order leakage, with 0.02 mild and 0.10 severe leakage fraction.
+- Scenario A: relative vortex/axicon misregistration, with vortex shifted and axicon fixed.
+- Scenario A reverse: axicon shifted and vortex fixed.
+- Scenario B: input beam decentre relative to fixed phase masks plus finite SLM active area.
+- Scenario C: beam tilt plus finite pupil.
+- Scenario D: objective pupil decentre and clipping.
+- Scenario E: low-order aberrations: coma, astigmatism, defocus, and spherical aberration.
+- Scenario F: zero-order leakage.
+- Scenario G: combined diagnostic lab stress test.
+- Translation diagnostic: co-shifted vortex and axicon, reported as translation-dominated when registration recovers the similarity.
 
-Metric cards include centroid shift, peak shift, peak fluence change, azimuthal uniformity, ring circularity, core fill fraction, symmetry score, pupil clipped power, and baseline similarity. The baseline similarity metric is a normalized-shape similarity based on the relative L2 difference of normalized stacks, making it more sensitive to visible degradation than the previous cosine-style score.
+Metric cards include centroid shift, peak shift, peak fluence change, azimuthal uniformity, ring circularity, core fill fraction, symmetry score, pupil clipped power, unregistered similarity, registered similarity, translation-dominated status, and residual shape deformation. The similarity metric is a normalized-shape similarity based on the relative L2 difference of normalized stacks, and the registered variant recenters the perturbed stack before comparing.
 
 ## Still Unmodelled
 

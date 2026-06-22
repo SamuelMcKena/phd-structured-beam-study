@@ -5,9 +5,12 @@ import pytest
 from vbb_study.digital_twin.lab_perturbations import (
     AFFECTED_OUTPUTS,
     CONTROL_CLASSIFICATIONS,
+    IMPLEMENTATION_STAGES,
+    PHYSICAL_PLACEMENTS,
     classification_for_control,
     classify_lab_controls,
     enabled_uncoupled_controls,
+    physical_placement_rows_for_controls,
 )
 from vbb_study.digital_twin.lab_realism_controls import (
     build_lab_realism_report,
@@ -27,12 +30,14 @@ def test_every_default_lab_control_has_classification_and_affected_outputs():
         assert set(row.affects) <= AFFECTED_OUTPUTS
         assert isinstance(row.implemented, bool)
         assert row.downstream_response_expected
+        assert row.physical_placement in PHYSICAL_PLACEMENTS
+        assert row.implementation_stage in IMPLEMENTATION_STAGES
 
 
 def test_required_controls_have_expected_classifications_and_outputs():
     controls = default_lab_controls()
     examples = {
-        "enable_beam_tilt": ("physics_active", {"phase", "angular_spectrum", "field"}),
+        "enable_beam_tilt": ("diagnostic_active", {"phase", "angular_spectrum", "field"}),
         "enable_pulse_energy_jitter": ("energy_active", {"energy_ledger", "fluence"}),
         "enable_sample_tilt": ("geometry_active", {"sample_geometry"}),
         "enable_camera_crop": ("diagnostic_active", {"metadata"}),
@@ -44,6 +49,53 @@ def test_required_controls_have_expected_classifications_and_outputs():
         row = classification_for_control(control, controls)
         assert row.classification == classification
         assert affects <= set(row.affects)
+
+
+def test_post_engine_stack_transforms_are_not_called_physics_active():
+    controls = default_lab_controls()
+    for control in [
+        "enable_beam_tilt",
+        "enable_beam_decentre",
+        "enable_vortex_centre_offset",
+        "enable_axicon_centre_offset",
+        "enable_pupil_clipping",
+        "enable_zernike_aberrations",
+        "enable_zero_order_leakage",
+    ]:
+        row = classification_for_control(control, controls)
+        assert row.classification == "diagnostic_active"
+        assert row.implementation_stage == "post-propagation diagnostic only"
+
+
+def test_physical_placement_audit_reports_required_optical_planes():
+    controls = default_lab_controls()
+    rows = {
+        row["control"]: row
+        for row in physical_placement_rows_for_controls(
+            controls,
+            only=[
+                "enable_beam_tilt",
+                "enable_beam_decentre",
+                "enable_vortex_centre_offset",
+                "enable_axicon_centre_offset",
+                "enable_slm_phase_noise",
+                "enable_first_order_filter_decentre",
+                "enable_pupil_clipping",
+                "enable_zernike_aberrations",
+                "enable_sample_tilt",
+            ],
+        )
+    }
+    assert rows["enable_beam_tilt"]["physical_placement"] == "input complex field"
+    assert rows["enable_beam_decentre"]["physical_placement"] == "input complex field"
+    assert rows["enable_vortex_centre_offset"]["physical_placement"] == "SLM phase-mask generation"
+    assert rows["enable_axicon_centre_offset"]["physical_placement"] == "SLM phase-mask generation"
+    assert rows["enable_slm_phase_noise"]["physical_placement"] == "SLM amplitude/active-area stage"
+    assert rows["enable_first_order_filter_decentre"]["physical_placement"] == "Fourier plane"
+    assert rows["enable_first_order_filter_decentre"]["implementation_stage"] == "warning only"
+    assert rows["enable_pupil_clipping"]["physical_placement"] == "objective pupil plane"
+    assert rows["enable_zernike_aberrations"]["physical_placement"] == "objective pupil plane"
+    assert rows["enable_sample_tilt"]["physical_placement"] == "geometry only"
 
 
 def test_future_only_controls_remain_disabled_and_raise_if_enabled():

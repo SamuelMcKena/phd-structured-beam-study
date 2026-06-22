@@ -38,6 +38,11 @@ MINIMUM_METRICS = {
     "first_order_selected_fraction",
     "symmetry_score",
     "baseline_similarity_score",
+    "unregistered_similarity_score",
+    "registered_similarity_score",
+    "centroid_shift_um",
+    "translation_dominated_boolean",
+    "residual_shape_deformation_score",
 }
 
 
@@ -121,20 +126,36 @@ def test_baseline_vs_perturbed_plot_uses_shared_scaling():
 def test_sensitivity_scenarios_cover_required_stage8c3b_cases():
     scenarios = build_stage8c3_sensitivity_scenarios()
     assert {
-        "phase_center_offset",
-        "beam_tilt",
-        "pupil_clipping",
+        "relative_vortex_axicon_misregistration",
+        "axicon_relative_misregistration",
+        "beam_decentre_slm_aperture",
+        "beam_tilt_finite_pupil",
+        "pupil_decentre_clipping",
+        "low_order_aberrations",
         "zero_order_leakage",
+        "combined_lab_stress",
+        "vortex_axicon_coshift_translation",
     } <= set(scenarios)
-    assert "vortex_centre_offset_x_um" in scenarios["phase_center_offset"].severe_controls
-    assert "beam_tilt_x_mrad" in scenarios["beam_tilt"].severe_controls
-    assert "pupil_decentre_x_um" in scenarios["pupil_clipping"].severe_controls
+    assert "vortex_centre_offset_x_um" in scenarios["relative_vortex_axicon_misregistration"].severe_controls
+    assert "axicon_centre_offset_x_um" in scenarios["axicon_relative_misregistration"].severe_controls
+    assert "beam_decentre_x_um" in scenarios["beam_decentre_slm_aperture"].severe_controls
+    assert "beam_tilt_x_mrad" in scenarios["beam_tilt_finite_pupil"].severe_controls
+    assert "pupil_decentre_x_um" in scenarios["pupil_decentre_clipping"].severe_controls
+    for key in [
+        "zernike_coma_x_waves",
+        "zernike_astig_0_waves",
+        "zernike_defocus_waves",
+        "zernike_spherical_waves",
+    ]:
+        assert key in scenarios["low_order_aberrations"].severe_controls
     assert "zero_order_leakage_fraction" in scenarios["zero_order_leakage"].severe_controls
 
 
 def test_sensitivity_sweep_metrics_show_mild_and_severe_degradation():
     stack = _stack()
-    for scenario_key in build_stage8c3_sensitivity_scenarios():
+    scenarios = build_stage8c3_sensitivity_scenarios()
+    genuine_count = 0
+    for scenario_key, scenario_def in scenarios.items():
         sweep = compute_misalignment_sensitivity_sweep(
             stack,
             40.0,
@@ -146,10 +167,70 @@ def test_sensitivity_sweep_metrics_show_mild_and_severe_degradation():
         assert sweep.mild_metrics[metric] != sweep.baseline_metrics[metric]
         assert sweep.severe_metrics[metric] != sweep.baseline_metrics[metric]
         assert sweep.metadata["severe_worse_than_mild"] is True
-        assert (
-            sweep.severe_metrics["baseline_similarity_score"]
-            < sweep.mild_metrics["baseline_similarity_score"]
-        )
+        if scenario_def.counts_as_genuine_degradation:
+            genuine_count += 1
+            assert (
+                sweep.severe_metrics["residual_shape_deformation_score"]
+                >= sweep.mild_metrics["residual_shape_deformation_score"]
+            )
+            assert (
+                sweep.severe_metrics["registered_similarity_score"]
+                <= sweep.mild_metrics["registered_similarity_score"] + 1e-9
+            )
+            assert not sweep.severe_metrics["translation_dominated_boolean"]
+    assert genuine_count >= 7
+
+
+def test_coshifted_vortex_axicon_is_translation_dominated_after_registration():
+    stack = _stack()
+    sweep = compute_misalignment_sensitivity_sweep(
+        stack,
+        40.0,
+        scenario="vortex_axicon_coshift_translation",
+        target_depth_um=80.0,
+        central_roi_half_width_um=8.0,
+    )
+    severe = sweep.severe_metrics
+    assert severe["translation_dominated_boolean"] is True
+    assert severe["registered_similarity_score"] > severe["unregistered_similarity_score"] + 0.10
+    assert severe["registered_similarity_score"] > 0.90
+    assert severe["residual_shape_deformation_score"] < 0.10
+
+
+def test_relative_phase_misregistration_has_more_residual_deformation_than_coshift():
+    stack = _stack()
+    relative = compute_misalignment_sensitivity_sweep(
+        stack,
+        40.0,
+        scenario="relative_vortex_axicon_misregistration",
+        target_depth_um=80.0,
+        central_roi_half_width_um=8.0,
+    )
+    coshift = compute_misalignment_sensitivity_sweep(
+        stack,
+        40.0,
+        scenario="vortex_axicon_coshift_translation",
+        target_depth_um=80.0,
+        central_roi_half_width_um=8.0,
+    )
+    assert (
+        relative.severe_metrics["residual_shape_deformation_score"]
+        > coshift.severe_metrics["residual_shape_deformation_score"] + 0.05
+    )
+    assert relative.severe_metrics["translation_dominated_boolean"] is False
+
+
+def test_zero_order_leakage_raises_core_fill_with_severity():
+    stack = _stack()
+    sweep = compute_misalignment_sensitivity_sweep(
+        stack,
+        40.0,
+        scenario="zero_order_leakage",
+        target_depth_um=80.0,
+        central_roi_half_width_um=8.0,
+    )
+    assert sweep.mild_metrics["core_fill_fraction"] > sweep.baseline_metrics["core_fill_fraction"]
+    assert sweep.severe_metrics["core_fill_fraction"] > sweep.mild_metrics["core_fill_fraction"] + 0.05
 
 
 def test_sensitivity_sweep_plot_uses_shared_scales_and_saves():
@@ -158,7 +239,7 @@ def test_sensitivity_sweep_plot_uses_shared_scales_and_saves():
     fig = plot_misalignment_sensitivity_sweep(
         stack,
         40.0,
-        scenario="phase_center_offset",
+        scenario="combined_lab_stress",
         target_depth_um=80.0,
         central_roi_half_width_um=8.0,
         output_path=out,
@@ -171,7 +252,8 @@ def test_sensitivity_sweep_plot_uses_shared_scales_and_saves():
     assert images[0].get_clim() == images[1].get_clim() == images[2].get_clim()
     assert images[4].get_clim() == images[5].get_clim() == images[6].get_clim()
     assert images[8].get_clim() == images[9].get_clim() == images[10].get_clim()
-    assert fig.stage8c3_metadata["stage"] == "stage8c3b_misalignment_sensitivity_sweep"
+    assert fig.stage8c3_metadata["stage"] == "stage8c3c_genuine_degradation_sweep"
     assert fig.stage8c3_metadata["final_export_allowed"] is False
     assert fig.stage8c3_metadata["severe_worse_than_mild"] is True
+    assert fig.stage8c3_metadata["translation_dominated_severe"] is False
     plt.close(fig)

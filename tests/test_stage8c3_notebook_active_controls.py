@@ -45,9 +45,12 @@ def test_active_lab_realism_table_present_with_required_columns():
         '"affects"',
         '"implemented"',
         '"downstream_response_expected"',
+        '"physical_placement"',
+        '"implementation_stage"',
+        '"placement_note"',
     ]:
         assert header in src
-    assert "physics_active" in src
+    assert "diagnostic_active" in src
     assert "warning_only" in src
     assert "future_not_implemented" in src
 
@@ -73,12 +76,15 @@ def test_baseline_vs_perturbed_section_and_preview_path_present():
 
 def test_sensitivity_sweep_section_and_preview_path_present():
     src = _source()
-    assert "Stage 8C.3 - Active perturbation sensitivity sweep" in src
+    assert "Stage 8C.3C - Translation versus Genuine Degradation" in src
     assert "plot_misalignment_sensitivity_sweep" in src
-    assert "stage8c3_misalignment_sensitivity_sweep_preview.png" in src
+    assert "stage8c3c_genuine_degradation_sweep_preview.png" in src
     assert "build_stage8c3_sensitivity_scenarios" in src
+    assert "physical_placement_rows_for_controls" in src
+    assert "registered_similarity_score" in src
+    assert "translation_dominated_boolean" in src
     assert "severe_worse_than_mild" in src
-    assert "Active perturbations are diagnostic lab-realism controls" in src
+    assert "Co-shifting vortex and axicon can be translation-dominated" in src
 
 
 def test_dashboard_receives_active_perturbation_result():
