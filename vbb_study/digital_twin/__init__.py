@@ -129,6 +129,28 @@ from vbb_study.digital_twin.cockpit_dashboard import (
     plot_integrated_cockpit_dashboard,
     make_interpretation_text,
 )
+from vbb_study.digital_twin.component_plane_states import (
+    ComponentPlaneState,
+    PropagatedFieldStack,
+    field_power,
+)
+from vbb_study.digital_twin.component_plane_pipeline import (
+    ComponentPlaneConfig,
+    ComponentPlaneRun,
+    run_component_plane_pipeline,
+    WARNING_ONLY_CONTROLS,
+)
+from vbb_study.digital_twin.component_plane_metrics import (
+    ComponentPlaneScenario,
+    ComponentPlaneScenarioResult,
+    stack_to_fluence,
+    compute_axis_tracking,
+    compute_energy_throughput,
+    classify_translation_vs_deformation,
+    build_component_plane_scenarios,
+    run_component_plane_scenario,
+    plot_component_plane_reality_preview,
+)
 
 __all__ = [
     # energy accounting
@@ -223,4 +245,21 @@ __all__ = [
     "build_warning_flags",
     "plot_integrated_cockpit_dashboard",
     "make_interpretation_text",
+    # component-plane physical lab-realism (Stage 8C.3R)
+    "ComponentPlaneState",
+    "PropagatedFieldStack",
+    "field_power",
+    "ComponentPlaneConfig",
+    "ComponentPlaneRun",
+    "run_component_plane_pipeline",
+    "WARNING_ONLY_CONTROLS",
+    "ComponentPlaneScenario",
+    "ComponentPlaneScenarioResult",
+    "stack_to_fluence",
+    "compute_axis_tracking",
+    "compute_energy_throughput",
+    "classify_translation_vs_deformation",
+    "build_component_plane_scenarios",
+    "run_component_plane_scenario",
+    "plot_component_plane_reality_preview",
 ]
