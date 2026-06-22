@@ -122,13 +122,21 @@ Preview path:
 outputs/figures/digital_twin/stage8c3_baseline_vs_perturbed_preview.png
 ```
 
-## Stage 8C.3C Translation Versus Genuine Degradation
+## Stage 8C.3D Conservation and Axis Diagnostics
 
-Stage 8C.3C replaces the Stage 8C.3B primary co-shift scenario with genuine degradation scenarios and a separate translation diagnostic. The primary preview is saved as:
+Stage 8C.3D keeps the Stage 8C.3C translation-versus-deformation repair and adds explicit passive throughput conservation, commanded-axis tracking, and field-of-view/crop diagnostics. The primary preview is saved as:
 
 ```text
-outputs/figures/digital_twin/stage8c3c_genuine_degradation_sweep_preview.png
+outputs/figures/digital_twin/stage8c3d_conservation_axis_diagnostics_preview.png
 ```
+
+Passive apertures, finite pupils, SLM active-area masks, fill-factor losses, and dead-pixel masks now reduce the pulse energy used for the perturbed fluence stack. Lost energy is not silently put back. The displayed audit includes input pulse energy, energy before perturbation, energy after passive loss, transmitted fraction, peak-to-total-energy ratio, and the renormalisation factor applied to the fluence scaling.
+
+Stage 8C.3D deliberately does not multiply upstream passive aperture masks through already-propagated z-planes in the headline preview. That older diagnostic shortcut made harsh straight XZ cutoffs that looked like propagated physics but were only post-engine image-space clipping. Passive clipping is now rendered as an energy-throughput audit unless `enable_post_engine_spatial_clipping` is explicitly set for artifact investigation.
+
+The saved headline preview uses the low-order-aberration scenario because it gives a smooth optical-field diagnostic without making passive clipping look propagated. Clipping-heavy cases remain in the scenario audit table and energy ledger until a real upstream aperture/pupil propagation path is implemented.
+
+The commanded-axis diagnostic reports the commanded optical axis at x=0, y=0 against the actual ring/core centre and brightest point in the selected plane. It also fits x_ring(z)=ax z+bx and y_ring(z)=ay z+by to report surface intercept, target-plane offset, steering angle, field-of-view margin, out-of-frame fraction, and crop-edge energy fraction.
 
 The sweep layout uses four columns:
 
@@ -151,7 +159,9 @@ The scenario registry includes:
 - Scenario G: combined diagnostic lab stress test.
 - Translation diagnostic: co-shifted vortex and axicon, reported as translation-dominated when registration recovers the similarity.
 
-Metric cards include centroid shift, peak shift, peak fluence change, azimuthal uniformity, ring circularity, core fill fraction, symmetry score, pupil clipped power, unregistered similarity, registered similarity, translation-dominated status, and residual shape deformation. The similarity metric is a normalized-shape similarity based on the relative L2 difference of normalized stacks, and the registered variant recenters the perturbed stack before comparing.
+Metric cards include centroid shift, ring-axis offset, fitted target-axis offset, steering angle, peak shift, passive-output energy, transmitted fraction, peak-to-energy ratio, azimuthal uniformity, core fill fraction, field-of-view margin, out-of-frame fraction, unregistered similarity, registered similarity, translation-dominated status, and residual shape deformation. The similarity metric is a normalized-shape similarity based on the relative L2 difference of normalized stacks, and the registered variant recenters the perturbed stack before comparing.
+
+This is still a diagnostic stress visualizer over canonical optical stacks, not a full pre-propagation component engine. Component controls continue to report intended `physical_placement` and actual post-engine diagnostic implementation stage.
 
 ## Still Unmodelled
 

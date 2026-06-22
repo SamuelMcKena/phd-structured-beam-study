@@ -76,14 +76,24 @@ def test_baseline_vs_perturbed_section_and_preview_path_present():
 
 def test_sensitivity_sweep_section_and_preview_path_present():
     src = _source()
-    assert "Stage 8C.3C - Translation versus Genuine Degradation" in src
+    assert "Stage 8C.3D - Conservation and Axis Diagnostics" in src
     assert "plot_misalignment_sensitivity_sweep" in src
-    assert "stage8c3c_genuine_degradation_sweep_preview.png" in src
+    assert "stage8c3d_conservation_axis_diagnostics_preview.png" in src
+    assert 'scenario="low_order_aberrations"' in src
+    assert "Smooth Field Diagnostic + Throughput Ledger" in src
     assert "build_stage8c3_sensitivity_scenarios" in src
     assert "physical_placement_rows_for_controls" in src
     assert "registered_similarity_score" in src
     assert "translation_dominated_boolean" in src
     assert "severe_worse_than_mild" in src
+    assert "energy_after_passive_loss_uJ" in src
+    assert "transmitted_fraction" in src
+    assert "ring_axis_offset_um" in src
+    assert "field_of_view_margin_um" in src
+    assert "out_of_frame_fraction" in src
+    assert "post_engine_spatial_clipping_applied" in src
+    assert "harsh straight XZ cutoffs" in src
+    assert "clipping-heavy cases are reviewed in the audit table" in src
     assert "Co-shifting vortex and axicon can be translation-dominated" in src
 
 

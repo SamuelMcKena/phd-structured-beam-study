@@ -100,9 +100,9 @@ def test_zero_order_leakage_increases_core_fill_fraction():
     assert metrics["central_darkness_contrast"] < baseline["central_darkness_contrast"]
 
 
-def test_pupil_clipping_reports_clipped_power_and_changes_symmetry():
+def test_pupil_clipping_reports_clipped_power_without_postprop_crop_artifact():
     stack = _ring_stack()
-    baseline, _, metrics = _perturbed_metrics(
+    baseline, result, metrics = _perturbed_metrics(
         stack,
         {
             "enable_pupil_clipping": True,
@@ -111,7 +111,10 @@ def test_pupil_clipping_reports_clipped_power_and_changes_symmetry():
         },
     )
     assert metrics["pupil_clipped_power_fraction"] > 0.1
-    assert metrics["symmetry_score"] < baseline["symmetry_score"]
+    assert result.metadata["post_engine_spatial_clipping_applied"] is False
+    assert "no post-propagation spatial crop" in result.metadata["passive_clipping_visual_model"]
+    assert np.allclose(result.perturbed_stack.intensity_zyx, stack.intensity_zyx)
+    assert metrics["symmetry_score"] == baseline["symmetry_score"]
 
 
 def test_defocus_changes_peak_z_or_fluence():

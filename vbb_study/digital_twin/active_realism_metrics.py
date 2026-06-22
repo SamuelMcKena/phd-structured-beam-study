@@ -26,7 +26,7 @@ MODEL_STATUS = "diagnostic_preview"
 
 @dataclass(frozen=True)
 class SensitivityScenario:
-    """One Stage 8C.3C active-perturbation severity sweep scenario."""
+    """One Stage 8C.3D active-perturbation severity sweep scenario."""
 
     key: str
     title: str
@@ -44,7 +44,7 @@ class SensitivityScenario:
 
 @dataclass(frozen=True)
 class SensitivitySweepResult:
-    """Computed fields/metrics for a Stage 8C.3C sensitivity sweep."""
+    """Computed fields/metrics for a Stage 8C.3D sensitivity sweep."""
 
     scenario: SensitivityScenario
     baseline_stack: OpticalFieldStack
@@ -114,6 +114,7 @@ def compute_degradation_metrics(
     captured_drift = _captured_power_drift(fluence_result)
     target_peak = _target_depth_peak(fluence_result, z, target_depth_um)
     roi_peak = _central_roi_peak(fluence_result, x, y, central_roi_half_width_um, plane_index)
+    axis_metrics = _axis_tracking_metrics(I, x, y, z, plane_index, target_depth_um)
 
     pupil_clip = float((perturbation_metadata or {}).get("pupil_clipped_power_fraction", 0.0) or 0.0)
     first_order = first_order_selected_fraction
@@ -121,6 +122,11 @@ def compute_degradation_metrics(
         first_order = float((perturbation_metadata or {}).get("first_order_selected_fraction", np.nan))
 
     peak_fluence = _global_peak_fluence(fluence_result, fallback=peak_value)
+    conservation_metrics = _conservation_metrics(
+        peak_fluence,
+        fluence_result,
+        perturbation_metadata=perturbation_metadata,
+    )
     unregistered_similarity = 1.0
     registered_similarity = 1.0
     centroid_shift_um = 0.0
@@ -185,6 +191,8 @@ def compute_degradation_metrics(
         "translation_dominated_boolean": bool(translation_dominated),
         "residual_shape_deformation_score": residual_shape_deformation,
         "global_peak_fluence": peak_fluence,
+        **axis_metrics,
+        **conservation_metrics,
     }
 
 
@@ -221,6 +229,26 @@ def metric_delta_table(
         "centroid_shift_um",
         "residual_shape_deformation_score",
         "translation_dominated_boolean",
+        "input_pulse_energy_uJ",
+        "energy_before_perturbation_uJ",
+        "energy_after_passive_loss_uJ",
+        "transmitted_fraction",
+        "peak_to_total_energy_ratio",
+        "renormalisation_factor_applied",
+        "post_stack_power_ratio",
+        "commanded_axis_x_um",
+        "commanded_axis_y_um",
+        "ring_centre_x_um",
+        "ring_centre_y_um",
+        "ring_axis_offset_um",
+        "brightest_point_offset_um",
+        "beam_axis_surface_x_um",
+        "beam_axis_surface_y_um",
+        "beam_axis_target_offset_um",
+        "beam_steering_angle_mrad",
+        "field_of_view_margin_um",
+        "out_of_frame_fraction",
+        "crop_edge_energy_fraction",
     ]:
         b = float(baseline_metrics.get(key, np.nan))
         p = float(perturbed_metrics.get(key, np.nan))
@@ -229,7 +257,7 @@ def metric_delta_table(
 
 
 def build_stage8c3_sensitivity_scenarios() -> dict[str, SensitivityScenario]:
-    """Return the required Stage 8C.3C translation-vs-degradation scenarios."""
+    """Return the required Stage 8C.3D conservation/axis diagnostic scenarios."""
     return {
         "relative_vortex_axicon_misregistration": SensitivityScenario(
             key="relative_vortex_axicon_misregistration",
@@ -478,8 +506,16 @@ def compute_misalignment_sensitivity_sweep(
 
     mild_result = apply_lab_perturbations_to_stack(baseline_stack, scenario_def.mild_controls)
     severe_result = apply_lab_perturbations_to_stack(baseline_stack, scenario_def.severe_controls)
-    mild_fluence = scale_stack_to_fluence(mild_result.perturbed_stack, pulse_energy_uJ)
-    severe_fluence = scale_stack_to_fluence(severe_result.perturbed_stack, pulse_energy_uJ)
+    mild_metadata = _energy_audit_metadata(pulse_energy_uJ, mild_result.metadata)
+    severe_metadata = _energy_audit_metadata(pulse_energy_uJ, severe_result.metadata)
+    mild_fluence = scale_stack_to_fluence(
+        mild_result.perturbed_stack,
+        mild_metadata["energy_after_passive_loss_uJ"],
+    )
+    severe_fluence = scale_stack_to_fluence(
+        severe_result.perturbed_stack,
+        severe_metadata["energy_after_passive_loss_uJ"],
+    )
 
     baseline_metrics = compute_degradation_metrics(
         baseline_stack,
@@ -496,7 +532,7 @@ def compute_misalignment_sensitivity_sweep(
         plane_index=selected_plane_index,
         target_depth_um=target_depth_um,
         central_roi_half_width_um=central_roi_half_width_um,
-        perturbation_metadata=mild_result.metadata,
+        perturbation_metadata=mild_metadata,
     )
     severe_metrics = compute_degradation_metrics(
         severe_result.perturbed_stack,
@@ -506,7 +542,7 @@ def compute_misalignment_sensitivity_sweep(
         plane_index=selected_plane_index,
         target_depth_um=target_depth_um,
         central_roi_half_width_um=central_roi_half_width_um,
-        perturbation_metadata=severe_result.metadata,
+        perturbation_metadata=severe_metadata,
     )
     shared_scales = _sweep_shared_scales(
         baseline_stack,
@@ -547,7 +583,7 @@ def compute_misalignment_sensitivity_sweep(
         selected_plane_index=selected_plane_index,
         central_roi_half_width_um=float(central_roi_half_width_um),
         metadata={
-            "stage": "stage8c3c_genuine_degradation_sweep",
+            "stage": "stage8c3d_conservation_axis_diagnostics",
             "scenario": scenario_def.key,
             "mild_worse_than_baseline": mild_worse,
             "severe_worse_than_mild": severe_worse_than_mild,
@@ -561,6 +597,19 @@ def compute_misalignment_sensitivity_sweep(
             "counts_as_genuine_degradation": bool(scenario_def.counts_as_genuine_degradation),
             "degradation_metric": metric,
             "physical_placement_audit": tuple(placement_rows),
+            "mild_energy_after_passive_loss_uJ": float(mild_metadata["energy_after_passive_loss_uJ"]),
+            "severe_energy_after_passive_loss_uJ": float(severe_metadata["energy_after_passive_loss_uJ"]),
+            "mild_transmitted_fraction": float(mild_metadata["transmitted_fraction"]),
+            "severe_transmitted_fraction": float(severe_metadata["transmitted_fraction"]),
+            "mild_post_engine_spatial_clipping_applied": bool(
+                mild_metadata.get("post_engine_spatial_clipping_applied", False)
+            ),
+            "severe_post_engine_spatial_clipping_applied": bool(
+                severe_metadata.get("post_engine_spatial_clipping_applied", False)
+            ),
+            "severe_passive_clipping_visual_model": str(
+                severe_metadata.get("passive_clipping_visual_model", "")
+            ),
         },
     )
 
@@ -577,11 +626,11 @@ def plot_misalignment_sensitivity_sweep(
     output_path: str | Path | None = None,
     show_caveats: bool = True,
     dpi: int = 180,
-    title: str = "Stage 8C.3C Translation versus Genuine Degradation",
+    title: str = "Stage 8C.3D Conservation and Axis Diagnostics",
 ) -> "matplotlib.figure.Figure":
     """Render a polished aligned/mild/severe/difference diagnostic sweep."""
     if output_path is not None and not show_caveats:
-        raise ValueError("Refusing to save Stage 8C.3C sweep without caveats.")
+        raise ValueError("Refusing to save Stage 8C.3D sweep without caveats.")
     sweep = compute_misalignment_sensitivity_sweep(
         baseline_stack,
         pulse_energy_uJ,
@@ -647,11 +696,18 @@ def plot_misalignment_sensitivity_sweep(
         va="center",
         color="#263238",
     )
+    if min(float(sweep.metadata["mild_transmitted_fraction"]), float(sweep.metadata["severe_transmitted_fraction"])) < 0.999:
+        subtitle = (
+            "Passive losses reduce perturbed fluence energy; post-propagation hard clipping is disabled in headline panels."
+        )
+    else:
+        subtitle = (
+            "Headline visual uses smooth diagnostic deformation; clipping-heavy cases are audit-only until upstream aperture propagation exists."
+        )
     fig.text(
         0.52,
         0.872,
-        "Similarity is reported before and after centroid registration; "
-        "translation-dominated cases are not called shape degradation.",
+        subtitle,
         fontsize=10,
         ha="left",
         va="center",
@@ -806,7 +862,7 @@ def plot_misalignment_sensitivity_sweep(
     )
 
     fig.stage8c3_metadata = {  # type: ignore[attr-defined]
-        "stage": "stage8c3c_genuine_degradation_sweep",
+        "stage": "stage8c3d_conservation_axis_diagnostics",
         "figure_status": FIGURE_STATUS,
         "model_status": MODEL_STATUS,
         "final_export_allowed": False,
@@ -820,8 +876,18 @@ def plot_misalignment_sensitivity_sweep(
         "severe_registered_similarity": float(sweep.metadata["severe_registered_similarity"]),
         "severe_residual_shape_deformation": float(sweep.metadata["severe_residual_shape_deformation"]),
         "translation_dominated_severe": bool(sweep.metadata["translation_dominated_severe"]),
+        "mild_transmitted_fraction": float(sweep.metadata["mild_transmitted_fraction"]),
+        "severe_transmitted_fraction": float(sweep.metadata["severe_transmitted_fraction"]),
+        "severe_energy_after_passive_loss_uJ": float(sweep.metadata["severe_energy_after_passive_loss_uJ"]),
+        "severe_axis_offset_um": float(sweep.severe_metrics.get("ring_axis_offset_um", np.nan)),
+        "severe_out_of_frame_fraction": float(sweep.severe_metrics.get("out_of_frame_fraction", np.nan)),
+        "severe_post_engine_spatial_clipping_applied": bool(
+            sweep.metadata["severe_post_engine_spatial_clipping_applied"]
+        ),
+        "severe_passive_clipping_visual_model": str(sweep.metadata["severe_passive_clipping_visual_model"]),
         "severe_worse_than_mild": bool(sweep.metadata["severe_worse_than_mild"]),
         "degradation_metric": scenario_def.degradation_metric,
+        "headline_subtitle": subtitle,
     }
     fig.stage8c3_sensitivity_result = sweep  # type: ignore[attr-defined]
 
@@ -834,12 +900,12 @@ def plot_misalignment_sensitivity_sweep(
             bbox_inches="tight",
             metadata={
                 "Title": title,
-                "stage": "stage8c3c_genuine_degradation_sweep",
+                "stage": "stage8c3d_conservation_axis_diagnostics",
                 "scenario": scenario_def.key,
                 "figure_status": FIGURE_STATUS,
                 "model_status": MODEL_STATUS,
                 "final_export_allowed": "False",
-                "Description": "Stage 8C.3C active perturbation severity sweep; optical fluence diagnostic only.",
+                "Description": "Stage 8C.3D conservation/axis diagnostic sweep; optical fluence diagnostic only.",
             },
         )
     return fig
@@ -987,7 +1053,7 @@ def _scenario_from_value(scenario: str | SensitivityScenario) -> SensitivityScen
     scenarios = build_stage8c3_sensitivity_scenarios()
     key = str(scenario)
     if key not in scenarios:
-        raise KeyError(f"Unknown Stage 8C.3C sensitivity scenario {key!r}; allowed: {sorted(scenarios)}.")
+        raise KeyError(f"Unknown Stage 8C.3D sensitivity scenario {key!r}; allowed: {sorted(scenarios)}.")
     return scenarios[key]
 
 
@@ -1082,7 +1148,7 @@ def _metric_card(ax: Any, title: str, lines: list[str], face: str, edge: str) ->
         transform=ax.transAxes,
         ha="left",
         va="top",
-        fontsize=11,
+        fontsize=10.2,
         fontweight="bold",
         color=edge,
     )
@@ -1093,25 +1159,26 @@ def _metric_card(ax: Any, title: str, lines: list[str], face: str, edge: str) ->
         transform=ax.transAxes,
         ha="left",
         va="top",
-        fontsize=8.8,
+        fontsize=7.2,
         family="monospace",
         color="#263238",
-        linespacing=1.18,
+        linespacing=1.05,
     )
 
 
 def _baseline_metric_lines(metrics: Mapping[str, float]) -> list[str]:
     return [
         f"centroid      : ({_fmt_num(metrics.get('centroid_x_um'))}, {_fmt_num(metrics.get('centroid_y_um'))}) um",
+        f"ring centre   : ({_fmt_num(metrics.get('ring_centre_x_um'))}, {_fmt_num(metrics.get('ring_centre_y_um'))}) um",
+        f"axis offset   : {_fmt_num(metrics.get('ring_axis_offset_um'))} um",
         f"peak xyz      : ({_fmt_num(metrics.get('peak_x_um'))}, {_fmt_num(metrics.get('peak_y_um'))}, {_fmt_num(metrics.get('peak_z_um'))})",
         f"peak fluence  : {_fmt_num(metrics.get('global_peak_fluence'))}",
+        f"energy in/out : {_fmt_num(metrics.get('input_pulse_energy_uJ'))}/{_fmt_num(metrics.get('energy_after_passive_loss_uJ'))} uJ",
         f"az uniformity : {_fmt_num(metrics.get('azimuthal_uniformity_score'))}",
-        f"ring circular : {_fmt_num(metrics.get('ring_circularity_score'))}",
         f"core fill     : {_fmt_num(metrics.get('core_fill_fraction'))}",
-        f"symmetry      : {_fmt_num(metrics.get('symmetry_score'))}",
-        f"pupil clipped : {_fmt_pct_value(metrics.get('pupil_clipped_power_fraction'))}",
+        f"FOV margin    : {_fmt_num(metrics.get('field_of_view_margin_um'))} um",
+        f"out-of-frame  : {_fmt_pct_value(metrics.get('out_of_frame_fraction'))}",
         f"unreg/reg sim : {_fmt_num(metrics.get('unregistered_similarity_score'))}/{_fmt_num(metrics.get('registered_similarity_score'))}",
-        f"residual def. : {_fmt_num(metrics.get('residual_shape_deformation_score'))}",
     ]
 
 
@@ -1123,13 +1190,16 @@ def _degradation_metric_lines(
     peak_shift_z = float(metrics.get("peak_z_um", np.nan)) - float(baseline.get("peak_z_um", np.nan))
     return [
         f"centroid shift: {_fmt_num(metrics.get('centroid_shift_um'))} um",
+        f"ring axis off.: {_fmt_num(metrics.get('ring_axis_offset_um'))} um",
+        f"axis target   : {_fmt_num(metrics.get('beam_axis_target_offset_um'))} um",
+        f"steering      : {_fmt_num(metrics.get('beam_steering_angle_mrad'))} mrad",
         f"peak shift    : {_fmt_num(peak_shift_xy)} um xy, dz={_fmt_num(peak_shift_z)}",
-        f"peak fluence  : {_fmt_signed_pct(metrics.get('peak_fluence_change_fraction'))}",
+        f"energy out    : {_fmt_num(metrics.get('energy_after_passive_loss_uJ'))} uJ",
+        f"transmitted   : {_fmt_pct_value(metrics.get('transmitted_fraction'))}",
+        f"peak/E        : {_fmt_num(metrics.get('peak_to_total_energy_ratio'))}",
         f"az uniformity : {_fmt_num(metrics.get('azimuthal_uniformity_score'))} ({_fmt_delta(metrics, baseline, 'azimuthal_uniformity_score')})",
-        f"ring circular : {_fmt_num(metrics.get('ring_circularity_score'))} ({_fmt_delta(metrics, baseline, 'ring_circularity_score')})",
         f"core fill     : {_fmt_num(metrics.get('core_fill_fraction'))} ({_fmt_delta(metrics, baseline, 'core_fill_fraction')})",
-        f"symmetry      : {_fmt_num(metrics.get('symmetry_score'))} ({_fmt_delta(metrics, baseline, 'symmetry_score')})",
-        f"pupil clipped : {_fmt_pct_value(metrics.get('pupil_clipped_power_fraction'))}",
+        f"FOV/out-frame : {_fmt_num(metrics.get('field_of_view_margin_um'))} um / {_fmt_pct_value(metrics.get('out_of_frame_fraction'))}",
         f"unreg sim     : {_fmt_num(metrics.get('unregistered_similarity_score'))}",
         f"registered sim: {_fmt_num(metrics.get('registered_similarity_score'))}",
         f"residual def. : {_fmt_num(metrics.get('residual_shape_deformation_score'))}",
@@ -1149,11 +1219,15 @@ def _sweep_summary_lines(sweep: SensitivitySweepResult) -> list[str]:
         f"severity metric: {metric}",
         f"base/mild/sev : {_fmt_num(base)} -> {_fmt_num(mild)} -> {_fmt_num(severe)}",
         f"severe worse  : {bool(sweep.metadata.get('severe_worse_than_mild'))}",
+        f"energy m/s    : {_fmt_num(sweep.mild_metrics.get('energy_after_passive_loss_uJ'))} / {_fmt_num(sweep.severe_metrics.get('energy_after_passive_loss_uJ'))} uJ",
+        f"transmit m/s  : {_fmt_pct_value(sweep.mild_metrics.get('transmitted_fraction'))} / {_fmt_pct_value(sweep.severe_metrics.get('transmitted_fraction'))}",
+        f"axis off m/s  : {_fmt_num(sweep.mild_metrics.get('ring_axis_offset_um'))} / {_fmt_num(sweep.severe_metrics.get('ring_axis_offset_um'))} um",
+        f"FOV out m/s   : {_fmt_pct_value(sweep.mild_metrics.get('out_of_frame_fraction'))} / {_fmt_pct_value(sweep.severe_metrics.get('out_of_frame_fraction'))}",
         f"unreg sim m/s : {_fmt_num(sweep.mild_metrics.get('unregistered_similarity_score'))} / {_fmt_num(sweep.severe_metrics.get('unregistered_similarity_score'))}",
         f"reg sim m/s   : {_fmt_num(sweep.mild_metrics.get('registered_similarity_score'))} / {_fmt_num(sweep.severe_metrics.get('registered_similarity_score'))}",
         f"residual def. : severe {_fmt_num(sweep.severe_metrics.get('residual_shape_deformation_score'))}",
         f"translation?  : {bool(sweep.severe_metrics.get('translation_dominated_boolean'))}",
-        "claim boundary: optical fluence only; no material response",
+        "claim: optical fluence diagnostic; no material response",
     ]
 
 
@@ -1349,6 +1423,157 @@ def _global_peak_fluence(fluence_result: FluenceStackResult | None, fallback: fl
     if fluence_result is None:
         return float(fallback)
     return float(np.max(fluence_result.fluence_zyx_j_cm2))
+
+
+def _energy_audit_metadata(
+    input_pulse_energy_uJ: float,
+    perturbation_metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    meta = dict(perturbation_metadata or {})
+    input_energy = float(input_pulse_energy_uJ)
+    transmitted = float(meta.get("passive_transmitted_power_fraction", 1.0) or 1.0)
+    transmitted = float(np.clip(transmitted, 0.0, 1.0))
+    after = input_energy * transmitted
+    meta.update(
+        {
+            "input_pulse_energy_uJ": input_energy,
+            "energy_before_perturbation_uJ": input_energy,
+            "energy_after_passive_loss_uJ": after,
+            "transmitted_fraction": transmitted,
+            "renormalisation_factor_applied": transmitted,
+        }
+    )
+    return meta
+
+
+def _conservation_metrics(
+    peak_fluence: float,
+    fluence_result: FluenceStackResult | None,
+    *,
+    perturbation_metadata: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    meta = dict(perturbation_metadata or {})
+    fluence_energy = float(getattr(fluence_result, "pulse_energy_uJ", np.nan))
+    input_energy = float(meta.get("input_pulse_energy_uJ", fluence_energy))
+    before = float(meta.get("energy_before_perturbation_uJ", input_energy))
+    transmitted = float(meta.get("transmitted_fraction", meta.get("passive_transmitted_power_fraction", 1.0)))
+    transmitted = float(np.clip(transmitted, 0.0, 1.0)) if np.isfinite(transmitted) else float("nan")
+    after = float(meta.get("energy_after_passive_loss_uJ", before * transmitted if np.isfinite(transmitted) else fluence_energy))
+    renorm = float(meta.get("renormalisation_factor_applied", after / before if before > 0 else np.nan))
+    post_stack_ratio = float(meta.get("post_perturbation_stack_power_fraction", np.nan))
+    peak_to_energy = float(peak_fluence / max(after, 1e-12)) if np.isfinite(after) else float("nan")
+    silent_renorm = bool(np.isfinite(transmitted) and transmitted < 0.999 and np.isfinite(renorm) and renorm > transmitted + 1e-6)
+    return {
+        "input_pulse_energy_uJ": input_energy,
+        "energy_before_perturbation_uJ": before,
+        "energy_after_passive_loss_uJ": after,
+        "transmitted_fraction": transmitted,
+        "peak_to_total_energy_ratio": peak_to_energy,
+        "renormalisation_factor_applied": renorm,
+        "post_stack_power_ratio": post_stack_ratio,
+        "silent_renormalisation_warning": silent_renorm,
+    }
+
+
+def _axis_tracking_metrics(
+    I: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    z: np.ndarray,
+    plane_index: int,
+    target_depth_um: float | None,
+) -> dict[str, Any]:
+    ring_x, ring_y = _ring_centre_by_z(I, x, y)
+    selected_i = int(np.clip(plane_index, 0, I.shape[0] - 1))
+    rx = float(ring_x[selected_i])
+    ry = float(ring_y[selected_i])
+    peak_yi, peak_xi = (int(v) for v in np.unravel_index(int(np.argmax(I[selected_i])), I[selected_i].shape))
+    peak_x = float(x[peak_xi])
+    peak_y = float(y[peak_yi])
+    ax, bx = _linear_fit_safe(z, ring_x)
+    ay, by = _linear_fit_safe(z, ring_y)
+    target_z = float(z[selected_i] if target_depth_um is None else target_depth_um)
+    target_x = ax * target_z + bx if np.isfinite(ax) and np.isfinite(bx) else rx
+    target_y = ay * target_z + by if np.isfinite(ay) and np.isfinite(by) else ry
+    steering_mrad = float(np.arctan(np.hypot(ax, ay)) * 1e3) if np.isfinite(ax) and np.isfinite(ay) else float("nan")
+    margin, out_fraction, edge_fraction = _field_of_view_metrics(I[selected_i], x, y, rx, ry)
+    return {
+        "commanded_axis_x_um": 0.0,
+        "commanded_axis_y_um": 0.0,
+        "ring_centre_x_um": rx,
+        "ring_centre_y_um": ry,
+        "ring_axis_offset_um": float(np.hypot(rx, ry)),
+        "brightest_point_offset_um": float(np.hypot(peak_x, peak_y)),
+        "beam_axis_surface_x_um": float(bx),
+        "beam_axis_surface_y_um": float(by),
+        "beam_axis_target_offset_um": float(np.hypot(target_x, target_y)),
+        "beam_steering_angle_mrad": steering_mrad,
+        "field_of_view_margin_um": margin,
+        "out_of_frame_fraction": out_fraction,
+        "crop_edge_energy_fraction": edge_fraction,
+    }
+
+
+def _ring_centre_by_z(I: np.ndarray, x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    xs: list[float] = []
+    ys: list[float] = []
+    X, Y = np.meshgrid(x, y, indexing="xy")
+    for plane in np.asarray(I, dtype=float):
+        peak = float(np.max(plane)) if plane.size else 0.0
+        if peak <= 0.0:
+            xs.append(float("nan"))
+            ys.append(float("nan"))
+            continue
+        mask = plane >= 0.45 * peak
+        if np.count_nonzero(mask) < 4:
+            mask = plane >= 0.25 * peak
+        weights = np.where(mask, plane, 0.0)
+        total = float(np.sum(weights))
+        if total <= 0.0:
+            cx, cy = _centroid(plane, x, y)
+        else:
+            cx = float(np.sum(weights * X) / total)
+            cy = float(np.sum(weights * Y) / total)
+        xs.append(cx)
+        ys.append(cy)
+    return np.asarray(xs, dtype=float), np.asarray(ys, dtype=float)
+
+
+def _linear_fit_safe(z: np.ndarray, values: np.ndarray) -> tuple[float, float]:
+    zz = np.asarray(z, dtype=float)
+    vv = np.asarray(values, dtype=float)
+    mask = np.isfinite(zz) & np.isfinite(vv)
+    if np.count_nonzero(mask) < 2:
+        value = float(vv[mask][0]) if np.count_nonzero(mask) else float("nan")
+        return 0.0, value
+    slope, intercept = np.polyfit(zz[mask], vv[mask], 1)
+    return float(slope), float(intercept)
+
+
+def _field_of_view_metrics(
+    plane: np.ndarray,
+    x: np.ndarray,
+    y: np.ndarray,
+    cx: float,
+    cy: float,
+) -> tuple[float, float, float]:
+    X, Y = np.meshgrid(x, y, indexing="xy")
+    R = np.hypot(X - float(cx), Y - float(cy))
+    if plane.size == 0 or float(np.max(plane)) <= 0.0:
+        return float("nan"), float("nan"), float("nan")
+    r_peak = float(R[np.unravel_index(int(np.argmax(plane)), plane.shape)])
+    ring_outer = max(r_peak + 2.0 * max(_median_spacing(x), _median_spacing(y)), 1e-9)
+    margin = float(min(float(cx - np.min(x)), float(np.max(x) - cx), float(cy - np.min(y)), float(np.max(y) - cy)))
+    out_fraction = float(np.clip((ring_outer - margin) / ring_outer, 0.0, 1.0))
+    edge = max(2, int(round(2.0 / max(_median_spacing(x), _median_spacing(y), 1e-9))))
+    edge_mask = np.zeros_like(plane, dtype=bool)
+    edge_mask[:edge, :] = True
+    edge_mask[-edge:, :] = True
+    edge_mask[:, :edge] = True
+    edge_mask[:, -edge:] = True
+    total = max(float(np.sum(plane)), 1e-12)
+    edge_fraction = float(np.sum(plane[edge_mask]) / total)
+    return margin, out_fraction, edge_fraction
 
 
 def _translation_registration_metrics(

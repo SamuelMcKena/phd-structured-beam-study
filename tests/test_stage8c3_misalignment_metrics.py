@@ -43,6 +43,26 @@ MINIMUM_METRICS = {
     "centroid_shift_um",
     "translation_dominated_boolean",
     "residual_shape_deformation_score",
+    "input_pulse_energy_uJ",
+    "energy_before_perturbation_uJ",
+    "energy_after_passive_loss_uJ",
+    "transmitted_fraction",
+    "peak_to_total_energy_ratio",
+    "renormalisation_factor_applied",
+    "post_stack_power_ratio",
+    "commanded_axis_x_um",
+    "commanded_axis_y_um",
+    "ring_centre_x_um",
+    "ring_centre_y_um",
+    "ring_axis_offset_um",
+    "brightest_point_offset_um",
+    "beam_axis_surface_x_um",
+    "beam_axis_surface_y_um",
+    "beam_axis_target_offset_um",
+    "beam_steering_angle_mrad",
+    "field_of_view_margin_um",
+    "out_of_frame_fraction",
+    "crop_edge_energy_fraction",
 }
 
 
@@ -233,6 +253,57 @@ def test_zero_order_leakage_raises_core_fill_with_severity():
     assert sweep.severe_metrics["core_fill_fraction"] > sweep.mild_metrics["core_fill_fraction"] + 0.05
 
 
+def test_passive_clipping_reduces_perturbed_fluence_energy_and_reports_audit():
+    stack = _stack()
+    sweep = compute_misalignment_sensitivity_sweep(
+        stack,
+        40.0,
+        scenario="pupil_decentre_clipping",
+        target_depth_um=80.0,
+        central_roi_half_width_um=8.0,
+    )
+    assert sweep.baseline_fluence.pulse_energy_uJ == 40.0
+    assert sweep.severe_fluence.pulse_energy_uJ < sweep.mild_fluence.pulse_energy_uJ < 40.0
+    assert sweep.severe_metrics["energy_after_passive_loss_uJ"] == sweep.severe_fluence.pulse_energy_uJ
+    assert sweep.severe_metrics["transmitted_fraction"] < sweep.mild_metrics["transmitted_fraction"]
+    assert sweep.severe_metrics["renormalisation_factor_applied"] == sweep.severe_metrics["transmitted_fraction"]
+    assert sweep.severe_metrics["silent_renormalisation_warning"] is False
+    assert np.isfinite(sweep.severe_metrics["peak_to_total_energy_ratio"])
+
+
+def test_axis_and_fov_metrics_report_commanded_vs_actual_beam_axis():
+    stack = _stack()
+    sweep = compute_misalignment_sensitivity_sweep(
+        stack,
+        40.0,
+        scenario="beam_decentre_slm_aperture",
+        target_depth_um=80.0,
+        central_roi_half_width_um=8.0,
+    )
+    assert sweep.severe_metrics["commanded_axis_x_um"] == 0.0
+    assert sweep.severe_metrics["commanded_axis_y_um"] == 0.0
+    assert sweep.severe_metrics["ring_axis_offset_um"] > sweep.mild_metrics["ring_axis_offset_um"]
+    assert sweep.severe_metrics["beam_axis_target_offset_um"] > sweep.mild_metrics["beam_axis_target_offset_um"]
+    assert sweep.severe_metrics["field_of_view_margin_um"] < sweep.baseline_metrics["field_of_view_margin_um"]
+    assert 0.0 <= sweep.severe_metrics["out_of_frame_fraction"] <= 1.0
+    assert 0.0 <= sweep.severe_metrics["crop_edge_energy_fraction"] <= 1.0
+
+
+def test_zero_order_leakage_conserves_passive_energy():
+    stack = _stack()
+    sweep = compute_misalignment_sensitivity_sweep(
+        stack,
+        40.0,
+        scenario="zero_order_leakage",
+        target_depth_um=80.0,
+        central_roi_half_width_um=8.0,
+    )
+    assert sweep.mild_metrics["transmitted_fraction"] == 1.0
+    assert sweep.severe_metrics["transmitted_fraction"] == 1.0
+    assert sweep.severe_fluence.pulse_energy_uJ == 40.0
+    assert sweep.severe_metrics["energy_after_passive_loss_uJ"] == 40.0
+
+
 def test_sensitivity_sweep_plot_uses_shared_scales_and_saves():
     stack = _stack()
     out = Path("outputs/figures/digital_twin/_stage8c3_test_sensitivity_sweep_preview.png")
@@ -252,8 +323,13 @@ def test_sensitivity_sweep_plot_uses_shared_scales_and_saves():
     assert images[0].get_clim() == images[1].get_clim() == images[2].get_clim()
     assert images[4].get_clim() == images[5].get_clim() == images[6].get_clim()
     assert images[8].get_clim() == images[9].get_clim() == images[10].get_clim()
-    assert fig.stage8c3_metadata["stage"] == "stage8c3c_genuine_degradation_sweep"
+    assert fig.stage8c3_metadata["stage"] == "stage8c3d_conservation_axis_diagnostics"
     assert fig.stage8c3_metadata["final_export_allowed"] is False
     assert fig.stage8c3_metadata["severe_worse_than_mild"] is True
     assert fig.stage8c3_metadata["translation_dominated_severe"] is False
+    assert fig.stage8c3_metadata["severe_transmitted_fraction"] < 1.0
+    assert fig.stage8c3_metadata["severe_energy_after_passive_loss_uJ"] < 40.0
+    assert np.isfinite(fig.stage8c3_metadata["severe_axis_offset_um"])
+    assert fig.stage8c3_metadata["severe_post_engine_spatial_clipping_applied"] is False
+    assert "no post-propagation spatial crop" in fig.stage8c3_metadata["severe_passive_clipping_visual_model"]
     plt.close(fig)

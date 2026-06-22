@@ -27,6 +27,7 @@ SUMMARY = ROOT / "STAGE8C3_ACTIVE_LAB_REALISM_SUMMARY.md"
 PREVIEW = ROOT / "outputs" / "figures" / "digital_twin" / "stage8c3_baseline_vs_perturbed_preview.png"
 SWEEP_PREVIEW = ROOT / "outputs" / "figures" / "digital_twin" / "stage8c3_misalignment_sensitivity_sweep_preview.png"
 C3C_PREVIEW = ROOT / "outputs" / "figures" / "digital_twin" / "stage8c3c_genuine_degradation_sweep_preview.png"
+C3D_PREVIEW = ROOT / "outputs" / "figures" / "digital_twin" / "stage8c3d_conservation_axis_diagnostics_preview.png"
 
 STAGE8C3_FILES = [
     ROOT / "vbb_study" / "digital_twin" / "lab_perturbations.py",
@@ -78,6 +79,10 @@ def test_docs_explain_active_report_future_and_poynting_boundary():
     assert "translation" in text
     assert "registered similarity" in text
     assert "physical placement" in text
+    assert "passive throughput" in text
+    assert "transmitted fraction" in text
+    assert "commanded-axis" in text
+    assert "field-of-view" in text
     assert "no material response" in text or "not material response" in text
 
 
@@ -208,6 +213,18 @@ def test_stage8c3c_genuine_degradation_preview_metadata_if_present():
     assert meta.get("figure_status") == "diagnostic_allowed"
     assert meta.get("model_status") == "diagnostic_preview"
     assert meta.get("stage") == "stage8c3c_genuine_degradation_sweep"
+
+
+def test_stage8c3d_conservation_axis_preview_metadata_if_present():
+    if not C3D_PREVIEW.is_file():
+        pytest.skip("Stage 8C.3D conservation/axis preview has not been generated in this checkout.")
+    from PIL import Image
+    with Image.open(C3D_PREVIEW) as img:
+        meta = dict(getattr(img, "text", {}) or {})
+    assert meta.get("final_export_allowed") == "False"
+    assert meta.get("figure_status") == "diagnostic_allowed"
+    assert meta.get("model_status") == "diagnostic_preview"
+    assert meta.get("stage") == "stage8c3d_conservation_axis_diagnostics"
 
 
 def test_core_optical_physics_not_modified():

@@ -604,6 +604,12 @@ def apply_lab_perturbations_to_stack(
         "uncoupled_enabled_controls": [row.control for row in report if row.enabled and not row.implemented],
         "pupil_clipped_power_fraction": 0.0,
         "aperture_clipped_power_fraction": 0.0,
+        "slm_active_area_clipped_power_fraction": 0.0,
+        "passive_transmitted_power_fraction": 1.0,
+        "post_engine_spatial_clipping_applied": False,
+        "passive_clipping_visual_model": (
+            "throughput audit only; no post-propagation spatial crop rendered"
+        ),
         "phase_ramp_kx_rad_per_um": 0.0,
         "phase_ramp_ky_rad_per_um": 0.0,
         "first_order_selected_fraction": float(c.get("selected_first_order_fraction", 1.0) or 1.0),
@@ -613,14 +619,26 @@ def apply_lab_perturbations_to_stack(
     x = np.asarray(stack.x_um, dtype=float)
     y = np.asarray(stack.y_um, dtype=float)
     z = np.asarray(stack.z_um, dtype=float)
+    baseline_stack_integral = max(float(np.sum(I)), 1e-12)
+    apply_post_engine_spatial_clipping = bool(c.get("enable_post_engine_spatial_clipping", False))
 
     def clip(mask: np.ndarray, key: str) -> None:
         nonlocal I
         before = float(np.sum(I))
-        I *= mask[None, :, :]
-        after = float(np.sum(I))
+        masked = I * mask[None, :, :]
+        after = float(np.sum(masked))
         if before > 0:
-            metadata[key] = max(float(metadata.get(key, 0.0)), 1.0 - after / before)
+            transmitted = float(np.clip(after / before, 0.0, 1.0))
+            metadata[key] = max(float(metadata.get(key, 0.0)), 1.0 - transmitted)
+            metadata["passive_transmitted_power_fraction"] = (
+                float(metadata["passive_transmitted_power_fraction"]) * transmitted
+            )
+        if apply_post_engine_spatial_clipping:
+            I = masked
+            metadata["post_engine_spatial_clipping_applied"] = True
+            metadata["passive_clipping_visual_model"] = (
+                "post-propagation spatial crop explicitly enabled; diagnostic artifact risk"
+            )
 
     if c["enable_beam_decentre"]:
         I = _shift_stack_xy(I, x, y, float(c["beam_decentre_x_um"]), float(c["beam_decentre_y_um"]))
@@ -634,12 +652,14 @@ def apply_lab_perturbations_to_stack(
         metadata["beam_tilt_phase_ramp"] = "E(x,y) exp[i(kx0 x + ky0 y)]"
 
     if c["enable_beam_ellipticity"]:
+        before = I.copy()
         I *= _elliptical_envelope(
             x, y,
             float(c["beam_radius_x_um"]),
             float(c["beam_radius_y_um"]),
             float(c["beam_rotation_deg"]),
         )[None, :, :]
+        I = _match_plane_integrals(I, before)
 
     if c["enable_input_aperture"]:
         clip(
@@ -687,7 +707,9 @@ def apply_lab_perturbations_to_stack(
         I = _shift_stack_xy(I, x, y, 0.20 * phase_common_dx, 0.20 * phase_common_dy)
         metadata["phase_common_translation_um"] = (0.20 * phase_common_dx, 0.20 * phase_common_dy)
     if relative_dx or relative_dy:
+        before = I
         I = _phase_centre_degrade(I, x, y, relative_dx, relative_dy)
+        I = _match_plane_integrals(I, before)
         metadata["relative_phase_misregistration_um"] = (relative_dx, relative_dy)
     if slm_dx or slm_dy or vortex_dx or vortex_dy or axicon_dx or axicon_dy:
         metadata["phase_centre_offset_um"] = {
@@ -699,30 +721,52 @@ def apply_lab_perturbations_to_stack(
         }
 
     if c["enable_slm_phase_quantisation"]:
+        before = I.copy()
         levels = max(2, int(c["slm_phase_levels"]))
         I *= _quantisation_modulation(x, y, levels)[None, :, :]
+        I = _match_plane_integrals(I, before)
 
     if c["enable_slm_pixelation"]:
+        before = I.copy()
         I *= _pixelation_modulation(x, y, float(c.get("slm_pixel_pitch_um", 8.0) or 8.0))[None, :, :]
+        I = _match_plane_integrals(I, before)
 
     if c["enable_slm_fill_factor"]:
         fill = float(c["slm_fill_factor"])
-        I *= np.clip(fill, 0.0, 1.0)
+        trans = float(np.clip(fill, 0.0, 1.0))
+        I *= trans
+        metadata["passive_transmitted_power_fraction"] = (
+            float(metadata["passive_transmitted_power_fraction"]) * trans
+        )
+        metadata["slm_fill_factor_transmitted_fraction"] = trans
 
     if c["enable_slm_dead_pixels"] and float(c["dead_pixel_fraction"]) > 0:
+        before_total = float(np.sum(I))
         I *= _dead_pixel_mask(I.shape[1:], float(c["dead_pixel_fraction"]), int(c["dead_pixel_seed"]))[None, :, :]
+        after_total = float(np.sum(I))
+        if before_total > 0:
+            trans = float(np.clip(after_total / before_total, 0.0, 1.0))
+            metadata["passive_transmitted_power_fraction"] = (
+                float(metadata["passive_transmitted_power_fraction"]) * trans
+            )
+            metadata["slm_dead_pixel_transmitted_fraction"] = trans
 
     if c["enable_slm_phase_noise"] and float(c["slm_phase_noise_rms_rad"]) > 0:
+        before = I.copy()
         I *= _seeded_noise_gain(I.shape, float(c["slm_phase_noise_rms_rad"]), int(c["slm_phase_noise_seed"]))
+        I = _match_plane_integrals(I, before)
 
     if c["enable_slm_active_area"]:
-        I *= _rect_mask(
-            x, y,
-            float(c["slm_active_width_um"]),
-            float(c["slm_active_height_um"]),
-            float(c["slm_active_area_decentre_x_um"]),
-            float(c["slm_active_area_decentre_y_um"]),
-        )[None, :, :]
+        clip(
+            _rect_mask(
+                x, y,
+                float(c["slm_active_width_um"]),
+                float(c["slm_active_height_um"]),
+                float(c["slm_active_area_decentre_x_um"]),
+                float(c["slm_active_area_decentre_y_um"]),
+            ),
+            "slm_active_area_clipped_power_fraction",
+        )
 
     if c["enable_zero_order_leakage"] and float(c.get("zero_order_leakage_fraction", 0.0)) > 0:
         frac = np.clip(float(c["zero_order_leakage_fraction"]), 0.0, 0.95)
@@ -768,7 +812,9 @@ def apply_lab_perturbations_to_stack(
         )
 
     if c["enable_zernike_aberrations"]:
+        before = I
         I = _apply_zernike_like_distortions(I, x, y, z, c)
+        I = _match_plane_integrals(I, before)
 
     axial_shift = 0.0
     if c["enable_defocus"]:
@@ -798,6 +844,11 @@ def apply_lab_perturbations_to_stack(
         metadata["camera_crop_display_only"] = True
 
     I = np.clip(I, 0.0, None)
+    metadata["post_perturbation_stack_power_fraction"] = float(np.sum(I) / baseline_stack_integral)
+    metadata["diagnostic_nonpassive_power_ratio"] = float(
+        metadata["post_perturbation_stack_power_fraction"]
+        / max(float(metadata.get("passive_transmitted_power_fraction", 1.0)), 1e-12)
+    )
     perturbed = stack_from_arrays(
         I,
         stack.x_um,
@@ -940,6 +991,20 @@ def _resample_plane(plane: np.ndarray, sample_x: np.ndarray, sample_y: np.ndarra
     return out
 
 
+def _match_plane_integrals(candidate: np.ndarray, reference: np.ndarray) -> np.ndarray:
+    """Scale each z-plane in candidate to the corresponding reference integral."""
+    out = np.asarray(candidate, dtype=float).copy()
+    ref = np.asarray(reference, dtype=float)
+    if out.shape != ref.shape:
+        return out
+    ref_sums = np.sum(ref, axis=(1, 2))
+    out_sums = np.sum(out, axis=(1, 2))
+    for i, (target, current) in enumerate(zip(ref_sums, out_sums)):
+        if float(current) > 0.0 and np.isfinite(current) and np.isfinite(target):
+            out[i] *= float(target) / float(current)
+    return out
+
+
 def _elliptical_envelope(x: np.ndarray, y: np.ndarray, rx: float, ry: float, rot_deg: float) -> np.ndarray:
     X, Y = _mesh(x, y)
     theta = np.deg2rad(float(rot_deg))
@@ -1017,9 +1082,9 @@ def _zero_order_component(I: np.ndarray, x: np.ndarray, y: np.ndarray, mode: str
     else:
         sigma = max(0.18 * max(float(np.ptp(x)), float(np.ptp(y))), 1e-9)
         base = np.exp(-(X**2 + Y**2) / (2.0 * sigma**2))
-    base /= max(float(np.max(base)), 1e-12)
-    peaks = np.max(I, axis=(1, 2))
-    return peaks[:, None, None] * base[None, :, :]
+    base_sum = max(float(np.sum(base)), 1e-12)
+    plane_sums = np.sum(np.asarray(I, dtype=float), axis=(1, 2))
+    return plane_sums[:, None, None] * base[None, :, :] / base_sum
 
 
 def _apply_zernike_like_distortions(I: np.ndarray, x: np.ndarray, y: np.ndarray, z: np.ndarray, c: Mapping[str, Any]) -> np.ndarray:

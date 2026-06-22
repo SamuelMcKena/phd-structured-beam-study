@@ -1,6 +1,6 @@
 # Stage 8C.3 Active Lab-Realism Coupling Summary
 
-Starting point for Stage 8C.3C rescue: committed Stage 8C.3/C3B baseline `dd6c469`.
+Starting point for Stage 8C.3D repair: committed Stage 8C.3C baseline `0a986b56`.
 
 Stage 8C.3 adds active, diagnostic lab-realism coupling without changing locked propagation physics. The cockpit now classifies every lab-realism control, declares affected outputs, applies physically feasible perturbations to canonical optical stacks, reports degradation metrics, and flags enabled controls that remain warning-only or future-stage.
 
@@ -81,6 +81,20 @@ outputs/figures/digital_twin/stage8c3c_genuine_degradation_sweep_preview.png
 
 Stage 8C.3C separates translation from deformation. The metric set now includes `unregistered_similarity_score`, `registered_similarity_score`, `centroid_shift_um`, `translation_dominated_boolean`, and `residual_shape_deformation_score`. Co-shifted vortex+axicon is kept only as a translation diagnostic; relative vortex/axicon misregistration is the primary Scenario A. The replacement sweep covers relative vortex/axicon offsets, beam decentre with finite SLM aperture, beam tilt with finite pupil, objective pupil decentre/clipping, coma/astigmatism/defocus/spherical aberration, zero-order leakage, and a combined diagnostic stress test.
 
+Stage 8C.3D conservation/axis diagnostic preview:
+
+```text
+outputs/figures/digital_twin/stage8c3d_conservation_axis_diagnostics_preview.png
+```
+
+Stage 8C.3D does not claim a full pre-propagation component beamline engine. It repairs the diagnostic stress visualizer so passive clipping/loss controls reduce the perturbed pulse energy instead of being silently restored by per-plane fluence scaling. The audit reports input pulse energy, energy before perturbation, energy after passive loss, transmitted fraction, peak-to-total-energy ratio, and renormalisation factor applied.
+
+Post-engine spatial clipping is disabled in the headline preview because multiplying upstream aperture masks through already-propagated z-planes produced harsh straight XZ cutoffs that were diagnostic artifacts, not true propagated physics. Passive aperture/pupil/SLM active-area losses are shown as throughput loss unless artifact-risk post-engine clipping is explicitly enabled for investigation.
+
+The saved C3D headline preview now uses low-order aberrations as the visual scenario so the main field panels show smooth diagnostic deformation rather than clipping-heavy stress artifacts. Combined stress and passive clipping cases remain in the scenario audit table and throughput ledger only until a real upstream aperture/pupil propagation path is available.
+
+The C3D metric set also adds commanded-axis versus actual-axis diagnostics: commanded x/y, fitted ring centre, brightest-point offset, fitted beam-axis surface intercept, target-plane axis offset, steering angle, field-of-view margin, out-of-frame fraction, and crop-edge energy fraction. Co-shifted vortex+axicon remains a translation diagnostic; genuine degradation scenarios remain separated from pure translation by registered similarity and residual shape deformation.
+
 ## Governance
 
-Core optical physics, scalar/vector propagation equations, axicon physics, characterization locks, validation baselines, and production baselines were not changed. No material-response claim is introduced. Stage 8C.3 remains a diagnostic optical/fluence cockpit pass only.
+Core optical physics, scalar/vector propagation equations, axicon physics, characterization locks, validation baselines, and production baselines were not changed. No material-response claim is introduced. Stage 8C.3 remains a diagnostic optical/fluence cockpit pass only, with actual post-engine diagnostic implementation stage reported separately from intended physical placement.
