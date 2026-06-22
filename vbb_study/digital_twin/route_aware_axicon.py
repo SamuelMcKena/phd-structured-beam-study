@@ -1,11 +1,14 @@
-"""Stage 8C.3R.3 route-aware physical-axicon alignment diagnostics.
+"""Stage 8C.3 route-aware physical-axicon beamline diagnostics.
 
 This module keeps the Stage 8C.3R study in free space (``n = 1.0``) while
-making perturbation placement explicit.  The physical-axicon route is represented
-as an ordered graph of named planes, propagation segments, and thin elements.
-The same perturbation type can be injected at different represented planes, and
-therefore passes through different downstream segments/elements before reaching
-the free-space reference plane.
+representing the physical-axicon route as an ordered component/segment chain.
+Supported lab-realism errors belong to named components and are applied in the
+local component plane, then propagated through all downstream represented
+segments/elements.
+
+Field-state controls are retained only as explicitly labelled boundary
+conditions at named planes.  They are not treated as generic stand-ins for every
+possible upstream hardware error.
 
 All default distances are diagnostic demo geometry, not measured bench
 distances.  Outputs are optical/fluence diagnostics only;
@@ -80,6 +83,20 @@ REPRESENTED_PHYSICAL_AXICON_LOCATIONS: tuple[str, ...] = (
     "free_space_reference_plane",
 )
 
+EXECUTED_PHYSICAL_AXICON_COMPONENT_IDS: tuple[str, ...] = (
+    "source_field",
+    "source_boundary_condition",
+    "input_aperture",
+    "source_to_physical_axicon",
+    "physical_axicon_input_boundary",
+    "physical_axicon",
+    "after_physical_axicon_boundary",
+    "physical_axicon_to_after_objective",
+    "after_objective_boundary",
+    "after_objective_to_reference",
+    "reference_plane",
+)
+
 
 @dataclass(frozen=True)
 class RouteGraphNode:
@@ -104,6 +121,11 @@ class RoutePerturbationRecord:
     downstream_elements_affected: tuple[str, ...]
     status: str
     note: str = ""
+    component_id: str = ""
+    boundary_plane: str = ""
+    physical_approximation: str = ""
+    upstream_hardware_error_could_emulate: str = ""
+    downstream_components_consume: tuple[str, ...] = ()
 
     @property
     def physical_location(self) -> str:
@@ -127,6 +149,129 @@ class RoutePerturbationRecord:
             "active / warning-only / future status": self.status,
             "classification": self.status,
             "note": self.note,
+            "component_id": self.component_id,
+            "boundary_plane": self.boundary_plane,
+            "physical_approximation": self.physical_approximation,
+            "upstream_hardware_error_could_emulate": self.upstream_hardware_error_could_emulate,
+            "downstream_components_consume": list(self.downstream_components_consume),
+        }
+
+
+@dataclass(frozen=True)
+class ComponentPose:
+    """Physical pose error for a represented component."""
+
+    decentre_x_um: float = 0.0
+    decentre_y_um: float = 0.0
+    axial_offset_um: float = 0.0
+    tip_x_mrad: float = 0.0
+    tip_y_mrad: float = 0.0
+    roll_deg: float = 0.0
+
+    def as_dict(self) -> dict[str, float]:
+        return {
+            "decentre_x_um": float(self.decentre_x_um),
+            "decentre_y_um": float(self.decentre_y_um),
+            "axial_offset_um": float(self.axial_offset_um),
+            "tip_x_mrad": float(self.tip_x_mrad),
+            "tip_y_mrad": float(self.tip_y_mrad),
+            "roll_deg": float(self.roll_deg),
+        }
+
+
+@dataclass(frozen=True)
+class BeamlineComponent:
+    """One ordered component or propagation segment in the diagnostic route."""
+
+    component_id: str
+    component_type: str
+    physical_location: str
+    nominal_z_position_um: float
+    distance_from_previous_component_mm: float
+    distance_to_next_element_mm: float
+    enabled: bool
+    physical_pose: ComponentPose = field(default_factory=ComponentPose)
+    component_specific_parameters: Mapping[str, Any] = field(default_factory=dict)
+    clear_aperture: Mapping[str, Any] = field(default_factory=dict)
+    status: str = "physics_active"
+    represented_by_current_engine: bool = True
+    physical_model_available: bool = True
+    misalignment_modes_currently_supported: tuple[str, ...] = ()
+    downstream_elements_affected: tuple[str, ...] = ()
+    note: str = ""
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "component_id": self.component_id,
+            "component_type": self.component_type,
+            "physical_location": self.physical_location,
+            "nominal_z_position_um": float(self.nominal_z_position_um),
+            "distance_from_previous_component_mm": float(self.distance_from_previous_component_mm),
+            "distance_to_next_element_mm": float(self.distance_to_next_element_mm),
+            "enabled": bool(self.enabled),
+            "physical_pose": self.physical_pose.as_dict(),
+            "component_specific_parameters": dict(self.component_specific_parameters),
+            "clear_aperture": dict(self.clear_aperture),
+            "active / warning-only / future status": self.status,
+            "represented_by_current_engine": bool(self.represented_by_current_engine),
+            "physical_model_available": bool(self.physical_model_available),
+            "misalignment_modes_currently_supported": list(self.misalignment_modes_currently_supported),
+            "downstream_elements_affected": list(self.downstream_elements_affected),
+            "note": self.note,
+        }
+
+
+@dataclass(frozen=True)
+class RouteInspectionRecord:
+    """Per-component incoming/outgoing diagnostic state for the route view."""
+
+    component_id: str
+    component_name: str
+    component_type: str
+    nominal_location_um: float
+    distance_from_previous_component_mm: float
+    distance_to_next_element_mm: float
+    actual_pose_error: Mapping[str, float]
+    incoming_field_metrics: Mapping[str, float]
+    outgoing_field_metrics: Mapping[str, float]
+    energy_before_uJ: float
+    energy_after_uJ: float
+    centroid_before_um: tuple[float, float]
+    centroid_after_um: tuple[float, float]
+    angle_before_mrad: tuple[float, float]
+    angle_after_mrad: tuple[float, float]
+    aperture_overlap: float | None
+    downstream_consequences: tuple[str, ...]
+    model_status: str
+    warnings: tuple[str, ...] = ()
+    represented_by_current_engine: bool = True
+    physical_model_available: bool = True
+    misalignment_modes_currently_supported: tuple[str, ...] = ()
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "component name": self.component_name,
+            "component_id": self.component_id,
+            "component_type": self.component_type,
+            "nominal location (um)": float(self.nominal_location_um),
+            "distance_from_previous_component_mm": float(self.distance_from_previous_component_mm),
+            "distance_to_next_element_mm": float(self.distance_to_next_element_mm),
+            "actual_pose_error": dict(self.actual_pose_error),
+            "incoming_field_metrics": dict(self.incoming_field_metrics),
+            "outgoing_field_metrics": dict(self.outgoing_field_metrics),
+            "energy before (uJ)": float(self.energy_before_uJ),
+            "energy after (uJ)": float(self.energy_after_uJ),
+            "centroid before (um)": tuple(float(v) for v in self.centroid_before_um),
+            "centroid after (um)": tuple(float(v) for v in self.centroid_after_um),
+            "angle before (mrad)": tuple(float(v) for v in self.angle_before_mrad),
+            "angle after (mrad)": tuple(float(v) for v in self.angle_after_mrad),
+            "aperture overlap": None if self.aperture_overlap is None else float(self.aperture_overlap),
+            "downstream consequences": list(self.downstream_consequences),
+            "model status": self.model_status,
+            "warnings": list(self.warnings),
+            "represented_by_current_engine": bool(self.represented_by_current_engine),
+            "physical_model_available": bool(self.physical_model_available),
+            "misalignment_modes_currently_supported": list(self.misalignment_modes_currently_supported),
         }
 
 
@@ -152,6 +297,8 @@ class RouteAwareAxiconConfig:
     input_beam_ellipticity: float = 1.0
     input_beam_rotation_deg: float = 0.0
     input_aperture_radius_um: float = 48.0
+    input_aperture_centre_x_um: float = 0.0
+    input_aperture_centre_y_um: float = 0.0
 
     # Correct C3R.3 perturbation controls: type + magnitude + injection location.
     field_tilt_x_mrad: float = 0.0
@@ -174,6 +321,7 @@ class RouteAwareAxiconConfig:
 
     physical_axicon_centre_x_um: float = 0.0
     physical_axicon_centre_y_um: float = 0.0
+    physical_axicon_axial_offset_um: float = 0.0
     physical_axicon_clear_aperture_radius_um: float = 42.0
     axicon_cone_parameter: float = 1.05  # rad / um
     physical_axicon_mechanical_tilt_x_mrad: float = 0.0
@@ -223,12 +371,14 @@ class RouteAwareAxiconConfig:
 class RouteAwareAxiconRun:
     config: RouteAwareAxiconConfig
     route_mode: str
+    component_chain: tuple[BeamlineComponent, ...]
     source_state: ComponentPlaneState
     axicon_incident_state: ComponentPlaneState
     physical_axicon_state: ComponentPlaneState
     reference_plane_state: ComponentPlaneState
     propagated_stack: PropagatedFieldStack
     axicon_incidence_metrics: Mapping[str, Any]
+    route_inspection_records: tuple[RouteInspectionRecord, ...]
     perturbation_records: tuple[RoutePerturbationRecord, ...]
     warnings: tuple[str, ...] = ()
     metadata: Mapping[str, Any] = field(default_factory=dict)
@@ -317,24 +467,29 @@ def _xy_um(grid: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray]:
 
 def physical_axicon_route_graph(config: RouteAwareAxiconConfig) -> tuple[RouteGraphNode, ...]:
     """Represented route graph for the physical-axicon diagnostic path."""
+    source_to_axicon_mm, axicon_to_objective_mm, objective_to_ref_mm = _actual_segment_distances_mm(config)
     return (
-        RouteGraphNode("source field", "plane", "source_plane", note="complex source/input field"),
-        RouteGraphNode("beam conditioning", "element", "after_beam_conditioning",
-                       note="ellipticity and source/input aperture"),
+        RouteGraphNode("source field", "element", "source_plane", note="complex source/input field"),
+        RouteGraphNode("source boundary condition", "field_state_boundary", "source_plane",
+                       note="explicit boundary approximation, not hardware misalignment"),
+        RouteGraphNode("input aperture", "element", "after_beam_conditioning",
+                       note="field-transforming aperture component"),
         RouteGraphNode("source to axicon", "propagation_segment", "before_physical_axicon",
-                       distance_mm=float(config.pre_axicon_distance_mm),
+                       distance_mm=float(source_to_axicon_mm),
                        note=DIAGNOSTIC_GEOMETRY_NOTE),
+        RouteGraphNode("axicon input boundary condition", "field_state_boundary", "before_physical_axicon",
+                       note="explicit boundary approximation consumed by downstream axicon"),
         RouteGraphNode("physical axicon", "element", "physical_axicon_plane",
-                       note="fixed thin axicon phase and clear aperture"),
-        RouteGraphNode("after axicon", "plane", "after_physical_axicon",
-                       note="post-axicon field immediately after thin element"),
+                       note="fixed thin axicon phase and clear aperture; local pose controls apply here"),
+        RouteGraphNode("after axicon boundary condition", "field_state_boundary", "after_physical_axicon",
+                       note="post-axicon steering test boundary; not an upstream axicon fault"),
         RouteGraphNode("axicon to after-objective", "propagation_segment", "after_objective",
-                       distance_mm=float(config.axicon_to_objective_distance_mm),
+                       distance_mm=float(axicon_to_objective_mm),
                        note=DIAGNOSTIC_GEOMETRY_NOTE),
-        RouteGraphNode("after objective", "plane", "after_objective",
-                       note="represented downstream steering plane; no objective model is added"),
+        RouteGraphNode("after objective boundary condition", "field_state_boundary", "after_objective",
+                       note="downstream steering boundary; no objective model is added"),
         RouteGraphNode("after-objective to reference", "propagation_segment", "free_space_reference_plane",
-                       distance_mm=float(config.objective_to_reference_distance_mm),
+                       distance_mm=float(objective_to_ref_mm),
                        note=DIAGNOSTIC_GEOMETRY_NOTE),
         RouteGraphNode("free-space reference", "reference", "free_space_reference_plane",
                        note="post-objective/reference plane in air; no material model"),
@@ -358,14 +513,251 @@ def _downstream_elements(location: str) -> tuple[str, ...]:
     return tuple(elements)
 
 
+def _downstream_component_ids(component_id: str) -> tuple[str, ...]:
+    if component_id not in EXECUTED_PHYSICAL_AXICON_COMPONENT_IDS:
+        return ()
+    i = EXECUTED_PHYSICAL_AXICON_COMPONENT_IDS.index(component_id)
+    return EXECUTED_PHYSICAL_AXICON_COMPONENT_IDS[i + 1:]
+
+
+def _boundary_component_id_for_location(location: str) -> str:
+    loc = _valid_location(location)
+    return {
+        "source_plane": "source_boundary_condition",
+        "after_beam_conditioning": "source_boundary_condition",
+        "before_physical_axicon": "physical_axicon_input_boundary",
+        "after_physical_axicon": "after_physical_axicon_boundary",
+        "after_objective": "after_objective_boundary",
+        "free_space_reference_plane": "reference_plane",
+    }.get(loc, "not_represented_by_current_engine")
+
+
+def _actual_segment_distances_mm(config: RouteAwareAxiconConfig) -> tuple[float, float, float]:
+    ax_shift_mm = float(config.physical_axicon_axial_offset_um) / 1000.0
+    source_to_axicon = float(config.pre_axicon_distance_mm) + ax_shift_mm
+    axicon_to_objective = float(config.axicon_to_objective_distance_mm) - ax_shift_mm
+    objective_to_reference = float(config.objective_to_reference_distance_mm)
+    return max(source_to_axicon, 0.0), max(axicon_to_objective, 0.0), max(objective_to_reference, 0.0)
+
+
+def build_physical_axicon_beamline(config: RouteAwareAxiconConfig) -> tuple[BeamlineComponent, ...]:
+    """Return the executed ordered component/segment chain for the physical-axicon route."""
+    source_to_axicon_mm, axicon_to_objective_mm, objective_to_ref_mm = _actual_segment_distances_mm(config)
+    nominal_axicon_z_um = float(config.pre_axicon_distance_um)
+    actual_axicon_z_um = nominal_axicon_z_um + float(config.physical_axicon_axial_offset_um)
+    nominal_objective_z_um = nominal_axicon_z_um + float(config.axicon_to_objective_distance_um)
+    reference_z_um = nominal_objective_z_um + float(config.objective_to_reference_distance_um)
+
+    def downstream(cid: str) -> tuple[str, ...]:
+        return _downstream_component_ids(cid)
+
+    return (
+        BeamlineComponent(
+            "source_field", "source", "source_plane", 0.0, 0.0, 0.0, True,
+            component_specific_parameters={
+                "beam_radius_um": float(config.input_beam_radius_um),
+                "ellipticity": float(config.input_beam_ellipticity),
+                "rotation_deg": float(config.input_beam_rotation_deg),
+            },
+            misalignment_modes_currently_supported=("source_field_boundary_shape",),
+            downstream_elements_affected=downstream("source_field"),
+            note="complex scalar source field; no material response",
+        ),
+        BeamlineComponent(
+            "source_boundary_condition", "field_state_boundary", "source_plane", 0.0, 0.0, 0.0, True,
+            component_specific_parameters={
+                "boundary_plane": "source_plane",
+                "physical_approximation": "input field state supplied at source boundary",
+                "could_emulate": "upstream source/steering error not explicitly represented",
+            },
+            status="boundary_condition",
+            physical_model_available=False,
+            misalignment_modes_currently_supported=("field_tilt", "beam_decentre"),
+            downstream_elements_affected=downstream("source_boundary_condition"),
+            note="not a component misalignment; consumes field-state controls only when targeted here",
+        ),
+        BeamlineComponent(
+            "input_aperture", "aperture", "after_beam_conditioning", 0.0, 0.0,
+            source_to_axicon_mm, True,
+            ComponentPose(
+                decentre_x_um=float(config.input_aperture_centre_x_um),
+                decentre_y_um=float(config.input_aperture_centre_y_um),
+            ),
+            clear_aperture={"shape": "circular", "radius_um": float(config.input_aperture_radius_um)},
+            misalignment_modes_currently_supported=("decentre_x_um", "decentre_y_um", "radius_um"),
+            downstream_elements_affected=downstream("input_aperture"),
+            note="active aperture element at the source/conditioning plane",
+        ),
+        BeamlineComponent(
+            "source_to_physical_axicon", "propagation_segment", "before_physical_axicon",
+            0.0, 0.0, source_to_axicon_mm, True,
+            component_specific_parameters={"distance_to_next_element_mm": source_to_axicon_mm},
+            misalignment_modes_currently_supported=("distance_to_next_element_mm",),
+            downstream_elements_affected=downstream("source_to_physical_axicon"),
+            note=DIAGNOSTIC_GEOMETRY_NOTE,
+        ),
+        BeamlineComponent(
+            "physical_axicon_input_boundary", "field_state_boundary", "before_physical_axicon",
+            actual_axicon_z_um, source_to_axicon_mm, 0.0, True,
+            component_specific_parameters={
+                "boundary_plane": "before_physical_axicon",
+                "physical_approximation": "field state supplied immediately before axicon",
+                "could_emulate": "upstream steering/decentre accumulated before axicon",
+            },
+            status="boundary_condition",
+            physical_model_available=False,
+            misalignment_modes_currently_supported=("field_tilt", "beam_decentre"),
+            downstream_elements_affected=downstream("physical_axicon_input_boundary"),
+            note="not a component misalignment; explicit axicon-input boundary condition",
+        ),
+        BeamlineComponent(
+            "physical_axicon", "physical_axicon", "physical_axicon_plane",
+            nominal_axicon_z_um, source_to_axicon_mm, axicon_to_objective_mm, True,
+            ComponentPose(
+                decentre_x_um=float(config.physical_axicon_centre_x_um),
+                decentre_y_um=float(config.physical_axicon_centre_y_um),
+                axial_offset_um=float(config.physical_axicon_axial_offset_um),
+                tip_x_mrad=float(config.physical_axicon_mechanical_tilt_x_mrad),
+                tip_y_mrad=float(config.physical_axicon_mechanical_tilt_y_mrad),
+            ),
+            component_specific_parameters={"cone_parameter_rad_per_um": float(config.axicon_cone_parameter)},
+            clear_aperture={"shape": "circular", "radius_um": float(config.physical_axicon_clear_aperture_radius_um)},
+            misalignment_modes_currently_supported=(
+                "decentre_x_um", "decentre_y_um", "axial_offset_um",
+                "clear_aperture_radius_um", "cone_parameter_rad_per_um",
+            ),
+            downstream_elements_affected=downstream("physical_axicon"),
+            note="thin scalar axicon transmission: aperture * exp(i phase); mechanical tilt is not active",
+        ),
+        BeamlineComponent(
+            "after_physical_axicon_boundary", "field_state_boundary", "after_physical_axicon",
+            actual_axicon_z_um, 0.0, axicon_to_objective_mm, True,
+            component_specific_parameters={
+                "boundary_plane": "after_physical_axicon",
+                "physical_approximation": "post-axicon steering test",
+                "could_emulate": "downstream steering optic only if such optic is declared separately",
+            },
+            status="boundary_condition",
+            physical_model_available=False,
+            misalignment_modes_currently_supported=("field_tilt", "beam_decentre"),
+            downstream_elements_affected=downstream("after_physical_axicon_boundary"),
+            note="boundary condition, not an upstream axicon fault",
+        ),
+        BeamlineComponent(
+            "physical_axicon_to_after_objective", "propagation_segment", "after_objective",
+            actual_axicon_z_um, 0.0, axicon_to_objective_mm, True,
+            component_specific_parameters={"distance_to_next_element_mm": axicon_to_objective_mm},
+            misalignment_modes_currently_supported=("distance_to_next_element_mm",),
+            downstream_elements_affected=downstream("physical_axicon_to_after_objective"),
+            note=DIAGNOSTIC_GEOMETRY_NOTE,
+        ),
+        BeamlineComponent(
+            "after_objective_boundary", "field_state_boundary", "after_objective",
+            nominal_objective_z_um, axicon_to_objective_mm, objective_to_ref_mm, True,
+            component_specific_parameters={
+                "boundary_plane": "after_objective",
+                "physical_approximation": "downstream/reference steering boundary",
+                "could_emulate": "post-objective steering if that optic is represented elsewhere",
+            },
+            status="boundary_condition",
+            physical_model_available=False,
+            misalignment_modes_currently_supported=("field_tilt", "beam_decentre"),
+            downstream_elements_affected=downstream("after_objective_boundary"),
+            note="no objective model is introduced in Stage 8C.3",
+        ),
+        BeamlineComponent(
+            "after_objective_to_reference", "propagation_segment", "free_space_reference_plane",
+            nominal_objective_z_um, 0.0, objective_to_ref_mm, True,
+            component_specific_parameters={"distance_to_next_element_mm": objective_to_ref_mm},
+            misalignment_modes_currently_supported=("distance_to_next_element_mm",),
+            downstream_elements_affected=downstream("after_objective_to_reference"),
+            note=DIAGNOSTIC_GEOMETRY_NOTE,
+        ),
+        BeamlineComponent(
+            "reference_plane", "reference_plane", "free_space_reference_plane",
+            reference_z_um, objective_to_ref_mm, 0.0, True,
+            status="diagnostic_only",
+            physical_model_available=False,
+            misalignment_modes_currently_supported=(),
+            downstream_elements_affected=(),
+            note="free-space optical diagnostic plane; no sample or material model",
+        ),
+    )
+
+
+def build_route_component_declarations(config: RouteAwareAxiconConfig) -> tuple[BeamlineComponent, ...]:
+    """Return represented components plus explicitly unsupported route declarations."""
+    represented = list(build_physical_axicon_beamline(config))
+    unsupported = [
+        BeamlineComponent(
+            "steering_mirror", "steering_mirror", "not_represented_by_current_engine",
+            0.0, 0.0, 0.0, False, status="warning_only",
+            represented_by_current_engine=False, physical_model_available=False,
+            misalignment_modes_currently_supported=(),
+            downstream_elements_affected=("input_aperture", "physical_axicon", "reference_plane"),
+            note="mirror tilt requires an explicit mirror/reflection plane; otherwise use a labelled field boundary",
+        ),
+        BeamlineComponent(
+            "SLM1", "SLM", "not_represented_by_current_engine",
+            0.0, 0.0, 0.0, False, status="warning_only",
+            represented_by_current_engine=False, physical_model_available=False,
+            misalignment_modes_currently_supported=(),
+            downstream_elements_affected=("Fourier_filter", "relay_lens", "objective_pupil"),
+            note="holographic SLM route is not executed by the physical-axicon engine",
+        ),
+        BeamlineComponent(
+            "SLM2", "SLM", "not_represented_by_current_engine",
+            0.0, 0.0, 0.0, False, status="warning_only",
+            represented_by_current_engine=False, physical_model_available=False,
+            misalignment_modes_currently_supported=(),
+            downstream_elements_affected=("Fourier_filter", "relay_lens", "objective_pupil"),
+            note="holographic SLM route is not executed by the physical-axicon engine",
+        ),
+        BeamlineComponent(
+            "Fourier_filter", "Fourier_filter", "fourier_plane",
+            0.0, 0.0, 0.0, False, status="warning_only",
+            represented_by_current_engine=False, physical_model_available=False,
+            misalignment_modes_currently_supported=(),
+            downstream_elements_affected=("relay_lens", "objective_pupil"),
+            note="no explicit 4F Fourier filtering plane in the current engine",
+        ),
+        BeamlineComponent(
+            "relay_lens", "relay_lens", "relay_plane",
+            0.0, 0.0, 0.0, False, status="warning_only",
+            represented_by_current_engine=False, physical_model_available=False,
+            misalignment_modes_currently_supported=(),
+            downstream_elements_affected=("objective_pupil",),
+            note="relay imaging plane is not represented by the physical-axicon engine",
+        ),
+        BeamlineComponent(
+            "objective_pupil", "objective_pupil", "objective_pupil_plane",
+            0.0, 0.0, 0.0, False, status="future_not_implemented",
+            represented_by_current_engine=False, physical_model_available=False,
+            misalignment_modes_currently_supported=(),
+            downstream_elements_affected=("objective", "reference_plane"),
+            note="pupil clipping/Zernike model is not part of this free-space physical-axicon correction",
+        ),
+        BeamlineComponent(
+            "objective", "objective", "after_objective",
+            0.0, 0.0, 0.0, False, status="future_not_implemented",
+            represented_by_current_engine=False, physical_model_available=False,
+            misalignment_modes_currently_supported=(),
+            downstream_elements_affected=("reference_plane",),
+            note="objective physics is not modelled; only a downstream boundary plane is available",
+        ),
+    ]
+    return tuple(represented + unsupported)
+
+
 def _location_is_upstream_of_axicon(location: str) -> bool:
     return _valid_location(location) in {"source_plane", "after_beam_conditioning", "before_physical_axicon"}
 
 
 def _distance_from_location_to_axicon_um(location: str, config: RouteAwareAxiconConfig) -> float:
     loc = _valid_location(location)
+    source_to_axicon_mm, _, _ = _actual_segment_distances_mm(config)
     if loc in {"source_plane", "after_beam_conditioning"}:
-        return float(config.pre_axicon_distance_um)
+        return float(source_to_axicon_mm) * 1000.0
     if loc == "before_physical_axicon":
         return 0.0
     return 0.0
@@ -420,6 +812,86 @@ def _spectral_angle_mrad(field: np.ndarray, grid: Mapping[str, Any],
     k = config.k_medium_rad_per_m
     kz = np.sqrt(max(k * k - mx * mx - my * my, 1e-30))
     return float(np.arctan2(mx, kz) * 1000.0), float(np.arctan2(my, kz) * 1000.0)
+
+
+def _field_metric_summary(
+    field: np.ndarray,
+    grid: Mapping[str, Any],
+    config: RouteAwareAxiconConfig,
+    energy_uJ: float,
+) -> dict[str, float]:
+    x_um, y_um = _xy_um(grid)
+    cx, cy = _centroid(field, x_um, y_um)
+    ax, ay = _spectral_angle_mrad(field, grid, config)
+    rx, ry, ell = _beam_radii(field, x_um, y_um, cx, cy)
+    return {
+        "energy_uJ": float(energy_uJ),
+        "field_power_integral": float(field_power(field, config.dx_um, config.dx_um)),
+        "centroid_x_um": float(cx),
+        "centroid_y_um": float(cy),
+        "angle_x_mrad": float(ax),
+        "angle_y_mrad": float(ay),
+        "beam_radius_x_um": float(rx),
+        "beam_radius_y_um": float(ry),
+        "ellipticity": float(ell),
+    }
+
+
+def _energy_after_transform(
+    energy_before_uJ: float,
+    field_before: np.ndarray,
+    field_after: np.ndarray,
+    config: RouteAwareAxiconConfig,
+) -> float:
+    p0 = field_power(field_before, config.dx_um, config.dx_um)
+    p1 = field_power(field_after, config.dx_um, config.dx_um)
+    return float(energy_before_uJ) * p1 / max(p0, 1e-30)
+
+
+def _make_inspection_record(
+    component: BeamlineComponent,
+    field_before: np.ndarray,
+    field_after: np.ndarray,
+    energy_before_uJ: float,
+    energy_after_uJ: float,
+    grid: Mapping[str, Any],
+    config: RouteAwareAxiconConfig,
+    *,
+    aperture_overlap: float | None = None,
+    warnings: tuple[str, ...] = (),
+    model_status: str | None = None,
+) -> RouteInspectionRecord:
+    incoming = _field_metric_summary(field_before, grid, config, energy_before_uJ)
+    outgoing = _field_metric_summary(field_after, grid, config, energy_after_uJ)
+    return RouteInspectionRecord(
+        component_id=component.component_id,
+        component_name=component.component_id.replace("_", " "),
+        component_type=component.component_type,
+        nominal_location_um=float(component.nominal_z_position_um),
+        distance_from_previous_component_mm=float(component.distance_from_previous_component_mm),
+        distance_to_next_element_mm=float(component.distance_to_next_element_mm),
+        actual_pose_error=component.physical_pose.as_dict(),
+        incoming_field_metrics=incoming,
+        outgoing_field_metrics=outgoing,
+        energy_before_uJ=float(energy_before_uJ),
+        energy_after_uJ=float(energy_after_uJ),
+        centroid_before_um=(incoming["centroid_x_um"], incoming["centroid_y_um"]),
+        centroid_after_um=(outgoing["centroid_x_um"], outgoing["centroid_y_um"]),
+        angle_before_mrad=(incoming["angle_x_mrad"], incoming["angle_y_mrad"]),
+        angle_after_mrad=(outgoing["angle_x_mrad"], outgoing["angle_y_mrad"]),
+        aperture_overlap=aperture_overlap,
+        downstream_consequences=component.downstream_elements_affected,
+        model_status=model_status or component.status,
+        warnings=warnings,
+        represented_by_current_engine=component.represented_by_current_engine,
+        physical_model_available=component.physical_model_available,
+        misalignment_modes_currently_supported=component.misalignment_modes_currently_supported,
+    )
+
+
+def route_inspection_rows(run: RouteAwareAxiconRun) -> tuple[dict[str, Any], ...]:
+    """Return GUI-ready route-inspection rows for an executed run."""
+    return tuple(r.as_dict() for r in run.route_inspection_records)
 
 
 def _field_of_view_margin_um(field: np.ndarray, x_um: np.ndarray, y_um: np.ndarray) -> float:
@@ -497,6 +969,8 @@ def build_route_perturbation_records(config: RouteAwareAxiconConfig) -> tuple[Ro
     route = str(config.route_mode)
     tilt_loc = _valid_location(config.field_tilt_location)
     dec_loc = _valid_location(config.beam_decentre_location)
+    tilt_component = _boundary_component_id_for_location(tilt_loc)
+    dec_component = _boundary_component_id_for_location(dec_loc)
     tilt_status = "post_axicon_steering_test" if tilt_loc == "after_physical_axicon" else "physics_active"
     if tilt_loc == "free_space_reference_plane":
         tilt_status = "diagnostic_only"
@@ -505,37 +979,69 @@ def build_route_perturbation_records(config: RouteAwareAxiconConfig) -> tuple[Ro
             "field_tilt_x_mrad", "field_tilt", float(config.field_tilt_x_mrad), "mrad",
             abs(config.field_tilt_x_mrad) > 0, tilt_loc, route, tilt_loc,
             _downstream_elements(tilt_loc), tilt_status,
-            "generic field tilt injected at the declared represented route location",
+            "field-state boundary condition at a named plane, not a generic component misalignment",
+            tilt_component, tilt_loc,
+            "phase ramp applied to the complex field at the boundary plane",
+            "upstream steering/mirror/source-angle error if that hardware is not explicitly represented",
+            _downstream_component_ids(tilt_component),
         ),
         RoutePerturbationRecord(
             "field_tilt_y_mrad", "field_tilt", float(config.field_tilt_y_mrad), "mrad",
             abs(config.field_tilt_y_mrad) > 0, tilt_loc, route, tilt_loc,
             _downstream_elements(tilt_loc), tilt_status,
-            "generic field tilt injected at the declared represented route location",
+            "field-state boundary condition at a named plane, not a generic component misalignment",
+            tilt_component, tilt_loc,
+            "phase ramp applied to the complex field at the boundary plane",
+            "upstream steering/mirror/source-angle error if that hardware is not explicitly represented",
+            _downstream_component_ids(tilt_component),
         ),
         RoutePerturbationRecord(
             "beam_decentre_x_um", "beam_decentre", float(config.beam_decentre_x_um), "um",
             abs(config.beam_decentre_x_um) > 0, dec_loc, route, dec_loc,
             _downstream_elements(dec_loc), "physics_active",
-            "generic transverse field shift injected at the declared route location",
+            "field-state boundary condition at a named plane, not a generic component misalignment",
+            dec_component, dec_loc,
+            "transverse interpolation shift applied to the complex field at the boundary plane",
+            "upstream decentre/walkoff if that hardware is not explicitly represented",
+            _downstream_component_ids(dec_component),
         ),
         RoutePerturbationRecord(
             "beam_decentre_y_um", "beam_decentre", float(config.beam_decentre_y_um), "um",
             abs(config.beam_decentre_y_um) > 0, dec_loc, route, dec_loc,
             _downstream_elements(dec_loc), "physics_active",
-            "generic transverse field shift injected at the declared route location",
+            "field-state boundary condition at a named plane, not a generic component misalignment",
+            dec_component, dec_loc,
+            "transverse interpolation shift applied to the complex field at the boundary plane",
+            "upstream decentre/walkoff if that hardware is not explicitly represented",
+            _downstream_component_ids(dec_component),
         ),
         RoutePerturbationRecord(
             "input_beam_ellipticity", "beam_shape", float(config.input_beam_ellipticity), "ratio",
             abs(config.input_beam_ellipticity - 1.0) > 1e-12, "source_plane", route,
             "source_plane", _downstream_elements("source_plane"), "physics_active",
-            "source-plane beam conditioning",
+            "source-field component parameter",
+            "source_field",
         ),
         RoutePerturbationRecord(
             "input_aperture_radius_um", "aperture", float(config.input_aperture_radius_um), "um",
             True, "after_beam_conditioning", route, "after_beam_conditioning",
             _downstream_elements("after_beam_conditioning"), "physics_active",
-            "source/input aperture; default is diagnostic demo geometry",
+            "input-aperture clear radius at the aperture component plane",
+            "input_aperture",
+        ),
+        RoutePerturbationRecord(
+            "input_aperture_centre_x_um", "aperture_decentre", float(config.input_aperture_centre_x_um), "um",
+            abs(config.input_aperture_centre_x_um) > 0, "after_beam_conditioning", route,
+            "after_beam_conditioning", _downstream_elements("after_beam_conditioning"), "physics_active",
+            "input-aperture pose decentre applied at its own component plane",
+            "input_aperture",
+        ),
+        RoutePerturbationRecord(
+            "input_aperture_centre_y_um", "aperture_decentre", float(config.input_aperture_centre_y_um), "um",
+            abs(config.input_aperture_centre_y_um) > 0, "after_beam_conditioning", route,
+            "after_beam_conditioning", _downstream_elements("after_beam_conditioning"), "physics_active",
+            "input-aperture pose decentre applied at its own component plane",
+            "input_aperture",
         ),
         RoutePerturbationRecord(
             "physical_axicon_centre_x_um", "mechanical_lateral_offset",
@@ -543,6 +1049,7 @@ def build_route_perturbation_records(config: RouteAwareAxiconConfig) -> tuple[Ro
             abs(config.physical_axicon_centre_x_um) > 0, "physical_axicon_plane", route,
             "physical_axicon_plane", _downstream_elements("physical_axicon_plane"), "physics_active",
             "mechanical lateral axicon displacement",
+            "physical_axicon",
         ),
         RoutePerturbationRecord(
             "physical_axicon_centre_y_um", "mechanical_lateral_offset",
@@ -550,6 +1057,15 @@ def build_route_perturbation_records(config: RouteAwareAxiconConfig) -> tuple[Ro
             abs(config.physical_axicon_centre_y_um) > 0, "physical_axicon_plane", route,
             "physical_axicon_plane", _downstream_elements("physical_axicon_plane"), "physics_active",
             "mechanical lateral axicon displacement",
+            "physical_axicon",
+        ),
+        RoutePerturbationRecord(
+            "physical_axicon_axial_offset_um", "mechanical_axial_offset",
+            float(config.physical_axicon_axial_offset_um), "um",
+            abs(config.physical_axicon_axial_offset_um) > 0, "physical_axicon_plane", route,
+            "physical_axicon_plane", _downstream_elements("physical_axicon_plane"), "physics_active",
+            "axicon axial pose changes adjacent propagation segment distances",
+            "physical_axicon",
         ),
         RoutePerturbationRecord(
             "physical_axicon_clear_aperture_radius_um", "aperture",
@@ -557,12 +1073,14 @@ def build_route_perturbation_records(config: RouteAwareAxiconConfig) -> tuple[Ro
             True, "physical_axicon_plane", route, "physical_axicon_plane",
             _downstream_elements("physical_axicon_plane"), "physics_active",
             "physical axicon clear aperture",
+            "physical_axicon",
         ),
         RoutePerturbationRecord(
             "axicon_cone_parameter", "phase_element", float(config.axicon_cone_parameter), "rad/um",
             True, "physical_axicon_plane", route, "physical_axicon_plane",
             _downstream_elements("physical_axicon_plane"), "physics_active",
             "fixed thin physical-axicon phase",
+            "physical_axicon",
         ),
         RoutePerturbationRecord(
             "physical_axicon_mechanical_tilt_x_mrad", "physical_axicon_mechanical_tilt",
@@ -571,6 +1089,7 @@ def build_route_perturbation_records(config: RouteAwareAxiconConfig) -> tuple[Ro
             "not_represented_by_current_engine", _downstream_elements("physical_axicon_plane"),
             "future_not_implemented",
             "not silently represented as generic field tilt; thin-element approximation not yet implemented",
+            "physical_axicon",
         ),
         RoutePerturbationRecord(
             "physical_axicon_mechanical_tilt_y_mrad", "physical_axicon_mechanical_tilt",
@@ -579,6 +1098,7 @@ def build_route_perturbation_records(config: RouteAwareAxiconConfig) -> tuple[Ro
             "not_represented_by_current_engine", _downstream_elements("physical_axicon_plane"),
             "future_not_implemented",
             "not silently represented as generic field tilt; thin-element approximation not yet implemented",
+            "physical_axicon",
         ),
     ]
     return tuple(records)
@@ -682,7 +1202,7 @@ def run_route_aware_axicon_pipeline(
     *,
     config: RouteAwareAxiconConfig | None = None,
 ) -> RouteAwareAxiconRun:
-    """Run the route-aware physical-axicon diagnostic pipeline."""
+    """Run the component-owned physical-axicon diagnostic pipeline."""
     config = _with_overrides(config or RouteAwareAxiconConfig(), controls)
     if config.route_mode != "physical_axicon":
         warnings = (
@@ -695,39 +1215,136 @@ def run_route_aware_axicon_pipeline(
 
     grid = _grid(config)
     x_um, y_um = _xy_um(grid)
-    source, source_unapertured = _make_source_field(grid, config)
-    applied_source: list[str] = []
-    source, a = _apply_location_perturbations(source, "source_plane", grid, config)
-    applied_source += list(a)
-    source, a = _apply_location_perturbations(source, "after_beam_conditioning", grid, config)
-    applied_source += list(a)
+    components = build_physical_axicon_beamline(config)
+    component_by_id = {c.component_id: c for c in components}
+    inspection: list[RouteInspectionRecord] = []
+
+    source_unapertured, _ = _make_source_field(grid, replace(config, input_aperture_radius_um=1.0e9))
+    source = source_unapertured.copy()
     p_unap = field_power(source_unapertured, config.dx_um, config.dx_um)
+    source_energy_before = float(config.input_pulse_energy_uJ)
+    inspection.append(_make_inspection_record(
+        component_by_id["source_field"], source_unapertured, source,
+        source_energy_before, source_energy_before, grid, config,
+        model_status="physics_active",
+    ))
+
+    source_before_boundary = source.copy()
+    source, a_source = _apply_location_perturbations(source, "source_plane", grid, config)
+    source_boundary_energy = _energy_after_transform(source_energy_before, source_before_boundary, source, config)
+    inspection.append(_make_inspection_record(
+        component_by_id["source_boundary_condition"], source_before_boundary, source,
+        source_energy_before, source_boundary_energy, grid, config,
+        model_status="boundary_condition_active" if a_source else "boundary_condition_available",
+        warnings=tuple(a_source),
+    ))
+
+    aperture_component = component_by_id["input_aperture"]
+    aperture_mask = _circular_mask(
+        grid,
+        float(config.input_aperture_radius_um),
+        float(config.input_aperture_centre_x_um),
+        float(config.input_aperture_centre_y_um),
+    )
+    before_aperture = source.copy()
+    source = source * aperture_mask
     p_source = field_power(source, config.dx_um, config.dx_um)
-    source_energy = config.input_pulse_energy_uJ * p_source / max(p_unap, 1e-30)
+    source_energy = _energy_after_transform(source_boundary_energy, before_aperture, source, config)
+    aperture_overlap = float(
+        np.sum((np.abs(before_aperture) ** 2) * aperture_mask)
+        / max(np.sum(np.abs(before_aperture) ** 2), 1e-30)
+    )
+    inspection.append(_make_inspection_record(
+        aperture_component, before_aperture, source,
+        source_boundary_energy, source_energy, grid, config,
+        aperture_overlap=aperture_overlap,
+        model_status="physics_active",
+    ))
+
+    before_after_beam_conditioning = source.copy()
+    source, a_after_conditioning = _apply_location_perturbations(source, "after_beam_conditioning", grid, config)
+    if a_after_conditioning:
+        source_after_conditioning_energy = _energy_after_transform(
+            source_energy, before_after_beam_conditioning, source, config
+        )
+        inspection.append(_make_inspection_record(
+            component_by_id["source_boundary_condition"], before_after_beam_conditioning, source,
+            source_energy, source_after_conditioning_energy, grid, config,
+            model_status="boundary_condition_active",
+            warnings=tuple(a_after_conditioning),
+        ))
+        source_energy = source_after_conditioning_energy
     pre_axicon_launch = source.copy()
 
     pre_prop = make_bl_asm_propagator(
         source, grid, config.wavelength_m, n_medium=config.n_medium, bandlimit=config.bandlimit
     )
-    incident_pre_location = pre_prop(config.pre_axicon_distance_mm * _MM)
+    source_to_axicon_mm, axicon_to_objective_mm, objective_to_ref_mm = _actual_segment_distances_mm(config)
+    incident_pre_location = pre_prop(source_to_axicon_mm * _MM)
+    inspection.append(_make_inspection_record(
+        component_by_id["source_to_physical_axicon"], source, incident_pre_location,
+        source_energy, source_energy, grid, config,
+        model_status="physics_active",
+    ))
+
     if _valid_location(config.field_tilt_location) in {"source_plane", "after_beam_conditioning"}:
         walkoff_reference = pre_axicon_launch
     else:
         walkoff_reference = incident_pre_location
+    before_axicon_boundary = incident_pre_location.copy()
     incident, applied_before_axicon = _apply_location_perturbations(
         incident_pre_location, "before_physical_axicon", grid, config
     )
+    incident_energy = _energy_after_transform(source_energy, before_axicon_boundary, incident, config)
+    inspection.append(_make_inspection_record(
+        component_by_id["physical_axicon_input_boundary"], before_axicon_boundary, incident,
+        source_energy, incident_energy, grid, config,
+        model_status="boundary_condition_active" if applied_before_axicon else "boundary_condition_available",
+        warnings=tuple(applied_before_axicon),
+    ))
 
     T = physical_axicon_transmission(grid, config)
-    after_axicon = incident * T
+    before_axicon = incident.copy()
+    after_axicon_component = incident * T
+    p_incident = field_power(incident, config.dx_um, config.dx_um)
+    p_after = field_power(after_axicon_component, config.dx_um, config.dx_um)
+    axicon_energy = incident_energy * p_after / max(p_incident, 1e-30)
+    ax_mask = _circular_mask(
+        grid,
+        config.physical_axicon_clear_aperture_radius_um,
+        config.physical_axicon_centre_x_um,
+        config.physical_axicon_centre_y_um,
+    )
+    axicon_overlap = float(
+        np.sum((np.abs(incident) ** 2) * ax_mask) / max(np.sum(np.abs(incident) ** 2), 1e-30)
+    )
+    axicon_warnings: list[str] = []
+    if abs(config.physical_axicon_mechanical_tilt_x_mrad) > 0 or abs(config.physical_axicon_mechanical_tilt_y_mrad) > 0:
+        axicon_warnings.append(
+            "physical axicon mechanical tilt is future_not_implemented and was not converted to field tilt"
+        )
+    inspection.append(_make_inspection_record(
+        component_by_id["physical_axicon"], before_axicon, after_axicon_component,
+        incident_energy, axicon_energy, grid, config,
+        aperture_overlap=axicon_overlap,
+        warnings=tuple(axicon_warnings),
+        model_status="physics_active",
+    ))
+
+    before_after_axicon_boundary = after_axicon_component.copy()
+    after_axicon = after_axicon_component
     after_axicon, applied_after_axicon = _apply_location_perturbations(
         after_axicon, "after_physical_axicon", grid, config
     )
-    p_incident = field_power(incident, config.dx_um, config.dx_um)
-    p_after = field_power(after_axicon, config.dx_um, config.dx_um)
-    axicon_energy = source_energy * p_after / max(p_incident, 1e-30)
+    post_axicon_energy = _energy_after_transform(axicon_energy, before_after_axicon_boundary, after_axicon, config)
+    inspection.append(_make_inspection_record(
+        component_by_id["after_physical_axicon_boundary"], before_after_axicon_boundary, after_axicon,
+        axicon_energy, post_axicon_energy, grid, config,
+        model_status="boundary_condition_active" if applied_after_axicon else "boundary_condition_available",
+        warnings=tuple(applied_after_axicon),
+    ))
 
-    metrics = _axicon_metrics(source, walkoff_reference, incident, after_axicon, grid, config, p_unap, p_source)
+    metrics = _axicon_metrics(source, walkoff_reference, incident, after_axicon_component, grid, config, p_unap, p_source)
     records = build_route_perturbation_records(config)
     warnings = tuple(list(warnings) + [
         r.note for r in records if r.enabled and r.status in {"future_not_implemented", "warning_only"}
@@ -743,11 +1360,15 @@ def run_route_aware_axicon_pipeline(
         pulse_energy_before_uJ=config.input_pulse_energy_uJ,
         pulse_energy_after_uJ=source_energy,
         transmitted_fraction=source_energy / max(config.input_pulse_energy_uJ, 1e-30),
-        applied_components=tuple(applied_source),
+        applied_components=(
+            "source_field",
+            "input_aperture",
+        ) + tuple(a_source) + tuple(a_after_conditioning),
         metadata={
             "route": "physical_axicon",
             "physical_location": "source_plane",
             "route_graph": [n.__dict__ for n in physical_axicon_route_graph(config)],
+            "component_chain": [c.as_dict() for c in components],
         },
     )
     incident_state = ComponentPlaneState(
@@ -758,8 +1379,8 @@ def run_route_aware_axicon_pipeline(
         dx_um=config.dx_um,
         dy_um=config.dx_um,
         pulse_energy_before_uJ=source_energy,
-        pulse_energy_after_uJ=source_energy,
-        transmitted_fraction=1.0,
+        pulse_energy_after_uJ=incident_energy,
+        transmitted_fraction=incident_energy / max(source_energy, 1e-30),
         applied_components=("pre_axicon_free_space_propagation",) + tuple(applied_before_axicon),
         metadata={"route": "physical_axicon", "physical_location": "before_physical_axicon"},
     )
@@ -770,9 +1391,9 @@ def run_route_aware_axicon_pipeline(
         y_um=y_um,
         dx_um=config.dx_um,
         dy_um=config.dx_um,
-        pulse_energy_before_uJ=source_energy,
-        pulse_energy_after_uJ=axicon_energy,
-        transmitted_fraction=axicon_energy / max(source_energy, 1e-30),
+        pulse_energy_before_uJ=incident_energy,
+        pulse_energy_after_uJ=post_axicon_energy,
+        transmitted_fraction=post_axicon_energy / max(incident_energy, 1e-30),
         applied_components=("physical_axicon_thin_element",) + tuple(applied_after_axicon),
         metadata={
             "route": "physical_axicon",
@@ -784,13 +1405,29 @@ def run_route_aware_axicon_pipeline(
     post_prop = make_bl_asm_propagator(
         after_axicon, grid, config.wavelength_m, n_medium=config.n_medium, bandlimit=config.bandlimit
     )
-    z_um = np.linspace(0.0, config.post_axicon_distance_um, int(config.n_z))
+    actual_post_axicon_um = float(axicon_to_objective_mm + objective_to_ref_mm) * 1000.0
+    z_um = np.linspace(0.0, actual_post_axicon_um, int(config.n_z))
     intensity = np.empty((len(z_um), len(x_um), len(x_um)), dtype=float)
-    z_objective_um = float(config.axicon_to_objective_distance_um)
+    z_objective_um = float(axicon_to_objective_mm) * 1000.0
     field_after_objective = post_prop(z_objective_um * _UM)
+    inspection.append(_make_inspection_record(
+        component_by_id["physical_axicon_to_after_objective"], after_axicon, field_after_objective,
+        post_axicon_energy, post_axicon_energy, grid, config,
+        model_status="physics_active",
+    ))
+    before_after_objective_boundary = field_after_objective.copy()
     field_after_objective, applied_after_objective = _apply_location_perturbations(
         field_after_objective, "after_objective", grid, config
     )
+    after_objective_energy = _energy_after_transform(
+        post_axicon_energy, before_after_objective_boundary, field_after_objective, config
+    )
+    inspection.append(_make_inspection_record(
+        component_by_id["after_objective_boundary"], before_after_objective_boundary, field_after_objective,
+        post_axicon_energy, after_objective_energy, grid, config,
+        model_status="boundary_condition_active" if applied_after_objective else "boundary_condition_available",
+        warnings=tuple(applied_after_objective),
+    ))
     post_objective_prop = make_bl_asm_propagator(
         field_after_objective, grid, config.wavelength_m, n_medium=config.n_medium, bandlimit=config.bandlimit
     )
@@ -800,10 +1437,27 @@ def run_route_aware_axicon_pipeline(
         else:
             U = post_objective_prop((float(zz) - z_objective_um) * _UM)
         intensity[i] = np.abs(U) ** 2
-    reference_field = post_objective_prop(config.objective_to_reference_distance_mm * _MM)
+    before_reference_segment = field_after_objective.copy()
+    reference_pre_boundary = post_objective_prop(objective_to_ref_mm * _MM)
+    inspection.append(_make_inspection_record(
+        component_by_id["after_objective_to_reference"], before_reference_segment, reference_pre_boundary,
+        after_objective_energy, after_objective_energy, grid, config,
+        model_status="physics_active",
+    ))
+    reference_field = reference_pre_boundary
+    before_reference_boundary = reference_field.copy()
     reference_field, applied_reference = _apply_location_perturbations(
         reference_field, "free_space_reference_plane", grid, config
     )
+    reference_energy = _energy_after_transform(
+        after_objective_energy, before_reference_boundary, reference_field, config
+    )
+    inspection.append(_make_inspection_record(
+        component_by_id["reference_plane"], before_reference_boundary, reference_field,
+        after_objective_energy, reference_energy, grid, config,
+        model_status="diagnostic_only",
+        warnings=tuple(applied_reference),
+    ))
     intensity[-1] = np.abs(reference_field) ** 2
 
     reference_state = ComponentPlaneState(
@@ -813,9 +1467,9 @@ def run_route_aware_axicon_pipeline(
         y_um=y_um,
         dx_um=config.dx_um,
         dy_um=config.dx_um,
-        pulse_energy_before_uJ=axicon_energy,
-        pulse_energy_after_uJ=axicon_energy,
-        transmitted_fraction=1.0,
+        pulse_energy_before_uJ=after_objective_energy,
+        pulse_energy_after_uJ=reference_energy,
+        transmitted_fraction=reference_energy / max(after_objective_energy, 1e-30),
         applied_components=("post_axicon_free_space_propagation",)
         + tuple(applied_after_objective)
         + tuple(applied_reference),
@@ -832,8 +1486,8 @@ def run_route_aware_axicon_pipeline(
         y_um=y_um,
         z_um=z_um,
         input_pulse_energy_uJ=config.input_pulse_energy_uJ,
-        sample_pulse_energy_uJ=axicon_energy,
-        transmitted_fraction=axicon_energy / max(config.input_pulse_energy_uJ, 1e-30),
+        sample_pulse_energy_uJ=reference_energy,
+        transmitted_fraction=reference_energy / max(config.input_pulse_energy_uJ, 1e-30),
         plane_states=(source_state, incident_state, axicon_state, reference_state),
         warnings=warnings,
         metadata={
@@ -842,21 +1496,30 @@ def run_route_aware_axicon_pipeline(
             "n_medium": float(config.n_medium),
             "diagnostic_geometry_note": DIAGNOSTIC_GEOMETRY_NOTE,
             "route_graph": [n.__dict__ for n in physical_axicon_route_graph(config)],
+            "component_chain": [c.as_dict() for c in components],
+            "route_inspection": [r.as_dict() for r in inspection],
             "perturbations": [r.as_dict() for r in records],
         },
     )
     return RouteAwareAxiconRun(
         config=config,
         route_mode="physical_axicon",
+        component_chain=components,
         source_state=source_state,
         axicon_incident_state=incident_state,
         physical_axicon_state=axicon_state,
         reference_plane_state=reference_state,
         propagated_stack=stack,
         axicon_incidence_metrics=metrics,
+        route_inspection_records=tuple(inspection),
         perturbation_records=records,
         warnings=warnings,
-        metadata={"stage": "stage8c3r3_route_aware_physical_axicon"},
+        metadata={
+            "stage": "stage8c3_route_component_owned_physical_axicon",
+            "final_export_allowed": False,
+            "component_chain": [c.as_dict() for c in components],
+            "route_inspection": [r.as_dict() for r in inspection],
+        },
     )
 
 
@@ -1091,6 +1754,104 @@ def plot_route_aware_axicon_pipeline(
     }
     _save(fig, output_path, dpi, "Stage 8C.3R.3 Route-Aware Axicon Pipeline",
           "stage8c3r3_route_aware_axicon_pipeline")
+    return fig
+
+
+def plot_component_route_inspection(
+    *,
+    config: RouteAwareAxiconConfig | None = None,
+    controls: Mapping[str, Any] | None = None,
+    output_path: str | Path | None = None,
+    dpi: int = 150,
+) -> "matplotlib.figure.Figure":
+    """Plot a GUI-ready component/segment route-inspection view."""
+    run = run_route_aware_axicon_pipeline(controls, config=config or RouteAwareAxiconConfig())
+    rows = route_inspection_rows(run)
+    fig = plt.figure(figsize=(17.5, 11.2), facecolor="white")
+    gs = fig.add_gridspec(2, 2, left=0.045, right=0.97, top=0.82, bottom=0.16,
+                          hspace=0.30, wspace=0.22, height_ratios=[1.65, 1.0])
+    fig.suptitle("Stage 8C.3 Component-Owned Route Inspection\n"
+                 "misalign represented component -> apply local transform -> propagate through downstream elements",
+                 x=0.045, y=0.972, ha="left", va="top", fontsize=15.2, fontweight="bold")
+    _badges(fig)
+
+    table_rows: list[list[str]] = []
+    for r in rows:
+        pose = r["actual_pose_error"]
+        pose_bits = []
+        if abs(float(pose.get("decentre_x_um", 0.0))) > 1e-12 or abs(float(pose.get("decentre_y_um", 0.0))) > 1e-12:
+            pose_bits.append(f"dec=({pose['decentre_x_um']:.1f},{pose['decentre_y_um']:.1f})")
+        if abs(float(pose.get("axial_offset_um", 0.0))) > 1e-12:
+            pose_bits.append(f"dz={pose['axial_offset_um']:.1f}")
+        if abs(float(pose.get("tip_x_mrad", 0.0))) > 1e-12 or abs(float(pose.get("tip_y_mrad", 0.0))) > 1e-12:
+            pose_bits.append(f"tip=({pose['tip_x_mrad']:.1f},{pose['tip_y_mrad']:.1f})")
+        pose_txt = ", ".join(pose_bits) if pose_bits else "nominal"
+        cb = r["centroid before (um)"]
+        ca = r["centroid after (um)"]
+        ab = r["angle before (mrad)"]
+        aa = r["angle after (mrad)"]
+        overlap = r["aperture overlap"]
+        table_rows.append([
+            str(r["component_id"]),
+            str(r["component_type"]),
+            f"{float(r['distance_to_next_element_mm']):.3f}",
+            pose_txt,
+            f"{float(r['energy before (uJ)']):.2f}->{float(r['energy after (uJ)']):.2f}",
+            f"({cb[0]:.1f},{cb[1]:.1f})->({ca[0]:.1f},{ca[1]:.1f})",
+            f"({ab[0]:.1f},{ab[1]:.1f})->({aa[0]:.1f},{aa[1]:.1f})",
+            "n/a" if overlap is None else f"{float(overlap):.3f}",
+            str(r["model status"]),
+        ])
+
+    ax_table = fig.add_subplot(gs[0, :])
+    ax_table.axis("off")
+    cols = ["component", "type", "next mm", "pose error", "energy uJ",
+            "centroid um", "angle mrad", "overlap", "status"]
+    tbl = ax_table.table(cellText=table_rows, colLabels=cols, loc="center", cellLoc="left")
+    tbl.auto_set_font_size(False)
+    tbl.set_fontsize(7.1)
+    tbl.scale(1.0, 1.42)
+    for (row, col), cell in tbl.get_celld().items():
+        cell.set_edgecolor("#b0bec5")
+        cell.set_linewidth(0.45)
+        if row == 0:
+            cell.set_facecolor("#eceff1")
+            cell.set_text_props(weight="bold", color="#263238")
+        elif "boundary" in table_rows[row - 1][8]:
+            cell.set_facecolor("#fffde7")
+        elif "future" in table_rows[row - 1][8] or "warning" in table_rows[row - 1][8]:
+            cell.set_facecolor("#ffebee")
+
+    ids = [r["component_id"] for r in rows]
+    e_after = np.array([float(r["energy after (uJ)"]) for r in rows], float)
+    cx_after = np.array([float(r["centroid after (um)"][0]) for r in rows], float)
+    ax0 = fig.add_subplot(gs[1, 0])
+    ax0.plot(range(len(ids)), e_after, "-o", color="#1565c0", lw=1.8, ms=4)
+    ax0.set_xticks(range(len(ids)))
+    ax0.set_xticklabels(ids, rotation=55, ha="right", fontsize=6.7)
+    ax0.set_ylabel("energy after stage (uJ)")
+    ax0.set_title("cumulative energy through ordered route", fontsize=9.5, fontweight="bold")
+    ax0.grid(alpha=0.25)
+
+    ax1 = fig.add_subplot(gs[1, 1])
+    ax1.plot(range(len(ids)), cx_after, "-s", color="#00695c", lw=1.8, ms=4)
+    ax1.axhline(0.0, color="0.5", lw=0.8)
+    ax1.set_xticks(range(len(ids)))
+    ax1.set_xticklabels(ids, rotation=55, ha="right", fontsize=6.7)
+    ax1.set_ylabel("x centroid after stage (um)")
+    ax1.set_title("cumulative centroid consequence", fontsize=9.5, fontweight="bold")
+    ax1.grid(alpha=0.25)
+
+    fig.text(0.047, 0.045,
+             "Field-state rows are labelled boundary conditions. Active component misalignments are local to represented optics.",
+             fontsize=8.8, color="#1b5e20", fontweight="bold")
+    fig.c3r3_metadata = {  # type: ignore[attr-defined]
+        "stage": "stage8c3_component_owned_route_inspection",
+        "final_export_allowed": False,
+        "route_mode": "physical_axicon",
+    }
+    _save(fig, output_path, dpi, "Stage 8C.3 Component-Owned Route Inspection",
+          "stage8c3_component_route_inspection")
     return fig
 
 

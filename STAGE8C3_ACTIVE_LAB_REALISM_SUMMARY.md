@@ -95,6 +95,18 @@ The saved C3D headline preview now uses low-order aberrations as the visual scen
 
 The C3D metric set also adds commanded-axis versus actual-axis diagnostics: commanded x/y, fitted ring centre, brightest-point offset, fitted beam-axis surface intercept, target-plane axis offset, steering angle, field-of-view margin, out-of-frame fraction, and crop-edge energy fraction. Co-shifted vortex+axicon remains a translation diagnostic; genuine degradation scenarios remain separated from pure translation by registered similarity and residual shape deformation.
 
+Stage 8C.3R.4 component-owned route inspection:
+
+```text
+outputs/figures/digital_twin/stage8c3_component_route_inspection.png
+```
+
+Stage 8C.3R.4 corrects the too-narrow route-aware interpretation. The physical-axicon route is now an ordered component/segment chain: source field, source boundary condition, input aperture, source-to-axicon propagation, axicon input boundary, physical axicon, post-axicon boundary, post-axicon propagation, after-objective boundary, reference propagation, and reference plane. Supported errors are attached to represented components and applied in their local planes before downstream propagation continues.
+
+Field-state controls still exist only as labelled boundary conditions at named planes. They declare the physical approximation, the upstream hardware error they could emulate, and the downstream components that consume them. They are not generic representations of arbitrary component misalignment.
+
+The route-inspection table records component name/type, nominal location, pose error, incoming/outgoing field metrics, energy before/after, centroid before/after, angle before/after, aperture overlap, downstream consequences, model status, and warnings. SLM/4F/relay/objective-pupil/objective planes remain warning-only or future-stage unless a real model is added.
+
 ## Governance
 
 Core optical physics, scalar/vector propagation equations, axicon physics, characterization locks, validation baselines, and production baselines were not changed. No material-response claim is introduced. Stage 8C.3 remains a diagnostic optical/fluence cockpit pass only, with actual post-engine diagnostic implementation stage reported separately from intended physical placement.

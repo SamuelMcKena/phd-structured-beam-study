@@ -7,6 +7,11 @@ the architecture so field tilt, beam decentre, aperture changes, phase elements,
 and future mechanical tilts are tied to an explicit injection location and
 downstream route graph rather than being exposed as location-free controls.
 
+Stage 8C.3R.4 supersedes the too-narrow C3R.3 interpretation by making the
+route an ordered component/segment chain. Supported errors are now owned by
+named components and field-state controls are labelled boundary conditions, not
+generic component-misalignment models.
+
 ## Created
 
 - `vbb_study/digital_twin/route_aware_axicon.py`

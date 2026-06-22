@@ -6,6 +6,11 @@ physical-axicon diagnostic path. The study remains optical/fluence only,
 interface, writing trajectory, 3D view, GUI, plasma, nonlinear propagation,
 thermal response, or calibrated prediction.
 
+Stage 8C.3R.4 supersedes the narrow C3R.3 route interpretation. The physical
+axicon path is now executed as a component-owned route with local component pose
+errors, explicit propagation segments, boundary-condition rows, and a
+route-inspection table. See `docs/37_component_owned_route_architecture.md`.
+
 ## Route Concept
 
 The physical-axicon route is represented as an ordered graph:
