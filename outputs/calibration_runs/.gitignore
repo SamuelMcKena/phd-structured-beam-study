@@ -1,0 +1,5 @@
+# ignore generated calibration run packages; keep scaffolding
+*
+!.gitignore
+!.gitkeep
+!README.md
