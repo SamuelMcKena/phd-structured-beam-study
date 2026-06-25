@@ -1,8 +1,9 @@
-# Stage 8C.3R.4 Component-Owned Route Architecture
+# Stage 8C.3R.4 Component-Owned Physical-Axicon Route Scaffold
 
-Stage 8C.3R.4 corrects the C3R.3 route-aware implementation. The route is no
-longer treated as generic field perturbations injected at arbitrary planes. It
-is now an ordered component/segment chain:
+Stage 8C.3R.4 defines a component-owned physical-axicon route scaffold. The
+route is not a complete laboratory digital twin and is no longer treated as
+generic field perturbations injected at arbitrary planes. It is now an ordered
+component/segment chain:
 
 ```text
 source_field
@@ -12,9 +13,9 @@ source_field
 -> physical_axicon_input_boundary
 -> physical_axicon
 -> after_physical_axicon_boundary
--> physical_axicon_to_after_objective
--> after_objective_boundary
--> after_objective_to_reference
+-> post_axicon_free_space_segment
+-> post_axicon_diagnostic_boundary
+-> post_axicon_to_reference_segment
 -> reference_plane
 ```
 
@@ -35,15 +36,15 @@ Each represented component or segment declares:
 - supported misalignment modes
 - downstream elements affected
 
-## Active Represented Components
+## Active Physics
 
 The physical-axicon route currently executes only free-space scalar optics:
 
-- source field generation
+- source complex field
 - input aperture at the conditioning plane
-- free-space propagation to the physical axicon
-- thin physical axicon phase plus clear aperture
-- free-space propagation to the downstream/reference plane
+- free-space propagation segments
+- thin scalar physical axicon phase and clear aperture
+- free-space reference-plane diagnostics
 
 Supported local component errors include input-aperture decentre/radius,
 physical-axicon lateral decentre, physical-axicon axial offset through adjacent
@@ -67,17 +68,17 @@ Every such record declares the boundary plane, physical approximation, which
 upstream hardware error it could emulate, and which downstream components consume
 it. These controls are not generic component misalignment models.
 
-## Unsupported Components
+## Warning-Only / Future
 
 The following remain explicitly warning-only or future-stage in this physical
 axicon engine:
 
-- steering mirror tilt without a represented reflection plane
-- SLM1 / SLM2 physical route
-- 4F Fourier filter plane
-- relay lens plane
-- objective pupil clipping/Zernike model
-- objective physics
+- steering mirrors
+- SLM1/SLM2
+- 4F Fourier filtering
+- relay optics
+- pupil/objective optics
+- mechanical axicon tilt
 - material/interface/dose/nonlinear/thermal/calibrated response
 
 ## Route Inspection
@@ -92,6 +93,8 @@ The pipeline now records a route-inspection row for every executed stage:
 - centroid before/after
 - angle before/after
 - aperture overlap where relevant
+- actual segment distance
+- transform applied boolean
 - downstream consequences
 - model status and warnings
 

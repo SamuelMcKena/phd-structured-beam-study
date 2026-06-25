@@ -12,6 +12,10 @@ route an ordered component/segment chain. Supported errors are now owned by
 named components and field-state controls are labelled boundary conditions, not
 generic component-misalignment models.
 
+Stage 8C.3R.4.1 further cleans the executed physical-axicon route names: no
+objective or after-objective component appears in the active physical-axicon
+chain unless an objective field transformation is actually implemented.
+
 ## Created
 
 - `vbb_study/digital_twin/route_aware_axicon.py`

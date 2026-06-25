@@ -7,9 +7,10 @@ interface, writing trajectory, 3D view, GUI, plasma, nonlinear propagation,
 thermal response, or calibrated prediction.
 
 Stage 8C.3R.4 supersedes the narrow C3R.3 route interpretation. The physical
-axicon path is now executed as a component-owned route with local component pose
-errors, explicit propagation segments, boundary-condition rows, and a
-route-inspection table. See `docs/37_component_owned_route_architecture.md`.
+axicon path is now executed as a component-owned physical-axicon route scaffold
+with local component pose errors, explicit free-space propagation segments,
+boundary-condition rows, and a route-inspection table. See
+`docs/37_component_owned_route_architecture.md`.
 
 ## Route Concept
 
@@ -100,7 +101,7 @@ Represented for the physical-axicon route:
 - before physical axicon
 - physical axicon plane
 - after physical axicon
-- after objective/downstream steering plane
+- post-axicon diagnostic boundary
 - free-space reference plane
 
 Warning-only / not represented by the current engine:

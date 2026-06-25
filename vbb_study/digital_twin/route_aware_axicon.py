@@ -63,6 +63,7 @@ PHYSICAL_LOCATIONS: tuple[str, ...] = (
     "before_physical_axicon",
     "physical_axicon_plane",
     "after_physical_axicon",
+    "post_axicon_diagnostic_boundary",
     "fourier_plane",
     "after_fourier_filter",
     "relay_plane",
@@ -79,7 +80,7 @@ REPRESENTED_PHYSICAL_AXICON_LOCATIONS: tuple[str, ...] = (
     "before_physical_axicon",
     "physical_axicon_plane",
     "after_physical_axicon",
-    "after_objective",
+    "post_axicon_diagnostic_boundary",
     "free_space_reference_plane",
 )
 
@@ -91,9 +92,9 @@ EXECUTED_PHYSICAL_AXICON_COMPONENT_IDS: tuple[str, ...] = (
     "physical_axicon_input_boundary",
     "physical_axicon",
     "after_physical_axicon_boundary",
-    "physical_axicon_to_after_objective",
-    "after_objective_boundary",
-    "after_objective_to_reference",
+    "post_axicon_free_space_segment",
+    "post_axicon_diagnostic_boundary",
+    "post_axicon_to_reference_segment",
     "reference_plane",
 )
 
@@ -243,6 +244,7 @@ class RouteInspectionRecord:
     aperture_overlap: float | None
     downstream_consequences: tuple[str, ...]
     model_status: str
+    transform_applied: bool
     warnings: tuple[str, ...] = ()
     represented_by_current_engine: bool = True
     physical_model_available: bool = True
@@ -251,11 +253,13 @@ class RouteInspectionRecord:
     def as_dict(self) -> dict[str, Any]:
         return {
             "component name": self.component_name,
+            "component identifier": self.component_id,
             "component_id": self.component_id,
             "component_type": self.component_type,
             "nominal location (um)": float(self.nominal_location_um),
             "distance_from_previous_component_mm": float(self.distance_from_previous_component_mm),
             "distance_to_next_element_mm": float(self.distance_to_next_element_mm),
+            "actual segment distance (mm)": float(self.distance_to_next_element_mm),
             "actual_pose_error": dict(self.actual_pose_error),
             "incoming_field_metrics": dict(self.incoming_field_metrics),
             "outgoing_field_metrics": dict(self.outgoing_field_metrics),
@@ -268,6 +272,7 @@ class RouteInspectionRecord:
             "aperture overlap": None if self.aperture_overlap is None else float(self.aperture_overlap),
             "downstream consequences": list(self.downstream_consequences),
             "model status": self.model_status,
+            "transform_applied": bool(self.transform_applied),
             "warnings": list(self.warnings),
             "represented_by_current_engine": bool(self.represented_by_current_engine),
             "physical_model_available": bool(self.physical_model_available),
@@ -290,6 +295,10 @@ class RouteAwareAxiconConfig:
     # Diagnostic demo geometry; not actual bench distances.
     pre_axicon_distance_mm: float = 0.80
     post_axicon_distance_mm: float = 0.225
+    post_axicon_free_space_distance_mm: float = 0.150
+    post_axicon_diagnostic_to_reference_distance_mm: float = 0.075
+    # Compatibility aliases from the first component-route draft. These are not
+    # objective models and are normalised into the neutral post-axicon distances.
     axicon_to_objective_distance_mm: float = 0.150
     objective_to_reference_distance_mm: float = 0.075
 
@@ -359,12 +368,20 @@ class RouteAwareAxiconConfig:
         return float(self.post_axicon_distance_mm) * 1000.0
 
     @property
+    def post_axicon_free_space_distance_um(self) -> float:
+        return float(self.post_axicon_free_space_distance_mm) * 1000.0
+
+    @property
+    def post_axicon_diagnostic_to_reference_distance_um(self) -> float:
+        return float(self.post_axicon_diagnostic_to_reference_distance_mm) * 1000.0
+
+    @property
     def axicon_to_objective_distance_um(self) -> float:
-        return float(self.axicon_to_objective_distance_mm) * 1000.0
+        return float(self.post_axicon_free_space_distance_mm) * 1000.0
 
     @property
     def objective_to_reference_distance_um(self) -> float:
-        return float(self.objective_to_reference_distance_mm) * 1000.0
+        return float(self.post_axicon_diagnostic_to_reference_distance_mm) * 1000.0
 
 
 @dataclass(frozen=True)
@@ -401,6 +418,8 @@ def _valid_location(location: str) -> str:
         loc = "before_physical_axicon"
     if loc == "post_physical_axicon":
         loc = "after_physical_axicon"
+    if loc == "after_objective":
+        loc = "post_axicon_diagnostic_boundary"
     if loc == "post_objective_reference_plane":
         loc = "free_space_reference_plane"
     if loc not in PHYSICAL_LOCATIONS:
@@ -418,13 +437,39 @@ def _normalise_location_controls(
     }
     # Keep the editable total post-axicon distance coherent with the represented
     # downstream split unless the caller explicitly supplied segment distances.
-    if "post_axicon_distance_mm" in controls and "axicon_to_objective_distance_mm" not in controls and "objective_to_reference_distance_mm" not in controls:
+    neutral_segment_supplied = (
+        "post_axicon_free_space_distance_mm" in controls
+        or "post_axicon_diagnostic_to_reference_distance_mm" in controls
+    )
+    legacy_segment_supplied = (
+        "axicon_to_objective_distance_mm" in controls
+        or "objective_to_reference_distance_mm" in controls
+    )
+    if "post_axicon_distance_mm" in controls and not neutral_segment_supplied and not legacy_segment_supplied:
         post = float(config.post_axicon_distance_mm)
-        updates["axicon_to_objective_distance_mm"] = 2.0 * post / 3.0
-        updates["objective_to_reference_distance_mm"] = post / 3.0
+        updates["post_axicon_free_space_distance_mm"] = 2.0 * post / 3.0
+        updates["post_axicon_diagnostic_to_reference_distance_mm"] = post / 3.0
     else:
-        post = float(config.axicon_to_objective_distance_mm) + float(config.objective_to_reference_distance_mm)
+        if legacy_segment_supplied and not neutral_segment_supplied:
+            updates["post_axicon_free_space_distance_mm"] = float(config.axicon_to_objective_distance_mm)
+            updates["post_axicon_diagnostic_to_reference_distance_mm"] = float(config.objective_to_reference_distance_mm)
+        post = (
+            float(updates.get("post_axicon_free_space_distance_mm", config.post_axicon_free_space_distance_mm))
+            + float(updates.get(
+                "post_axicon_diagnostic_to_reference_distance_mm",
+                config.post_axicon_diagnostic_to_reference_distance_mm,
+            ))
+        )
         updates["post_axicon_distance_mm"] = post
+    updates["axicon_to_objective_distance_mm"] = float(
+        updates.get("post_axicon_free_space_distance_mm", config.post_axicon_free_space_distance_mm)
+    )
+    updates["objective_to_reference_distance_mm"] = float(
+        updates.get(
+            "post_axicon_diagnostic_to_reference_distance_mm",
+            config.post_axicon_diagnostic_to_reference_distance_mm,
+        )
+    )
 
     generic_tilt_supplied = (
         "field_tilt_x_mrad" in controls or "field_tilt_y_mrad" in controls or "field_tilt_location" in controls
@@ -467,7 +512,7 @@ def _xy_um(grid: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray]:
 
 def physical_axicon_route_graph(config: RouteAwareAxiconConfig) -> tuple[RouteGraphNode, ...]:
     """Represented route graph for the physical-axicon diagnostic path."""
-    source_to_axicon_mm, axicon_to_objective_mm, objective_to_ref_mm = _actual_segment_distances_mm(config)
+    source_to_axicon_mm, post_axicon_free_space_mm, diagnostic_to_ref_mm = _actual_segment_distances_mm(config)
     return (
         RouteGraphNode("source field", "element", "source_plane", note="complex source/input field"),
         RouteGraphNode("source boundary condition", "field_state_boundary", "source_plane",
@@ -483,16 +528,16 @@ def physical_axicon_route_graph(config: RouteAwareAxiconConfig) -> tuple[RouteGr
                        note="fixed thin axicon phase and clear aperture; local pose controls apply here"),
         RouteGraphNode("after axicon boundary condition", "field_state_boundary", "after_physical_axicon",
                        note="post-axicon steering test boundary; not an upstream axicon fault"),
-        RouteGraphNode("axicon to after-objective", "propagation_segment", "after_objective",
-                       distance_mm=float(axicon_to_objective_mm),
+        RouteGraphNode("post-axicon free-space segment", "propagation_segment", "post_axicon_diagnostic_boundary",
+                       distance_mm=float(post_axicon_free_space_mm),
                        note=DIAGNOSTIC_GEOMETRY_NOTE),
-        RouteGraphNode("after objective boundary condition", "field_state_boundary", "after_objective",
-                       note="downstream steering boundary; no objective model is added"),
-        RouteGraphNode("after-objective to reference", "propagation_segment", "free_space_reference_plane",
-                       distance_mm=float(objective_to_ref_mm),
+        RouteGraphNode("post-axicon diagnostic boundary", "field_state_boundary", "post_axicon_diagnostic_boundary",
+                       note="downstream field-state diagnostic boundary; no objective model is present"),
+        RouteGraphNode("post-axicon to reference segment", "propagation_segment", "free_space_reference_plane",
+                       distance_mm=float(diagnostic_to_ref_mm),
                        note=DIAGNOSTIC_GEOMETRY_NOTE),
         RouteGraphNode("free-space reference", "reference", "free_space_reference_plane",
-                       note="post-objective/reference plane in air; no material model"),
+                       note="free-space reference plane in air; no material model"),
     )
 
 
@@ -508,7 +553,12 @@ def _downstream_elements(location: str) -> tuple[str, ...]:
     downstream = order[order.index(loc) + 1:]
     elements = []
     for item in downstream:
-        if item in {"physical_axicon_plane", "after_physical_axicon", "after_objective", "free_space_reference_plane"}:
+        if item in {
+            "physical_axicon_plane",
+            "after_physical_axicon",
+            "post_axicon_diagnostic_boundary",
+            "free_space_reference_plane",
+        }:
             elements.append(item)
     return tuple(elements)
 
@@ -527,7 +577,7 @@ def _boundary_component_id_for_location(location: str) -> str:
         "after_beam_conditioning": "source_boundary_condition",
         "before_physical_axicon": "physical_axicon_input_boundary",
         "after_physical_axicon": "after_physical_axicon_boundary",
-        "after_objective": "after_objective_boundary",
+        "post_axicon_diagnostic_boundary": "post_axicon_diagnostic_boundary",
         "free_space_reference_plane": "reference_plane",
     }.get(loc, "not_represented_by_current_engine")
 
@@ -535,18 +585,18 @@ def _boundary_component_id_for_location(location: str) -> str:
 def _actual_segment_distances_mm(config: RouteAwareAxiconConfig) -> tuple[float, float, float]:
     ax_shift_mm = float(config.physical_axicon_axial_offset_um) / 1000.0
     source_to_axicon = float(config.pre_axicon_distance_mm) + ax_shift_mm
-    axicon_to_objective = float(config.axicon_to_objective_distance_mm) - ax_shift_mm
-    objective_to_reference = float(config.objective_to_reference_distance_mm)
-    return max(source_to_axicon, 0.0), max(axicon_to_objective, 0.0), max(objective_to_reference, 0.0)
+    post_axicon_free_space = float(config.post_axicon_free_space_distance_mm) - ax_shift_mm
+    diagnostic_to_reference = float(config.post_axicon_diagnostic_to_reference_distance_mm)
+    return max(source_to_axicon, 0.0), max(post_axicon_free_space, 0.0), max(diagnostic_to_reference, 0.0)
 
 
 def build_physical_axicon_beamline(config: RouteAwareAxiconConfig) -> tuple[BeamlineComponent, ...]:
     """Return the executed ordered component/segment chain for the physical-axicon route."""
-    source_to_axicon_mm, axicon_to_objective_mm, objective_to_ref_mm = _actual_segment_distances_mm(config)
+    source_to_axicon_mm, post_axicon_free_space_mm, diagnostic_to_ref_mm = _actual_segment_distances_mm(config)
     nominal_axicon_z_um = float(config.pre_axicon_distance_um)
     actual_axicon_z_um = nominal_axicon_z_um + float(config.physical_axicon_axial_offset_um)
-    nominal_objective_z_um = nominal_axicon_z_um + float(config.axicon_to_objective_distance_um)
-    reference_z_um = nominal_objective_z_um + float(config.objective_to_reference_distance_um)
+    nominal_diagnostic_z_um = nominal_axicon_z_um + float(config.post_axicon_free_space_distance_um)
+    reference_z_um = nominal_diagnostic_z_um + float(config.post_axicon_diagnostic_to_reference_distance_um)
 
     def downstream(cid: str) -> tuple[str, ...]:
         return _downstream_component_ids(cid)
@@ -612,7 +662,7 @@ def build_physical_axicon_beamline(config: RouteAwareAxiconConfig) -> tuple[Beam
         ),
         BeamlineComponent(
             "physical_axicon", "physical_axicon", "physical_axicon_plane",
-            nominal_axicon_z_um, source_to_axicon_mm, axicon_to_objective_mm, True,
+            nominal_axicon_z_um, source_to_axicon_mm, post_axicon_free_space_mm, True,
             ComponentPose(
                 decentre_x_um=float(config.physical_axicon_centre_x_um),
                 decentre_y_um=float(config.physical_axicon_centre_y_um),
@@ -631,7 +681,7 @@ def build_physical_axicon_beamline(config: RouteAwareAxiconConfig) -> tuple[Beam
         ),
         BeamlineComponent(
             "after_physical_axicon_boundary", "field_state_boundary", "after_physical_axicon",
-            actual_axicon_z_um, 0.0, axicon_to_objective_mm, True,
+            actual_axicon_z_um, 0.0, post_axicon_free_space_mm, True,
             component_specific_parameters={
                 "boundary_plane": "after_physical_axicon",
                 "physical_approximation": "post-axicon steering test",
@@ -644,38 +694,38 @@ def build_physical_axicon_beamline(config: RouteAwareAxiconConfig) -> tuple[Beam
             note="boundary condition, not an upstream axicon fault",
         ),
         BeamlineComponent(
-            "physical_axicon_to_after_objective", "propagation_segment", "after_objective",
-            actual_axicon_z_um, 0.0, axicon_to_objective_mm, True,
-            component_specific_parameters={"distance_to_next_element_mm": axicon_to_objective_mm},
+            "post_axicon_free_space_segment", "propagation_segment", "post_axicon_diagnostic_boundary",
+            actual_axicon_z_um, 0.0, post_axicon_free_space_mm, True,
+            component_specific_parameters={"distance_to_next_element_mm": post_axicon_free_space_mm},
             misalignment_modes_currently_supported=("distance_to_next_element_mm",),
-            downstream_elements_affected=downstream("physical_axicon_to_after_objective"),
+            downstream_elements_affected=downstream("post_axicon_free_space_segment"),
             note=DIAGNOSTIC_GEOMETRY_NOTE,
         ),
         BeamlineComponent(
-            "after_objective_boundary", "field_state_boundary", "after_objective",
-            nominal_objective_z_um, axicon_to_objective_mm, objective_to_ref_mm, True,
+            "post_axicon_diagnostic_boundary", "field_state_boundary", "post_axicon_diagnostic_boundary",
+            nominal_diagnostic_z_um, post_axicon_free_space_mm, diagnostic_to_ref_mm, True,
             component_specific_parameters={
-                "boundary_plane": "after_objective",
-                "physical_approximation": "downstream/reference steering boundary",
-                "could_emulate": "post-objective steering if that optic is represented elsewhere",
+                "boundary_plane": "post_axicon_diagnostic_boundary",
+                "physical_approximation": "post-axicon diagnostic field-state boundary",
+                "could_emulate": "downstream steering if that optic is declared separately",
             },
             status="boundary_condition",
             physical_model_available=False,
             misalignment_modes_currently_supported=("field_tilt", "beam_decentre"),
-            downstream_elements_affected=downstream("after_objective_boundary"),
-            note="no objective model is introduced in Stage 8C.3",
+            downstream_elements_affected=downstream("post_axicon_diagnostic_boundary"),
+            note="diagnostic boundary only; no objective model is present",
         ),
         BeamlineComponent(
-            "after_objective_to_reference", "propagation_segment", "free_space_reference_plane",
-            nominal_objective_z_um, 0.0, objective_to_ref_mm, True,
-            component_specific_parameters={"distance_to_next_element_mm": objective_to_ref_mm},
+            "post_axicon_to_reference_segment", "propagation_segment", "free_space_reference_plane",
+            nominal_diagnostic_z_um, 0.0, diagnostic_to_ref_mm, True,
+            component_specific_parameters={"distance_to_next_element_mm": diagnostic_to_ref_mm},
             misalignment_modes_currently_supported=("distance_to_next_element_mm",),
-            downstream_elements_affected=downstream("after_objective_to_reference"),
+            downstream_elements_affected=downstream("post_axicon_to_reference_segment"),
             note=DIAGNOSTIC_GEOMETRY_NOTE,
         ),
         BeamlineComponent(
             "reference_plane", "reference_plane", "free_space_reference_plane",
-            reference_z_um, objective_to_ref_mm, 0.0, True,
+            reference_z_um, diagnostic_to_ref_mm, 0.0, True,
             status="diagnostic_only",
             physical_model_available=False,
             misalignment_modes_currently_supported=(),
@@ -743,7 +793,7 @@ def build_route_component_declarations(config: RouteAwareAxiconConfig) -> tuple[
             represented_by_current_engine=False, physical_model_available=False,
             misalignment_modes_currently_supported=(),
             downstream_elements_affected=("reference_plane",),
-            note="objective physics is not modelled; only a downstream boundary plane is available",
+            note="objective physics is not modelled and is not in the executed physical-axicon route",
         ),
     ]
     return tuple(represented + unsupported)
@@ -858,6 +908,7 @@ def _make_inspection_record(
     config: RouteAwareAxiconConfig,
     *,
     aperture_overlap: float | None = None,
+    transform_applied: bool = False,
     warnings: tuple[str, ...] = (),
     model_status: str | None = None,
 ) -> RouteInspectionRecord:
@@ -882,6 +933,7 @@ def _make_inspection_record(
         aperture_overlap=aperture_overlap,
         downstream_consequences=component.downstream_elements_affected,
         model_status=model_status or component.status,
+        transform_applied=bool(transform_applied),
         warnings=warnings,
         represented_by_current_engine=component.represented_by_current_engine,
         physical_model_available=component.physical_model_available,
@@ -1226,6 +1278,7 @@ def run_route_aware_axicon_pipeline(
     inspection.append(_make_inspection_record(
         component_by_id["source_field"], source_unapertured, source,
         source_energy_before, source_energy_before, grid, config,
+        transform_applied=True,
         model_status="physics_active",
     ))
 
@@ -1235,6 +1288,7 @@ def run_route_aware_axicon_pipeline(
     inspection.append(_make_inspection_record(
         component_by_id["source_boundary_condition"], source_before_boundary, source,
         source_energy_before, source_boundary_energy, grid, config,
+        transform_applied=bool(a_source),
         model_status="boundary_condition_active" if a_source else "boundary_condition_available",
         warnings=tuple(a_source),
     ))
@@ -1258,6 +1312,7 @@ def run_route_aware_axicon_pipeline(
         aperture_component, before_aperture, source,
         source_boundary_energy, source_energy, grid, config,
         aperture_overlap=aperture_overlap,
+        transform_applied=True,
         model_status="physics_active",
     ))
 
@@ -1270,6 +1325,7 @@ def run_route_aware_axicon_pipeline(
         inspection.append(_make_inspection_record(
             component_by_id["source_boundary_condition"], before_after_beam_conditioning, source,
             source_energy, source_after_conditioning_energy, grid, config,
+            transform_applied=True,
             model_status="boundary_condition_active",
             warnings=tuple(a_after_conditioning),
         ))
@@ -1279,11 +1335,12 @@ def run_route_aware_axicon_pipeline(
     pre_prop = make_bl_asm_propagator(
         source, grid, config.wavelength_m, n_medium=config.n_medium, bandlimit=config.bandlimit
     )
-    source_to_axicon_mm, axicon_to_objective_mm, objective_to_ref_mm = _actual_segment_distances_mm(config)
+    source_to_axicon_mm, post_axicon_free_space_mm, diagnostic_to_ref_mm = _actual_segment_distances_mm(config)
     incident_pre_location = pre_prop(source_to_axicon_mm * _MM)
     inspection.append(_make_inspection_record(
         component_by_id["source_to_physical_axicon"], source, incident_pre_location,
         source_energy, source_energy, grid, config,
+        transform_applied=True,
         model_status="physics_active",
     ))
 
@@ -1299,6 +1356,7 @@ def run_route_aware_axicon_pipeline(
     inspection.append(_make_inspection_record(
         component_by_id["physical_axicon_input_boundary"], before_axicon_boundary, incident,
         source_energy, incident_energy, grid, config,
+        transform_applied=bool(applied_before_axicon),
         model_status="boundary_condition_active" if applied_before_axicon else "boundary_condition_available",
         warnings=tuple(applied_before_axicon),
     ))
@@ -1327,6 +1385,7 @@ def run_route_aware_axicon_pipeline(
         component_by_id["physical_axicon"], before_axicon, after_axicon_component,
         incident_energy, axicon_energy, grid, config,
         aperture_overlap=axicon_overlap,
+        transform_applied=True,
         warnings=tuple(axicon_warnings),
         model_status="physics_active",
     ))
@@ -1340,6 +1399,7 @@ def run_route_aware_axicon_pipeline(
     inspection.append(_make_inspection_record(
         component_by_id["after_physical_axicon_boundary"], before_after_axicon_boundary, after_axicon,
         axicon_energy, post_axicon_energy, grid, config,
+        transform_applied=bool(applied_after_axicon),
         model_status="boundary_condition_active" if applied_after_axicon else "boundary_condition_available",
         warnings=tuple(applied_after_axicon),
     ))
@@ -1405,43 +1465,48 @@ def run_route_aware_axicon_pipeline(
     post_prop = make_bl_asm_propagator(
         after_axicon, grid, config.wavelength_m, n_medium=config.n_medium, bandlimit=config.bandlimit
     )
-    actual_post_axicon_um = float(axicon_to_objective_mm + objective_to_ref_mm) * 1000.0
+    actual_post_axicon_um = float(post_axicon_free_space_mm + diagnostic_to_ref_mm) * 1000.0
     z_um = np.linspace(0.0, actual_post_axicon_um, int(config.n_z))
     intensity = np.empty((len(z_um), len(x_um), len(x_um)), dtype=float)
-    z_objective_um = float(axicon_to_objective_mm) * 1000.0
-    field_after_objective = post_prop(z_objective_um * _UM)
+    z_diagnostic_um = float(post_axicon_free_space_mm) * 1000.0
+    field_at_diagnostic_boundary = post_prop(z_diagnostic_um * _UM)
     inspection.append(_make_inspection_record(
-        component_by_id["physical_axicon_to_after_objective"], after_axicon, field_after_objective,
+        component_by_id["post_axicon_free_space_segment"], after_axicon, field_at_diagnostic_boundary,
         post_axicon_energy, post_axicon_energy, grid, config,
+        transform_applied=True,
         model_status="physics_active",
     ))
-    before_after_objective_boundary = field_after_objective.copy()
-    field_after_objective, applied_after_objective = _apply_location_perturbations(
-        field_after_objective, "after_objective", grid, config
+    before_post_axicon_diagnostic_boundary = field_at_diagnostic_boundary.copy()
+    field_at_diagnostic_boundary, applied_post_axicon_diagnostic = _apply_location_perturbations(
+        field_at_diagnostic_boundary, "post_axicon_diagnostic_boundary", grid, config
     )
-    after_objective_energy = _energy_after_transform(
-        post_axicon_energy, before_after_objective_boundary, field_after_objective, config
+    post_axicon_diagnostic_energy = _energy_after_transform(
+        post_axicon_energy, before_post_axicon_diagnostic_boundary, field_at_diagnostic_boundary, config
     )
     inspection.append(_make_inspection_record(
-        component_by_id["after_objective_boundary"], before_after_objective_boundary, field_after_objective,
-        post_axicon_energy, after_objective_energy, grid, config,
-        model_status="boundary_condition_active" if applied_after_objective else "boundary_condition_available",
-        warnings=tuple(applied_after_objective),
+        component_by_id["post_axicon_diagnostic_boundary"],
+        before_post_axicon_diagnostic_boundary,
+        field_at_diagnostic_boundary,
+        post_axicon_energy, post_axicon_diagnostic_energy, grid, config,
+        transform_applied=bool(applied_post_axicon_diagnostic),
+        model_status="boundary_condition_active" if applied_post_axicon_diagnostic else "boundary_condition_available",
+        warnings=tuple(applied_post_axicon_diagnostic),
     ))
-    post_objective_prop = make_bl_asm_propagator(
-        field_after_objective, grid, config.wavelength_m, n_medium=config.n_medium, bandlimit=config.bandlimit
+    post_diagnostic_prop = make_bl_asm_propagator(
+        field_at_diagnostic_boundary, grid, config.wavelength_m, n_medium=config.n_medium, bandlimit=config.bandlimit
     )
     for i, zz in enumerate(z_um):
-        if float(zz) <= z_objective_um + 1e-12:
+        if float(zz) <= z_diagnostic_um + 1e-12:
             U = post_prop(float(zz) * _UM)
         else:
-            U = post_objective_prop((float(zz) - z_objective_um) * _UM)
+            U = post_diagnostic_prop((float(zz) - z_diagnostic_um) * _UM)
         intensity[i] = np.abs(U) ** 2
-    before_reference_segment = field_after_objective.copy()
-    reference_pre_boundary = post_objective_prop(objective_to_ref_mm * _MM)
+    before_reference_segment = field_at_diagnostic_boundary.copy()
+    reference_pre_boundary = post_diagnostic_prop(diagnostic_to_ref_mm * _MM)
     inspection.append(_make_inspection_record(
-        component_by_id["after_objective_to_reference"], before_reference_segment, reference_pre_boundary,
-        after_objective_energy, after_objective_energy, grid, config,
+        component_by_id["post_axicon_to_reference_segment"], before_reference_segment, reference_pre_boundary,
+        post_axicon_diagnostic_energy, post_axicon_diagnostic_energy, grid, config,
+        transform_applied=True,
         model_status="physics_active",
     ))
     reference_field = reference_pre_boundary
@@ -1450,11 +1515,12 @@ def run_route_aware_axicon_pipeline(
         reference_field, "free_space_reference_plane", grid, config
     )
     reference_energy = _energy_after_transform(
-        after_objective_energy, before_reference_boundary, reference_field, config
+        post_axicon_diagnostic_energy, before_reference_boundary, reference_field, config
     )
     inspection.append(_make_inspection_record(
         component_by_id["reference_plane"], before_reference_boundary, reference_field,
-        after_objective_energy, reference_energy, grid, config,
+        post_axicon_diagnostic_energy, reference_energy, grid, config,
+        transform_applied=bool(applied_reference),
         model_status="diagnostic_only",
         warnings=tuple(applied_reference),
     ))
@@ -1467,16 +1533,17 @@ def run_route_aware_axicon_pipeline(
         y_um=y_um,
         dx_um=config.dx_um,
         dy_um=config.dx_um,
-        pulse_energy_before_uJ=after_objective_energy,
+        pulse_energy_before_uJ=post_axicon_diagnostic_energy,
         pulse_energy_after_uJ=reference_energy,
-        transmitted_fraction=reference_energy / max(after_objective_energy, 1e-30),
+        transmitted_fraction=reference_energy / max(post_axicon_diagnostic_energy, 1e-30),
         applied_components=("post_axicon_free_space_propagation",)
-        + tuple(applied_after_objective)
+        + tuple(applied_post_axicon_diagnostic)
         + tuple(applied_reference),
         metadata={
-            "reference_plane": "post-axicon free-space reference plane, n=1.0",
+            "reference_plane": "free-space reference plane after physical axicon route, n=1.0",
             "no_material_model": True,
             "physical_location": "free_space_reference_plane",
+            "route_endpoint": "free_space",
         },
     )
 
@@ -1699,7 +1766,7 @@ def plot_route_aware_axicon_pipeline(
         (np.abs(run.axicon_incident_state.field), "field arriving at axicon", "physical_axicon_plane", "viridis"),
         (np.angle(T), "axicon aperture + phase centre", "physical_axicon_plane", "twilight"),
         (np.abs(run.physical_axicon_state.field), "field immediately after axicon", "physical_axicon_plane", "viridis"),
-        (fl.fluence_zyx_j_cm2[-1], "reference-plane XY fluence", "post_objective_reference_plane", "viridis"),
+        (fl.fluence_zyx_j_cm2[-1], "reference-plane XY fluence", "free_space_reference_plane", "viridis"),
     ]
     for i, (arr, title, loc, cmap) in enumerate(panels):
         ax = fig.add_subplot(gs[i // 3, i % 3])
@@ -1770,7 +1837,7 @@ def plot_component_route_inspection(
     fig = plt.figure(figsize=(17.5, 11.2), facecolor="white")
     gs = fig.add_gridspec(2, 2, left=0.045, right=0.97, top=0.82, bottom=0.16,
                           hspace=0.30, wspace=0.22, height_ratios=[1.65, 1.0])
-    fig.suptitle("Stage 8C.3 Component-Owned Route Inspection\n"
+    fig.suptitle("Stage 8C.3 Component-Owned Physical-Axicon Route Scaffold\n"
                  "misalign represented component -> apply local transform -> propagate through downstream elements",
                  x=0.045, y=0.972, ha="left", va="top", fontsize=15.2, fontweight="bold")
     _badges(fig)
@@ -1800,13 +1867,14 @@ def plot_component_route_inspection(
             f"({cb[0]:.1f},{cb[1]:.1f})->({ca[0]:.1f},{ca[1]:.1f})",
             f"({ab[0]:.1f},{ab[1]:.1f})->({aa[0]:.1f},{aa[1]:.1f})",
             "n/a" if overlap is None else f"{float(overlap):.3f}",
+            "yes" if bool(r["transform_applied"]) else "no",
             str(r["model status"]),
         ])
 
     ax_table = fig.add_subplot(gs[0, :])
     ax_table.axis("off")
     cols = ["component", "type", "next mm", "pose error", "energy uJ",
-            "centroid um", "angle mrad", "overlap", "status"]
+            "centroid um", "angle mrad", "overlap", "xform", "status"]
     tbl = ax_table.table(cellText=table_rows, colLabels=cols, loc="center", cellLoc="left")
     tbl.auto_set_font_size(False)
     tbl.set_fontsize(7.1)
@@ -1817,9 +1885,9 @@ def plot_component_route_inspection(
         if row == 0:
             cell.set_facecolor("#eceff1")
             cell.set_text_props(weight="bold", color="#263238")
-        elif "boundary" in table_rows[row - 1][8]:
+        elif "boundary" in table_rows[row - 1][9]:
             cell.set_facecolor("#fffde7")
-        elif "future" in table_rows[row - 1][8] or "warning" in table_rows[row - 1][8]:
+        elif "future" in table_rows[row - 1][9] or "warning" in table_rows[row - 1][9]:
             cell.set_facecolor("#ffebee")
 
     ids = [r["component_id"] for r in rows]
@@ -1881,12 +1949,12 @@ def plot_upstream_vs_post_axicon_tilt_comparison(
             "post_axicon_steering_test",
         ),
         (
-            "C. after objective / downstream steering",
+            "C. post-axicon diagnostic boundary",
             run_route_aware_axicon_pipeline(
-                {"field_tilt_x_mrad": tilt_mrad, "field_tilt_location": "after_objective"},
+                {"field_tilt_x_mrad": tilt_mrad, "field_tilt_location": "post_axicon_diagnostic_boundary"},
                 config=config,
             ),
-            "after_objective_downstream_steering",
+            "post_axicon_diagnostic_boundary",
         ),
     ]
     fig = plt.figure(figsize=(17.0, 13.2), facecolor="white")

@@ -95,17 +95,19 @@ The saved C3D headline preview now uses low-order aberrations as the visual scen
 
 The C3D metric set also adds commanded-axis versus actual-axis diagnostics: commanded x/y, fitted ring centre, brightest-point offset, fitted beam-axis surface intercept, target-plane axis offset, steering angle, field-of-view margin, out-of-frame fraction, and crop-edge energy fraction. Co-shifted vortex+axicon remains a translation diagnostic; genuine degradation scenarios remain separated from pure translation by registered similarity and residual shape deformation.
 
-Stage 8C.3R.4 component-owned route inspection:
+Stage 8C.3R.4 component-owned physical-axicon route scaffold:
 
 ```text
 outputs/figures/digital_twin/stage8c3_component_route_inspection.png
 ```
 
-Stage 8C.3R.4 corrects the too-narrow route-aware interpretation. The physical-axicon route is now an ordered component/segment chain: source field, source boundary condition, input aperture, source-to-axicon propagation, axicon input boundary, physical axicon, post-axicon boundary, post-axicon propagation, after-objective boundary, reference propagation, and reference plane. Supported errors are attached to represented components and applied in their local planes before downstream propagation continues.
+Stage 8C.3R.4 corrects the too-narrow route-aware interpretation. The physical-axicon route is now an ordered component/segment scaffold: source complex field, source boundary condition, input aperture, source-to-axicon propagation, axicon input boundary, physical axicon, post-axicon boundary, post-axicon free-space segment, post-axicon diagnostic boundary, post-axicon-to-reference segment, and free-space reference plane. Supported errors are attached to represented components and applied in their local planes before downstream propagation continues.
 
 Field-state controls still exist only as labelled boundary conditions at named planes. They declare the physical approximation, the upstream hardware error they could emulate, and the downstream components that consume them. They are not generic representations of arbitrary component misalignment.
 
-The route-inspection table records component name/type, nominal location, pose error, incoming/outgoing field metrics, energy before/after, centroid before/after, angle before/after, aperture overlap, downstream consequences, model status, and warnings. SLM/4F/relay/objective-pupil/objective planes remain warning-only or future-stage unless a real model is added.
+Active physics is limited to source complex field, input aperture, free-space propagation segments, thin scalar physical axicon phase and clear aperture, and free-space reference-plane diagnostics. Steering mirrors, SLM1/SLM2, 4F Fourier filtering, relay optics, pupil/objective optics, and mechanical axicon tilt remain warning-only or future-stage.
+
+The route-inspection table records component name/type, nominal location, pose error, incoming/outgoing field metrics, energy before/after, centroid before/after, angle before/after, aperture overlap, actual segment distance, transform-applied boolean, downstream consequences, model status, and warnings.
 
 ## Governance
 
