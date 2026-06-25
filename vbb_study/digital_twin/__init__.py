@@ -207,6 +207,25 @@ from vbb_study.digital_twin.route_aware_axicon import (
     plot_upstream_vs_post_axicon_tilt_comparison,
     plot_axicon_alignment_sensitivity_atlas,
 )
+from vbb_study.digital_twin.cslm_route import (
+    CONCEPTUAL_CSLM_COMPONENT_IDS,
+    EXECUTED_CSLM_COMPONENT_IDS,
+    WARNING_ONLY_CSLM_COMPONENT_IDS,
+    FOUR_F_REQUIRED_PARAMETERS,
+    CSLMRouteConfig,
+    CSLMRouteRun,
+    FourFFeasibilityAudit,
+    build_cslm_route_declaration,
+    build_executed_cslm_component_chain,
+    evaluate_fourier_filter_feasibility,
+    run_cslm_baseline_route,
+    route_inspection_rows as cslm_route_inspection_rows,
+    save_cslm_phase_masks,
+    plot_cslm_route_inspection,
+    plot_cslm_phase_and_field_baselines,
+    plot_cslm_fourier_order_selection_audit,
+    generate_stage8c3r5_previews,
+)
 
 __all__ = [
     # energy accounting
@@ -355,6 +374,24 @@ __all__ = [
     "plot_component_route_inspection",
     "plot_upstream_vs_post_axicon_tilt_comparison",
     "plot_axicon_alignment_sensitivity_atlas",
+    # concatenated-SLM component route (Stage 8C.3R.5)
+    "CONCEPTUAL_CSLM_COMPONENT_IDS",
+    "EXECUTED_CSLM_COMPONENT_IDS",
+    "WARNING_ONLY_CSLM_COMPONENT_IDS",
+    "FOUR_F_REQUIRED_PARAMETERS",
+    "CSLMRouteConfig",
+    "CSLMRouteRun",
+    "FourFFeasibilityAudit",
+    "build_cslm_route_declaration",
+    "build_executed_cslm_component_chain",
+    "evaluate_fourier_filter_feasibility",
+    "run_cslm_baseline_route",
+    "cslm_route_inspection_rows",
+    "save_cslm_phase_masks",
+    "plot_cslm_route_inspection",
+    "plot_cslm_phase_and_field_baselines",
+    "plot_cslm_fourier_order_selection_audit",
+    "generate_stage8c3r5_previews",
     # free-space reference-plane validation (Stage 8C.3R.1)
     "canonical_free_space_reference",
     "zero_control_equivalence",
