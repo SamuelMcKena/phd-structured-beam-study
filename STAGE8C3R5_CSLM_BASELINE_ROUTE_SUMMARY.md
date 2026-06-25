@@ -62,13 +62,17 @@ source_field
 
 ## SLM Roles
 
-SLM1 is implemented as `phase_only_conditioning`; it applies a phase map and
-then propagates to SLM2.  It does not claim validated independent amplitude
-shaping.
+SLM1 is implemented as `phase_only_conditioning`; in the baseline it owns the
+vortex/topological-charge phase, applies a phase map, and then propagates to
+SLM2.  It does not claim validated independent amplitude shaping.
 
-SLM2 is implemented as `structured_beam_synthesis`; it composes axicon phase,
-vortex/topological-charge phase, carrier/blaze phase, optional correction phase,
-wrapping, and phase quantisation before downstream propagation.
+SLM2 is implemented as `phase_correction_and_carrier_preserve_vortex`; it
+composes carrier/blaze phase and optional correction phase only, with wrapping
+and phase quantisation before downstream propagation.
+
+Correction: SLM2 does not produce the axicon phase.  Any axicon/Bessel-like
+preview is an external/non-executed reference and is not part of the executed
+CSLM route.
 
 ## 4F Decision
 
@@ -101,9 +105,10 @@ outputs/figures/digital_twin/stage8c3r5_phase_masks.npz
 The baseline route reports:
 
 - zero-phase propagation power ratio;
-- axicon-only reference-plane field;
-- axicon + vortex annular diagnostic field;
-- measurable change under topological-charge increment;
+- SLM1 vortex-only reference-plane field;
+- external/non-executed axicon reference-plane field;
+- external axicon plus SLM1 vortex reference, explicitly not executed by SLM2;
+- measurable change under SLM1 topological-charge increment;
 - phase wrapping and quantisation before propagation;
 - energy conservation across phase-only SLM stages;
 - inactive 4F order selection returning no filtered field.

@@ -56,17 +56,22 @@ source_field
 Active physics:
 
 - source complex field;
-- SLM1 phase-only conditioning;
+- SLM1 vortex / phase-only conditioning;
 - free-space propagation from SLM1 to SLM2;
-- SLM2 structured phase synthesis;
+- SLM2 correction/carrier phase handling with no axicon phase term;
 - free-space propagation to the reference plane;
 - free-space reference-plane diagnostics.
 
 SLM1 and SLM2 are separate programmable planes.  SLM1 is treated as
-`phase_only_conditioning`; it does not claim validated amplitude shaping.  SLM2
-is the structured-beam synthesis plane and composes axicon phase, vortex phase,
-carrier/blaze phase, optional correction phase, wrapping, and phase
-quantisation before propagation.
+`phase_only_conditioning`; in the baseline it owns the vortex/topological-charge
+phase and does not claim validated amplitude shaping.  SLM2 is treated as
+`phase_correction_and_carrier_preserve_vortex`; it composes carrier/blaze and
+optional correction terms only, with wrapping and phase quantisation before
+propagation.
+
+Important correction: SLM2 does not produce the axicon phase in this route.  Any
+Bessel-like axicon reference shown by the preview is explicitly labelled as an
+external/non-executed axicon reference, not as an SLM2 output.
 
 ## Warning-Only / Future Declarations
 
@@ -134,7 +139,8 @@ The route can become calibrated only after supplying measured hardware geometry:
 - SLM1 and SLM2 pixel pitch, active area, fill factor, phase response, and
   alignment;
 - SLM1-to-SLM2 propagation or relay geometry;
-- SLM2 blaze/carrier convention and measured order positions;
+- SLM2 blaze/carrier/correction convention and measured order positions;
+- the real axicon-producing element or route, if a Bessel-like field is claimed;
 - 4F lens focal lengths, clear apertures, and separations;
 - Fourier-plane coordinate calibration;
 - physical +1 filter centre, radius, and shape;

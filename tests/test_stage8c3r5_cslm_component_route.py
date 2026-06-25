@@ -45,7 +45,9 @@ def test_slm1_and_slm2_are_distinct_declared_planes():
     assert slm1.physical_location == "SLM1_plane"
     assert slm2.physical_location == "SLM2_plane"
     assert slm1.component_specific_parameters["slm1_role"] == "phase_only_conditioning"
-    assert slm2.component_specific_parameters["slm2_role"] == "structured_beam_synthesis"
+    assert slm1.component_specific_parameters["topological_charge"] == run.config.slm1_topological_charge
+    assert slm2.component_specific_parameters["slm2_role"] == "phase_correction_and_carrier_preserve_vortex"
+    assert slm2.component_specific_parameters["axicon_phase_produced_here"] is False
     assert slm1.component_id != slm2.component_id
 
 
@@ -63,13 +65,18 @@ def test_phase_only_slm_transforms_preserve_energy_before_filters():
         assert np.isclose(after_power, before_power, rtol=1e-12, atol=1e-12)
 
 
-def test_slm2_axicon_and_vortex_phase_are_applied_before_downstream_propagation():
+def test_slm2_does_not_produce_axicon_phase_and_only_applies_own_terms_before_propagation():
     run = _run(slm2_carrier_frequency_cpm=0.0)
 
     expected_slm2_field = run.slm2_input_state.field * np.exp(1j * run.slm2_quantized_phase_rad)
     assert np.allclose(run.slm2_state.field, expected_slm2_field)
+    assert set(run.slm2_phase_terms_rad) == {"carrier_phase_rad", "correction_phase_rad"}
+    assert "axicon_phase_rad" not in run.slm2_phase_terms_rad
+    assert "vortex_phase_rad" not in run.slm2_phase_terms_rad
+    assert run.slm2_state.metadata["axicon_phase_produced_here"] is False
     assert run.slm2_state.metadata["phase_quantisation_before_propagation"] is True
     assert run.baseline_metrics["phase_quantisation_before_propagation"] is True
+    assert run.baseline_metrics["slm2_axicon_phase_present"] is False
 
     zero_reference = run.baseline_fields["zero_reference_field"]
     assert not np.allclose(run.reference_plane_state.field, zero_reference)
@@ -78,9 +85,11 @@ def test_slm2_axicon_and_vortex_phase_are_applied_before_downstream_propagation(
 def test_changing_topological_charge_changes_generated_field_measurably():
     run = _run(slm2_carrier_frequency_cpm=0.0)
 
-    assert run.baseline_metrics["topological_charge_test_from"] == run.config.slm2_topological_charge
+    assert run.baseline_metrics["topological_charge_test_from"] == run.config.slm1_topological_charge
+    assert run.baseline_metrics["topological_charge_owner"] == "SLM1_phase_plane"
     assert run.baseline_metrics["topological_charge_measurable_change"] > 0.05
-    assert run.baseline_metrics["vortex_bessel_core_fraction_r4um"] < 0.75
+    assert run.baseline_metrics["slm1_vortex_core_fraction_r4um"] < 0.75
+    assert run.baseline_metrics["external_axicon_reference_executed"] is False
 
 
 def test_carrier_order_audit_uses_explicit_spatial_units():

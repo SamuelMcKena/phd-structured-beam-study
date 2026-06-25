@@ -8,11 +8,13 @@ and propagation segments while keeping the hard Stage 8C boundary:
     diagnostic_only
     final_export_allowed = False
 
-Active physics is limited to source complex field construction, SLM phase-only
-operations, phase wrapping/quantisation where supported, and angular-spectrum
-free-space propagation.  The real laboratory 4F first-order filter is declared
-as part of the route contract, but remains warning-only here because this code
-does not yet have a validated lens/Fourier-plane/filter coordinate model.
+Active physics is limited to source complex field construction, SLM1
+vortex/phase-only conditioning, SLM2 correction/carrier phase handling, phase
+wrapping/quantisation where supported, and angular-spectrum free-space
+propagation.  SLM2 does not produce an axicon phase in this route.  The real
+laboratory 4F first-order filter is declared as part of the route contract, but
+remains warning-only here because this code does not yet have a validated
+lens/Fourier-plane/filter coordinate model.
 """
 
 from __future__ import annotations
@@ -133,16 +135,17 @@ class CSLMRouteConfig:
     input_pulse_energy_uJ: float = 95.76
     input_beam_radius_um: float = 24.0
 
-    slm1_phase_mode: str = "flat"
+    slm1_phase_mode: str = "vortex"
+    slm1_topological_charge: int = 3
     slm1_linear_ramp_cpm: float = 0.0
     slm1_to_slm2_distance_mm: float = 0.040
 
-    slm2_axicon_parameter_rad_per_um: float = 1.05
-    slm2_topological_charge: int = 3
+    slm2_conjugate_mode: str = "preserve_vortex"
     slm2_carrier_frequency_cpm: float = 30_000.0
     slm2_correction_phase_rad: float = 0.0
     slm_phase_quantisation_levels: int = 256
     slm2_to_reference_distance_mm: float = 0.120
+    external_axicon_parameter_rad_per_um: float = 1.05
 
     fourier_lens1_focal_length_mm: float = 100.0
     fourier_lens2_focal_length_mm: float = 100.0
@@ -375,11 +378,12 @@ def build_cslm_route_declaration(
             parameters={
                 "slm1_role": slm1_role_for_config(cfg),
                 "slm1_phase_mode": cfg.slm1_phase_mode,
+                "topological_charge": cfg.slm1_topological_charge,
                 "linear_ramp_cpm": cfg.slm1_linear_ramp_cpm,
                 "phase_quantisation_levels": cfg.slm_phase_quantisation_levels,
             },
             clear_aperture=common_clear,
-            note="phase-only conditioning plane; no independently validated amplitude shaping claim",
+            note="phase-only vortex/conditioning plane; no independently validated amplitude shaping claim",
         ),
         _component(
             component_id="SLM1_to_SLM2_segment",
@@ -397,7 +401,7 @@ def build_cslm_route_declaration(
         ),
         _component(
             component_id="SLM2_phase_plane",
-            component_type="structured_programmable_phase_plane",
+            component_type="phase_correction_carrier_plane",
             physical_location="SLM2_plane",
             nominal_z_position_um=z_slm2,
             distance_from_previous_component_mm=cfg.slm1_to_slm2_distance_mm,
@@ -406,15 +410,15 @@ def build_cslm_route_declaration(
             represented=True,
             model_available=True,
             parameters={
-                "slm2_role": "structured_beam_synthesis",
-                "axicon_parameter_rad_per_um": cfg.slm2_axicon_parameter_rad_per_um,
-                "topological_charge": cfg.slm2_topological_charge,
+                "slm2_role": "phase_correction_and_carrier_preserve_vortex",
+                "conjugate_mode": cfg.slm2_conjugate_mode,
                 "carrier_frequency_cpm": cfg.slm2_carrier_frequency_cpm,
                 "carrier_frequency_cycles_per_mm": cfg.slm2_carrier_frequency_cycles_per_mm,
                 "phase_quantisation_levels": cfg.slm_phase_quantisation_levels,
+                "axicon_phase_produced_here": False,
             },
             clear_aperture=common_clear,
-            note="axicon, vortex, carrier, optional correction, wrapping and quantisation before propagation",
+            note="SLM2 does not produce the axicon phase; it carries correction/carrier terms only",
         ),
         _component(
             component_id="SLM2_to_fourier_lens_segment",
@@ -561,7 +565,7 @@ def build_executed_cslm_component_chain(
 def slm1_role_for_config(config: CSLMRouteConfig) -> str:
     """Return the honest role label for SLM1."""
 
-    if str(config.slm1_phase_mode).lower() in {"flat", "zero", "linear_ramp"}:
+    if str(config.slm1_phase_mode).lower() in {"vortex", "flat", "zero", "linear_ramp"}:
         return "phase_only_conditioning"
     return "holographic_field_shaping_unvalidated"
 
@@ -645,8 +649,11 @@ def _build_source_field(grid: Mapping[str, Any], config: CSLMRouteConfig) -> np.
 def _slm1_phase(grid: Mapping[str, Any], config: CSLMRouteConfig) -> np.ndarray:
     mode = str(config.slm1_phase_mode).lower()
     X = np.asarray(grid["X"], dtype=float)
+    Phi = np.asarray(grid["PHI"], dtype=float)
     if mode in {"flat", "zero"}:
         phase = np.zeros_like(X, dtype=float)
+    elif mode == "vortex":
+        phase = spp_phase_rad(Phi, int(config.slm1_topological_charge))
     elif mode == "linear_ramp":
         phase = blazed_carrier_phase_rad(X, float(config.slm1_linear_ramp_cpm))
     else:
@@ -658,27 +665,14 @@ def _slm2_phase_terms(
     grid: Mapping[str, Any],
     config: CSLMRouteConfig,
     *,
-    topological_charge: int | None = None,
-    include_axicon: bool = True,
-    include_vortex: bool = True,
     include_carrier: bool = True,
 ) -> dict[str, np.ndarray]:
     X = np.asarray(grid["X"], dtype=float)
-    R_um = np.asarray(grid["R"], dtype=float) / _UM
-    Phi = np.asarray(grid["PHI"], dtype=float)
-    ell = int(config.slm2_topological_charge if topological_charge is None else topological_charge)
-    zeros = np.zeros_like(X, dtype=float)
     terms = {
-        "axicon_phase_rad": (
-            -float(config.slm2_axicon_parameter_rad_per_um) * R_um
-            if include_axicon
-            else zeros.copy()
-        ),
-        "vortex_phase_rad": spp_phase_rad(Phi, ell) if include_vortex else zeros.copy(),
         "carrier_phase_rad": (
             blazed_carrier_phase_rad(X, float(config.slm2_carrier_frequency_cpm))
             if include_carrier
-            else zeros.copy()
+            else np.zeros_like(X, dtype=float)
         ),
         "correction_phase_rad": float(config.slm2_correction_phase_rad) * np.ones_like(X),
     }
@@ -689,17 +683,11 @@ def _compose_slm2_phase(
     grid: Mapping[str, Any],
     config: CSLMRouteConfig,
     *,
-    topological_charge: int | None = None,
-    include_axicon: bool = True,
-    include_vortex: bool = True,
     include_carrier: bool = True,
 ) -> tuple[dict[str, np.ndarray], np.ndarray, np.ndarray, np.ndarray]:
     terms = _slm2_phase_terms(
         grid,
         config,
-        topological_charge=topological_charge,
-        include_axicon=include_axicon,
-        include_vortex=include_vortex,
         include_carrier=include_carrier,
     )
     continuous = np.zeros_like(next(iter(terms.values())), dtype=float)
@@ -708,6 +696,19 @@ def _compose_slm2_phase(
     wrapped = wrap_phase_rad(continuous)
     quantized = _quantize_wrapped_phase(wrapped, config.slm_phase_quantisation_levels)
     return terms, continuous, wrapped, quantized
+
+
+def _external_axicon_phase(grid: Mapping[str, Any], config: CSLMRouteConfig) -> np.ndarray:
+    """External/non-executed axicon reference phase.
+
+    This is not an SLM2 phase term.  It exists only so the diagnostic preview can
+    show the Bessel-like field that would require an actual axicon-producing
+    element or route.
+    """
+
+    R_um = np.asarray(grid["R"], dtype=float) / _UM
+    phase = -float(config.external_axicon_parameter_rad_per_um) * R_um
+    return _quantize_wrapped_phase(phase, config.slm_phase_quantisation_levels)
 
 
 def _quantize_wrapped_phase(phase_rad: np.ndarray, levels: int) -> np.ndarray:
@@ -941,69 +942,87 @@ def _peak_radius_um(field_yx: np.ndarray, x_um: np.ndarray) -> float:
 def _baseline_fields_and_metrics(
     grid: Mapping[str, Any],
     x_um: np.ndarray,
+    source_field: np.ndarray,
     slm2_input_field: np.ndarray,
     config: CSLMRouteConfig,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
-    zero_phase = np.zeros_like(slm2_input_field, dtype=float)
-    zero_ref = _reference_field(slm2_input_field * np.exp(1j * zero_phase), grid, config)
+    slm1_to_slm2_prop = make_bl_asm_propagator(
+        np.asarray(source_field, dtype=complex),
+        dict(grid),
+        config.wavelength_m,
+        n_medium=float(config.n_medium),
+        bandlimit=bool(config.bandlimit),
+    )
+    zero_slm2_input = slm1_to_slm2_prop(float(config.slm1_to_slm2_distance_mm) * _MM)
+    zero_ref = _reference_field(zero_slm2_input, grid, config)
 
-    _, _, _, ax_q = _compose_slm2_phase(
+    vortex_ref = _reference_field(slm2_input_field, grid, config)
+
+    external_axicon_q = _external_axicon_phase(grid, config)
+    external_axicon_ref = _reference_field(
+        zero_slm2_input * np.exp(1j * external_axicon_q),
         grid,
         config,
-        include_axicon=True,
-        include_vortex=False,
-        include_carrier=False,
     )
-    ax_ref = _reference_field(slm2_input_field * np.exp(1j * ax_q), grid, config)
-
-    _, _, _, vortex_q = _compose_slm2_phase(
+    external_axicon_vortex_ref = _reference_field(
+        slm2_input_field * np.exp(1j * external_axicon_q),
         grid,
         config,
-        include_axicon=True,
-        include_vortex=True,
-        include_carrier=False,
     )
-    vortex_ref = _reference_field(slm2_input_field * np.exp(1j * vortex_q), grid, config)
 
-    next_charge = int(config.slm2_topological_charge) + 1
-    _, _, _, changed_q = _compose_slm2_phase(
-        grid,
-        config,
-        topological_charge=next_charge,
-        include_axicon=True,
-        include_vortex=True,
-        include_carrier=False,
+    next_charge = int(config.slm1_topological_charge) + 1
+    changed_slm1_phase = _quantize_wrapped_phase(
+        spp_phase_rad(np.asarray(grid["PHI"], dtype=float), next_charge),
+        config.slm_phase_quantisation_levels,
     )
-    changed_ref = _reference_field(slm2_input_field * np.exp(1j * changed_q), grid, config)
+    changed_slm1_field = source_field * np.exp(1j * changed_slm1_phase)
+    changed_prop = make_bl_asm_propagator(
+        changed_slm1_field,
+        dict(grid),
+        config.wavelength_m,
+        n_medium=float(config.n_medium),
+        bandlimit=bool(config.bandlimit),
+    )
+    changed_slm2_input = changed_prop(float(config.slm1_to_slm2_distance_mm) * _MM)
+    changed_ref = _reference_field(changed_slm2_input, grid, config)
 
     zero_I = np.abs(zero_ref) ** 2
-    ax_I = np.abs(ax_ref) ** 2
     vortex_I = np.abs(vortex_ref) ** 2
+    external_axicon_I = np.abs(external_axicon_ref) ** 2
+    external_axicon_vortex_I = np.abs(external_axicon_vortex_ref) ** 2
     changed_I = np.abs(changed_ref) ** 2
     metrics = {
         "zero_phase_power_ratio": field_power(zero_ref, config.dx_um, config.dx_um)
-        / max(field_power(slm2_input_field, config.dx_um, config.dx_um), EPS),
-        "axicon_only_peak_radius_um": _peak_radius_um(ax_ref, x_um),
-        "axicon_only_peak_intensity_arb": float(np.max(ax_I)),
-        "vortex_bessel_peak_radius_um": _peak_radius_um(vortex_ref, x_um),
-        "vortex_bessel_core_fraction_r4um": _core_fraction(vortex_ref, x_um, 4.0),
-        "vortex_bessel_peak_intensity_arb": float(np.max(vortex_I)),
-        "topological_charge_test_from": int(config.slm2_topological_charge),
+        / max(field_power(zero_slm2_input, config.dx_um, config.dx_um), EPS),
+        "slm1_vortex_peak_radius_um": _peak_radius_um(vortex_ref, x_um),
+        "slm1_vortex_core_fraction_r4um": _core_fraction(vortex_ref, x_um, 4.0),
+        "slm1_vortex_peak_intensity_arb": float(np.max(vortex_I)),
+        "external_axicon_reference_peak_radius_um": _peak_radius_um(external_axicon_ref, x_um),
+        "external_axicon_reference_peak_intensity_arb": float(np.max(external_axicon_I)),
+        "external_axicon_plus_vortex_peak_radius_um": _peak_radius_um(external_axicon_vortex_ref, x_um),
+        "external_axicon_plus_vortex_core_fraction_r4um": _core_fraction(external_axicon_vortex_ref, x_um, 4.0),
+        "external_axicon_plus_vortex_peak_intensity_arb": float(np.max(external_axicon_vortex_I)),
+        "topological_charge_test_from": int(config.slm1_topological_charge),
         "topological_charge_test_to": next_charge,
+        "topological_charge_owner": "SLM1_phase_plane",
         "topological_charge_intensity_similarity": _cosine_similarity(vortex_I, changed_I),
         "topological_charge_measurable_change": float(1.0 - _cosine_similarity(vortex_I, changed_I)),
+        "slm2_axicon_phase_present": False,
+        "external_axicon_reference_executed": False,
         "phase_quantisation_before_propagation": True,
         "energy_conserved_across_phase_only_elements": True,
         "normalisation_policy": "no hidden renormalisation after passive losses",
     }
     fields = {
         "zero_reference_field": zero_ref,
-        "axicon_only_reference_field": ax_ref,
-        "vortex_bessel_reference_field": vortex_ref,
+        "slm1_vortex_reference_field": vortex_ref,
+        "external_axicon_reference_field": external_axicon_ref,
+        "external_axicon_plus_vortex_reference_field": external_axicon_vortex_ref,
         "changed_charge_reference_field": changed_ref,
         "zero_reference_intensity": zero_I,
-        "axicon_only_reference_intensity": ax_I,
-        "vortex_bessel_reference_intensity": vortex_I,
+        "slm1_vortex_reference_intensity": vortex_I,
+        "external_axicon_reference_intensity": external_axicon_I,
+        "external_axicon_plus_vortex_reference_intensity": external_axicon_vortex_I,
         "changed_charge_reference_intensity": changed_I,
     }
     return fields, metrics
@@ -1054,6 +1073,7 @@ def run_cslm_baseline_route(
         metadata={
             "slm1_role": slm1_role_for_config(cfg),
             "phase_mode": cfg.slm1_phase_mode,
+            "topological_charge": cfg.slm1_topological_charge,
             "phase_quantisation_levels": cfg.slm_phase_quantisation_levels,
             "phase_quantisation_before_propagation": True,
         },
@@ -1086,11 +1106,12 @@ def run_cslm_baseline_route(
         slm2_field,
         x_um,
         energy,
-        applied_components=("SLM2_structured_phase",),
+        applied_components=("SLM2_phase_correction_and_carrier",),
         metadata={
-            "slm2_role": "structured_beam_synthesis",
-            "topological_charge": cfg.slm2_topological_charge,
+            "slm2_role": "phase_correction_and_carrier_preserve_vortex",
+            "conjugate_mode": cfg.slm2_conjugate_mode,
             "carrier_frequency_cpm": cfg.slm2_carrier_frequency_cpm,
+            "axicon_phase_produced_here": False,
             "phase_quantisation_levels": cfg.slm_phase_quantisation_levels,
             "phase_quantisation_before_propagation": True,
         },
@@ -1114,6 +1135,7 @@ def run_cslm_baseline_route(
 
     warnings = (
         "4F lenses, Fourier plane, and +1 order filter are declared warning-only; no fake filtered field is generated.",
+        "SLM2 does not produce an axicon phase in this route; Bessel-like references require an external/non-executed axicon term.",
         "All geometry is diagnostic demo geometry unless measured hardware values are supplied in a future stage.",
         "No material/interface/dose/nonlinear/thermal model is active.",
     )
@@ -1126,7 +1148,7 @@ def run_cslm_baseline_route(
         warnings=warnings,
     )
 
-    fields, metrics = _baseline_fields_and_metrics(grid, x_um, slm2_input_state.field, cfg)
+    fields, metrics = _baseline_fields_and_metrics(grid, x_um, source, slm2_input_state.field, cfg)
     route_declaration = build_cslm_route_declaration(cfg)
     executed = build_executed_cslm_component_chain(cfg)
     by_id = {c.component_id: c for c in executed}
@@ -1169,7 +1191,7 @@ def run_cslm_baseline_route(
             slm2_state,
             cfg,
             transform_applied=True,
-            model_status="phase_only_structured_beam_transform",
+            model_status="phase_only_correction_and_carrier_transform_no_axicon",
         ),
         _record(
             by_id["SLM2_to_reference_segment"],
@@ -1232,9 +1254,10 @@ def save_cslm_phase_masks(
         slm2_composite_phase_rad=run.slm2_composite_phase_rad,
         slm2_wrapped_phase_rad=run.slm2_wrapped_phase_rad,
         slm2_quantized_phase_rad=run.slm2_quantized_phase_rad,
-        topological_charge=np.array(run.config.slm2_topological_charge),
+        slm1_topological_charge=np.array(run.config.slm1_topological_charge),
         carrier_frequency_cpm=np.array(run.config.slm2_carrier_frequency_cpm),
-        axicon_parameter_rad_per_um=np.array(run.config.slm2_axicon_parameter_rad_per_um),
+        external_axicon_parameter_rad_per_um=np.array(run.config.external_axicon_parameter_rad_per_um),
+        slm2_axicon_phase_present=np.array(False),
     )
     return path
 
@@ -1355,33 +1378,8 @@ def plot_cslm_phase_and_field_baselines(
     y0 = int(np.argmin(np.abs(x)))
 
     grid = make_xy_grid(run.config.grid_N, run.config.dx_m)
-    _, _, _, ax_phase = _compose_slm2_phase(
-        grid,
-        run.config,
-        include_vortex=False,
-        include_carrier=False,
-    )
-    ax_field = run.slm2_input_state.field * np.exp(1j * ax_phase)
-    ax_stack = _propagated_stack(
-        ax_field,
-        x,
-        grid,
-        run.config,
-        states=(run.slm2_input_state,),
-        warnings=run.warnings,
-    )
-    ax_xz = ax_stack.intensity_zyx[:, y0, :].T
-
-    _, _, _, vortex_phase = _compose_slm2_phase(
-        grid,
-        run.config,
-        include_axicon=True,
-        include_vortex=True,
-        include_carrier=False,
-    )
-    vortex_field = run.slm2_input_state.field * np.exp(1j * vortex_phase)
     vortex_stack = _propagated_stack(
-        vortex_field,
+        run.slm2_input_state.field,
         x,
         grid,
         run.config,
@@ -1390,12 +1388,25 @@ def plot_cslm_phase_and_field_baselines(
     )
     vortex_xz = vortex_stack.intensity_zyx[:, y0, :].T
 
+    external_axicon_phase = _external_axicon_phase(grid, run.config)
+    external_axicon_vortex_field = run.slm2_input_state.field * np.exp(1j * external_axicon_phase)
+    external_axicon_vortex_stack = _propagated_stack(
+        external_axicon_vortex_field,
+        x,
+        grid,
+        run.config,
+        states=(run.slm2_input_state,),
+        warnings=run.warnings,
+    )
+    external_axicon_vortex_xz = external_axicon_vortex_stack.intensity_zyx[:, y0, :].T
+
     vmax_xy = max(
-        float(np.max(run.baseline_fields["axicon_only_reference_intensity"])),
-        float(np.max(run.baseline_fields["vortex_bessel_reference_intensity"])),
+        float(np.max(run.baseline_fields["slm1_vortex_reference_intensity"])),
+        float(np.max(run.baseline_fields["external_axicon_reference_intensity"])),
+        float(np.max(run.baseline_fields["external_axicon_plus_vortex_reference_intensity"])),
         EPS,
     )
-    vmax_xz = max(float(np.max(ax_xz)), float(np.max(vortex_xz)), EPS)
+    vmax_xz = max(float(np.max(vortex_xz)), float(np.max(external_axicon_vortex_xz)), EPS)
 
     fig, axes = plt.subplots(3, 3, figsize=(14, 12))
     fig.suptitle(
@@ -1407,7 +1418,7 @@ def plot_cslm_phase_and_field_baselines(
         axes[0, 0],
         run.slm1_phase_rad,
         extent=extent_xy,
-        title="SLM1 phase-only conditioning",
+        title="SLM1 vortex / phase-only conditioning",
         cmap="twilight",
         vmin=0.0,
         vmax=TWOPI,
@@ -1425,7 +1436,7 @@ def plot_cslm_phase_and_field_baselines(
         axes[0, 2],
         run.slm2_quantized_phase_rad,
         extent=extent_xy,
-        title="SLM2 quantized composite phase",
+        title="SLM2 correction/carrier phase - no axicon",
         cmap="twilight",
         vmin=0.0,
         vmax=TWOPI,
@@ -1434,25 +1445,25 @@ def plot_cslm_phase_and_field_baselines(
 
     im = _imshow(
         axes[1, 0],
-        run.baseline_fields["axicon_only_reference_intensity"],
+        run.baseline_fields["slm1_vortex_reference_intensity"],
         extent=extent_xy,
-        title="Axicon-only reference XY",
+        title="SLM1 vortex-only reference XY",
         vmax=vmax_xy,
     )
     fig.colorbar(im, ax=axes[1, 0], fraction=0.046)
     im = _imshow(
         axes[1, 1],
-        run.baseline_fields["vortex_bessel_reference_intensity"],
+        run.baseline_fields["external_axicon_reference_intensity"],
         extent=extent_xy,
-        title="Vortex-Bessel reference XY",
+        title="External axicon reference XY - not SLM2",
         vmax=vmax_xy,
     )
     fig.colorbar(im, ax=axes[1, 1], fraction=0.046)
     im = _imshow(
         axes[1, 2],
-        run.baseline_fields["changed_charge_reference_intensity"],
+        run.baseline_fields["external_axicon_plus_vortex_reference_intensity"],
         extent=extent_xy,
-        title=f"Charge {run.config.slm2_topological_charge + 1} comparison XY",
+        title="SLM1 vortex + external axicon XY",
         vmax=vmax_xy,
     )
     fig.colorbar(im, ax=axes[1, 2], fraction=0.046)
@@ -1460,9 +1471,9 @@ def plot_cslm_phase_and_field_baselines(
     extent_xz = (float(z[0]), float(z[-1]), float(x[0]), float(x[-1]))
     im = _imshow(
         axes[2, 0],
-        ax_xz,
+        vortex_xz,
         extent=extent_xz,
-        title="Axicon-only XZ free-space propagation",
+        title="SLM1 vortex-only XZ free-space propagation",
         vmax=vmax_xz,
     )
     axes[2, 0].set_xlabel("z from SLM2 (um)")
@@ -1470,9 +1481,9 @@ def plot_cslm_phase_and_field_baselines(
     fig.colorbar(im, ax=axes[2, 0], fraction=0.046)
     im = _imshow(
         axes[2, 1],
-        vortex_xz,
+        external_axicon_vortex_xz,
         extent=extent_xz,
-        title="Vortex-Bessel XZ free-space propagation",
+        title="External-axicon reference XZ - not executed",
         vmax=vmax_xz,
     )
     axes[2, 1].set_xlabel("z from SLM2 (um)")
@@ -1483,15 +1494,19 @@ def plot_cslm_phase_and_field_baselines(
     metric_lines = [
         "Baseline validations",
         f"zero-phase power ratio: {metrics['zero_phase_power_ratio']:.6f}",
-        f"axicon peak radius: {metrics['axicon_only_peak_radius_um']:.2f} um",
-        f"vortex peak radius: {metrics['vortex_bessel_peak_radius_um']:.2f} um",
-        f"vortex core fraction r<4um: {metrics['vortex_bessel_core_fraction_r4um']:.3f}",
+        f"SLM1 vortex peak radius: {metrics['slm1_vortex_peak_radius_um']:.2f} um",
+        f"SLM1 vortex core fraction r<4um: {metrics['slm1_vortex_core_fraction_r4um']:.3f}",
+        f"external axicon ref peak radius: {metrics['external_axicon_reference_peak_radius_um']:.2f} um",
+        f"external axicon+vortex peak radius: {metrics['external_axicon_plus_vortex_peak_radius_um']:.2f} um",
         (
             "charge change similarity "
             f"ell {metrics['topological_charge_test_from']}->{metrics['topological_charge_test_to']}: "
             f"{metrics['topological_charge_intensity_similarity']:.3f}"
         ),
         f"measurable charge delta: {metrics['topological_charge_measurable_change']:.3f}",
+        "topological charge owner: SLM1",
+        "SLM2 axicon phase present: FALSE",
+        "external axicon reference executed: FALSE",
         "phase quantisation before propagation: TRUE",
         "material response: DISABLED",
     ]
