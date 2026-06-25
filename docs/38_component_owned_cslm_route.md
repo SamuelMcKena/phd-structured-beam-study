@@ -27,13 +27,14 @@ source_field
 -> SLM1_phase_plane
 -> SLM1_to_SLM2_segment
 -> SLM2_phase_plane
+-> SLM2_to_pre_4F_diagnostic_segment
+-> post_SLM2_pre_4F_diagnostic_plane
 -> SLM2_to_fourier_lens_segment
 -> Fourier_lens_1
 -> Fourier_plane
 -> plus_one_order_filter
 -> Fourier_lens_2
 -> 4F_output_plane
--> free_space_reference_plane
 ```
 
 Only physically represented transforms are executed.  Unrepresented 4F elements
@@ -49,8 +50,8 @@ source_field
 -> SLM1_phase_plane
 -> SLM1_to_SLM2_segment
 -> SLM2_phase_plane
--> SLM2_to_reference_segment
--> free_space_reference_plane
+-> SLM2_to_pre_4F_diagnostic_segment
+-> post_SLM2_pre_4F_diagnostic_plane
 ```
 
 Active physics:
@@ -59,8 +60,8 @@ Active physics:
 - SLM1 vortex / phase-only conditioning;
 - free-space propagation from SLM1 to SLM2;
 - SLM2 correction/carrier phase handling with no axicon phase term;
-- free-space propagation to the reference plane;
-- free-space reference-plane diagnostics.
+- free-space propagation to a post-SLM2 pre-4F diagnostic plane;
+- post-SLM2 unfiltered field-state diagnostics.
 
 SLM1 and SLM2 are separate programmable planes.  SLM1 is treated as
 `phase_only_conditioning`; in the baseline it owns the vortex/topological-charge
@@ -69,9 +70,11 @@ phase and does not claim validated amplitude shaping.  SLM2 is treated as
 optional correction terms only, with wrapping and phase quantisation before
 propagation.
 
-Important correction: SLM2 does not produce the axicon phase in this route.  Any
-Bessel-like axicon reference shown by the preview is explicitly labelled as an
-external/non-executed axicon reference, not as an SLM2 output.
+Important correction: SLM2 does not produce the axicon phase in this route.
+The Bessel-forming element is a downstream physical axicon and is not part of
+the default active CSLM diagnostic branch.  Stage 8C.3R.5.1 adds an opt-in ideal
+selected-order benchmark branch for that handoff; it is not a physical 4F
+prediction.
 
 ## Warning-Only / Future Declarations
 
@@ -140,7 +143,8 @@ The route can become calibrated only after supplying measured hardware geometry:
   alignment;
 - SLM1-to-SLM2 propagation or relay geometry;
 - SLM2 blaze/carrier/correction convention and measured order positions;
-- the real axicon-producing element or route, if a Bessel-like field is claimed;
+- the downstream physical axicon placement and aperture if a Bessel-like
+  benchmark is claimed;
 - 4F lens focal lengths, clear apertures, and separations;
 - Fourier-plane coordinate calibration;
 - physical +1 filter centre, radius, and shape;

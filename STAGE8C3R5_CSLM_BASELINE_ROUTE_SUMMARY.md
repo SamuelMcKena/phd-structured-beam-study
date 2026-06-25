@@ -39,13 +39,14 @@ source_field
 -> SLM1_phase_plane
 -> SLM1_to_SLM2_segment
 -> SLM2_phase_plane
+-> SLM2_to_pre_4F_diagnostic_segment
+-> post_SLM2_pre_4F_diagnostic_plane
 -> SLM2_to_fourier_lens_segment
 -> Fourier_lens_1
 -> Fourier_plane
 -> plus_one_order_filter
 -> Fourier_lens_2
 -> 4F_output_plane
--> free_space_reference_plane
 ```
 
 ## Executed Route
@@ -56,8 +57,8 @@ source_field
 -> SLM1_phase_plane
 -> SLM1_to_SLM2_segment
 -> SLM2_phase_plane
--> SLM2_to_reference_segment
--> free_space_reference_plane
+-> SLM2_to_pre_4F_diagnostic_segment
+-> post_SLM2_pre_4F_diagnostic_plane
 ```
 
 ## SLM Roles
@@ -70,9 +71,10 @@ SLM2 is implemented as `phase_correction_and_carrier_preserve_vortex`; it
 composes carrier/blaze phase and optional correction phase only, with wrapping
 and phase quantisation before downstream propagation.
 
-Correction: SLM2 does not produce the axicon phase.  Any axicon/Bessel-like
-preview is an external/non-executed reference and is not part of the executed
-CSLM route.
+Correction: SLM2 does not produce the axicon phase.  The active CSLM route ends
+at a post-SLM2 pre-4F unfiltered diagnostic plane.  The Bessel-forming element
+is a downstream physical axicon and is only connected by the opt-in Stage
+8C.3R.5.1 ideal selected-order benchmark branch.
 
 ## 4F Decision
 
@@ -105,9 +107,8 @@ outputs/figures/digital_twin/stage8c3r5_phase_masks.npz
 The baseline route reports:
 
 - zero-phase propagation power ratio;
-- SLM1 vortex-only reference-plane field;
-- external/non-executed axicon reference-plane field;
-- external axicon plus SLM1 vortex reference, explicitly not executed by SLM2;
+- SLM1 vortex-only post-SLM2 diagnostic reference field;
+- post-SLM2 unfiltered diagnostic field carrying the SLM2 carrier;
 - measurable change under SLM1 topological-charge increment;
 - phase wrapping and quantisation before propagation;
 - energy conservation across phase-only SLM stages;

@@ -21,7 +21,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 import numpy as np
 
@@ -44,10 +44,13 @@ from vbb_study.digital_twin.component_plane_states import (
     PropagatedFieldStack,
     field_power,
 )
+from vbb_study.digital_twin.annular_axis_tracking import estimate_annular_axis
 from vbb_study.digital_twin.route_aware_axicon import (
     BeamlineComponent,
     ComponentPose,
     RouteInspectionRecord,
+    RouteAwareAxiconConfig,
+    physical_axicon_transmission,
 )
 
 _UM = 1e-6
@@ -67,13 +70,14 @@ CONCEPTUAL_CSLM_COMPONENT_IDS: tuple[str, ...] = (
     "SLM1_phase_plane",
     "SLM1_to_SLM2_segment",
     "SLM2_phase_plane",
+    "SLM2_to_pre_4F_diagnostic_segment",
+    "post_SLM2_pre_4F_diagnostic_plane",
     "SLM2_to_fourier_lens_segment",
     "Fourier_lens_1",
     "Fourier_plane",
     "plus_one_order_filter",
     "Fourier_lens_2",
     "4F_output_plane",
-    "free_space_reference_plane",
 )
 
 EXECUTED_CSLM_COMPONENT_IDS: tuple[str, ...] = (
@@ -82,8 +86,8 @@ EXECUTED_CSLM_COMPONENT_IDS: tuple[str, ...] = (
     "SLM1_phase_plane",
     "SLM1_to_SLM2_segment",
     "SLM2_phase_plane",
-    "SLM2_to_reference_segment",
-    "free_space_reference_plane",
+    "SLM2_to_pre_4F_diagnostic_segment",
+    "post_SLM2_pre_4F_diagnostic_plane",
 )
 
 WARNING_ONLY_CSLM_COMPONENT_IDS: tuple[str, ...] = (
@@ -94,6 +98,19 @@ WARNING_ONLY_CSLM_COMPONENT_IDS: tuple[str, ...] = (
     "Fourier_lens_2",
     "4F_output_plane",
 )
+
+IDEAL_AXICON_BENCHMARK_COMPONENT_IDS: tuple[str, ...] = (
+    "ideal_selected_order_handoff_plane",
+    "physical_axicon_benchmark_plane",
+    "post_axicon_benchmark_segment",
+    "ideal_axicon_benchmark_reference_plane",
+)
+
+OrderHandoffMode = Literal[
+    "none",
+    "ideal_selected_order_surrogate",
+    "physical_4f_filter",
+]
 
 FOUR_F_REQUIRED_PARAMETERS: tuple[str, ...] = (
     "wavelength_nm",
@@ -142,10 +159,21 @@ class CSLMRouteConfig:
 
     slm2_conjugate_mode: str = "preserve_vortex"
     slm2_carrier_frequency_cpm: float = 30_000.0
+    # Uniform piston placeholder (a single scalar broadcast to a uniform phase
+    # offset).  It is NOT an aberration-correction map.  A true future correction
+    # requires a spatial phase map (Zernike coefficient map / imported phase
+    # array / calibrated correction mask); that system is not implemented here.
     slm2_correction_phase_rad: float = 0.0
     slm_phase_quantisation_levels: int = 256
-    slm2_to_reference_distance_mm: float = 0.120
-    external_axicon_parameter_rad_per_um: float = 1.05
+    slm2_to_pre_4f_diagnostic_distance_mm: float = 0.120
+
+    order_handoff_mode: OrderHandoffMode = "none"
+    physical_axicon_enabled_for_benchmark: bool = True
+    physical_axicon_centre_x_um: float = 0.0
+    physical_axicon_centre_y_um: float = 0.0
+    physical_axicon_clear_aperture_radius_um: float = 42.0
+    physical_axicon_cone_parameter_rad_per_um: float = 1.05
+    physical_axicon_to_benchmark_reference_distance_mm: float = 0.120
 
     fourier_lens1_focal_length_mm: float = 100.0
     fourier_lens2_focal_length_mm: float = 100.0
@@ -181,8 +209,12 @@ class CSLMRouteConfig:
         return float(self.slm1_to_slm2_distance_mm) * 1000.0
 
     @property
-    def slm2_to_reference_distance_um(self) -> float:
-        return float(self.slm2_to_reference_distance_mm) * 1000.0
+    def slm2_to_pre_4f_diagnostic_distance_um(self) -> float:
+        return float(self.slm2_to_pre_4f_diagnostic_distance_mm) * 1000.0
+
+    @property
+    def physical_axicon_to_benchmark_reference_distance_um(self) -> float:
+        return float(self.physical_axicon_to_benchmark_reference_distance_mm) * 1000.0
 
     @property
     def slm2_carrier_frequency_cycles_per_mm(self) -> float:
@@ -227,6 +259,63 @@ class FourFFeasibilityAudit:
 
 
 @dataclass(frozen=True)
+class OrderSelectionHandoff:
+    """Explicit provenance for any order-selection handoff branch."""
+
+    mode: OrderHandoffMode
+    input_component_id: str
+    output_component_id: str
+    physical_filter_modelled: bool
+    energy_selection_modelled: bool
+    order_efficiency_modelled: bool
+    zero_order_rejection_modelled: bool
+    field_provenance: str
+    claim_boundary: str
+    warnings: tuple[str, ...]
+    final_export_allowed: bool = FINAL_EXPORT_ALLOWED
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "input_component_id": self.input_component_id,
+            "output_component_id": self.output_component_id,
+            "physical_filter_modelled": bool(self.physical_filter_modelled),
+            "energy_selection_modelled": bool(self.energy_selection_modelled),
+            "order_efficiency_modelled": bool(self.order_efficiency_modelled),
+            "zero_order_rejection_modelled": bool(self.zero_order_rejection_modelled),
+            "field_provenance": self.field_provenance,
+            "claim_boundary": self.claim_boundary,
+            "warnings": list(self.warnings),
+            "final_export_allowed": bool(self.final_export_allowed),
+        }
+
+
+@dataclass(frozen=True)
+class PhysicalAxiconBenchmarkResult:
+    """Benchmark-only physical-axicon branch output."""
+
+    handoff: OrderSelectionHandoff
+    ideal_selected_order_state: ComponentPlaneState
+    physical_axicon_state: ComponentPlaneState
+    benchmark_reference_state: ComponentPlaneState
+    benchmark_stack: PropagatedFieldStack
+    benchmark_route_chain: tuple[str, ...]
+    transmission: np.ndarray
+    metrics: Mapping[str, Any]
+    final_export_allowed: bool = FINAL_EXPORT_ALLOWED
+    model_status: str = "benchmark_only"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "handoff": self.handoff.as_dict(),
+            "benchmark_route_chain": list(self.benchmark_route_chain),
+            "metrics": dict(self.metrics),
+            "final_export_allowed": bool(self.final_export_allowed),
+            "model_status": self.model_status,
+        }
+
+
+@dataclass(frozen=True)
 class CSLMRouteRun:
     """Full CSLM baseline route output."""
 
@@ -245,6 +334,10 @@ class CSLMRouteRun:
     slm2_composite_phase_rad: np.ndarray
     slm2_wrapped_phase_rad: np.ndarray
     slm2_quantized_phase_rad: np.ndarray
+    post_slm2_unfiltered_state: ComponentPlaneState
+    order_handoff: OrderSelectionHandoff
+    ideal_selected_order_surrogate_state: ComponentPlaneState | None
+    axicon_benchmark: PhysicalAxiconBenchmarkResult | None
     baseline_fields: Mapping[str, Any]
     baseline_metrics: Mapping[str, Any]
     fourier_feasibility: FourFFeasibilityAudit
@@ -263,6 +356,12 @@ class CSLMRouteRun:
     @property
     def conceptual_route_chain(self) -> tuple[str, ...]:
         return tuple(c.component_id for c in self.route_declaration)
+
+    @property
+    def ideal_benchmark_route_chain(self) -> tuple[str, ...]:
+        if self.axicon_benchmark is None:
+            return ()
+        return self.axicon_benchmark.benchmark_route_chain
 
     @property
     def order_selection_result(self) -> Mapping[str, Any]:
@@ -325,7 +424,11 @@ def build_cslm_route_declaration(
     z_fourier = z_lens1 + cfg.lens1_to_fourier_plane_distance_mm * 1000.0
     z_lens2 = z_fourier + cfg.fourier_plane_to_lens2_distance_mm * 1000.0
     z_4f_out = z_lens2 + cfg.lens2_to_output_plane_distance_mm * 1000.0
-    z_ref = z_slm2 + cfg.slm2_to_reference_distance_um
+    z_diag = z_slm2 + cfg.slm2_to_pre_4f_diagnostic_distance_um
+    diag_to_lens1_mm = max(
+        float(cfg.slm2_to_lens1_distance_mm) - float(cfg.slm2_to_pre_4f_diagnostic_distance_mm),
+        0.0,
+    )
 
     common_clear = {
         "aperture_model": "not applied in R5 baseline",
@@ -405,7 +508,7 @@ def build_cslm_route_declaration(
             physical_location="SLM2_plane",
             nominal_z_position_um=z_slm2,
             distance_from_previous_component_mm=cfg.slm1_to_slm2_distance_mm,
-            distance_to_next_element_mm=cfg.slm2_to_lens1_distance_mm,
+            distance_to_next_element_mm=cfg.slm2_to_pre_4f_diagnostic_distance_mm,
             status="physics_active",
             represented=True,
             model_available=True,
@@ -421,16 +524,51 @@ def build_cslm_route_declaration(
             note="SLM2 does not produce the axicon phase; it carries correction/carrier terms only",
         ),
         _component(
+            component_id="SLM2_to_pre_4F_diagnostic_segment",
+            component_type="free_space_propagation_segment",
+            physical_location="SLM2_to_post_SLM2_pre_4F_diagnostic",
+            nominal_z_position_um=z_slm2 + 0.5 * cfg.slm2_to_pre_4f_diagnostic_distance_um,
+            distance_from_previous_component_mm=0.0,
+            distance_to_next_element_mm=cfg.slm2_to_pre_4f_diagnostic_distance_mm,
+            status="physics_active",
+            represented=True,
+            model_available=True,
+            parameters={"n_medium": cfg.n_medium, "distance_mm": cfg.slm2_to_pre_4f_diagnostic_distance_mm},
+            clear_aperture=common_clear,
+            note="active unfiltered CSLM diagnostic propagation; not a final lab output",
+        ),
+        _component(
+            component_id="post_SLM2_pre_4F_diagnostic_plane",
+            component_type="post_slm2_unfiltered_diagnostic_plane",
+            physical_location="post_SLM2_pre_4F_diagnostic_plane",
+            nominal_z_position_um=z_diag,
+            distance_from_previous_component_mm=cfg.slm2_to_pre_4f_diagnostic_distance_mm,
+            distance_to_next_element_mm=diag_to_lens1_mm,
+            status="diagnostic_active",
+            represented=True,
+            model_available=True,
+            parameters={
+                "n_medium": 1.0,
+                "post_slm2_unfiltered_diagnostic_field": True,
+                "contains_carrier": abs(float(cfg.slm2_carrier_frequency_cpm)) > 0,
+                "not_final_lab_output": True,
+                "diagnostic_only": True,
+                "final_export_allowed": False,
+            },
+            clear_aperture=common_clear,
+            note="post-SLM2 unfiltered field before any physical 4F/order-selection model",
+        ),
+        _component(
             component_id="SLM2_to_fourier_lens_segment",
             component_type="free_space_segment_to_4F",
-            physical_location="SLM2_to_lens1",
-            nominal_z_position_um=0.5 * (z_slm2 + z_lens1),
-            distance_from_previous_component_mm=0.0,
-            distance_to_next_element_mm=cfg.slm2_to_lens1_distance_mm,
+            physical_location="post_SLM2_pre_4F_to_lens1",
+            nominal_z_position_um=0.5 * (z_diag + z_lens1),
+            distance_from_previous_component_mm=cfg.slm2_to_pre_4f_diagnostic_distance_mm,
+            distance_to_next_element_mm=diag_to_lens1_mm,
             status="warning_only",
             represented=False,
             model_available=False,
-            parameters={"distance_mm": cfg.slm2_to_lens1_distance_mm},
+            parameters={"distance_mm": diag_to_lens1_mm},
             clear_aperture=common_clear,
             note="declared laboratory route segment; not executed because 4F path is not represented",
         ),
@@ -513,25 +651,6 @@ def build_cslm_route_declaration(
             clear_aperture=common_clear,
             note="no 4F output field until lens/filter mapping is implemented and validated",
         ),
-        _component(
-            component_id="free_space_reference_plane",
-            component_type="free_space_reference_plane",
-            physical_location="free_space_reference_plane",
-            nominal_z_position_um=z_ref,
-            distance_from_previous_component_mm=cfg.slm2_to_reference_distance_mm,
-            distance_to_next_element_mm=0.0,
-            status="diagnostic_active",
-            represented=True,
-            model_available=True,
-            parameters={
-                "n_medium": 1.0,
-                "diagnostic_only": True,
-                "no_material_model": True,
-                "final_export_allowed": False,
-            },
-            clear_aperture=common_clear,
-            note="free-space reference plane; not material response or calibrated writing prediction",
-        ),
     )
 
 
@@ -544,21 +663,46 @@ def build_executed_cslm_component_chain(
     declaration = {c.component_id: c for c in build_cslm_route_declaration(cfg)}
     z_slm2 = cfg.slm1_to_slm2_distance_um
     segment = _component(
-        component_id="SLM2_to_reference_segment",
+        component_id="SLM2_to_pre_4F_diagnostic_segment",
         component_type="free_space_propagation_segment",
-        physical_location="SLM2_to_free_space_reference",
-        nominal_z_position_um=z_slm2 + 0.5 * cfg.slm2_to_reference_distance_um,
+        physical_location="SLM2_to_post_SLM2_pre_4F_diagnostic",
+        nominal_z_position_um=z_slm2 + 0.5 * cfg.slm2_to_pre_4f_diagnostic_distance_um,
         distance_from_previous_component_mm=0.0,
-        distance_to_next_element_mm=cfg.slm2_to_reference_distance_mm,
+        distance_to_next_element_mm=cfg.slm2_to_pre_4f_diagnostic_distance_mm,
         status="physics_active",
         represented=True,
         model_available=True,
-        parameters={"n_medium": cfg.n_medium, "distance_mm": cfg.slm2_to_reference_distance_mm},
+        parameters={"n_medium": cfg.n_medium, "distance_mm": cfg.slm2_to_pre_4f_diagnostic_distance_mm},
         clear_aperture={"aperture_model": "not applied in R5 baseline", "aperture_overlap": None},
-        note=DIAGNOSTIC_GEOMETRY_NOTE,
+        note="active unfiltered CSLM diagnostic propagation; not a final lab output",
         downstream_route=EXECUTED_CSLM_COMPONENT_IDS,
     )
-    execution_map = {**declaration, "SLM2_to_reference_segment": segment}
+    plane = _component(
+        component_id="post_SLM2_pre_4F_diagnostic_plane",
+        component_type="post_slm2_unfiltered_diagnostic_plane",
+        physical_location="post_SLM2_pre_4F_diagnostic_plane",
+        nominal_z_position_um=z_slm2 + cfg.slm2_to_pre_4f_diagnostic_distance_um,
+        distance_from_previous_component_mm=cfg.slm2_to_pre_4f_diagnostic_distance_mm,
+        distance_to_next_element_mm=0.0,
+        status="diagnostic_active",
+        represented=True,
+        model_available=True,
+        parameters={
+            "n_medium": 1.0,
+            "post_slm2_unfiltered_diagnostic_field": True,
+            "not_final_lab_output": True,
+            "diagnostic_only": True,
+            "final_export_allowed": False,
+        },
+        clear_aperture={"aperture_model": "not applied in R5 baseline", "aperture_overlap": None},
+        note="post-SLM2 unfiltered field before any physical 4F/order-selection model",
+        downstream_route=EXECUTED_CSLM_COMPONENT_IDS,
+    )
+    execution_map = {
+        **declaration,
+        "SLM2_to_pre_4F_diagnostic_segment": segment,
+        "post_SLM2_pre_4F_diagnostic_plane": plane,
+    }
     return tuple(execution_map[name] for name in EXECUTED_CSLM_COMPONENT_IDS)
 
 
@@ -698,19 +842,6 @@ def _compose_slm2_phase(
     return terms, continuous, wrapped, quantized
 
 
-def _external_axicon_phase(grid: Mapping[str, Any], config: CSLMRouteConfig) -> np.ndarray:
-    """External/non-executed axicon reference phase.
-
-    This is not an SLM2 phase term.  It exists only so the diagnostic preview can
-    show the Bessel-like field that would require an actual axicon-producing
-    element or route.
-    """
-
-    R_um = np.asarray(grid["R"], dtype=float) / _UM
-    phase = -float(config.external_axicon_parameter_rad_per_um) * R_um
-    return _quantize_wrapped_phase(phase, config.slm_phase_quantisation_levels)
-
-
 def _quantize_wrapped_phase(phase_rad: np.ndarray, levels: int) -> np.ndarray:
     levels_i = int(levels)
     wrapped = wrap_phase_rad(phase_rad)
@@ -730,10 +861,12 @@ def _make_state(
     x_um: np.ndarray,
     energy_uJ: float,
     *,
+    energy_after_uJ: float | None = None,
     applied_components: tuple[str, ...],
     warnings: tuple[str, ...] = (),
     metadata: Mapping[str, Any] | None = None,
 ) -> ComponentPlaneState:
+    after = float(energy_uJ if energy_after_uJ is None else energy_after_uJ)
     return ComponentPlaneState(
         plane_name=name,
         field=field_yx,
@@ -742,13 +875,111 @@ def _make_state(
         dx_um=float(np.mean(np.abs(np.diff(x_um)))),
         dy_um=float(np.mean(np.abs(np.diff(x_um)))),
         pulse_energy_before_uJ=float(energy_uJ),
-        pulse_energy_after_uJ=float(energy_uJ),
-        transmitted_fraction=1.0,
+        pulse_energy_after_uJ=after,
+        transmitted_fraction=after / max(float(energy_uJ), EPS),
         applied_components=applied_components,
         warnings=warnings,
         representation="complex_field",
         metadata=dict(metadata or {}),
     )
+
+
+def make_order_selection_handoff(mode: OrderHandoffMode) -> OrderSelectionHandoff:
+    """Return the claim/provenance record for an order handoff mode."""
+
+    if mode == "none":
+        return OrderSelectionHandoff(
+            mode="none",
+            input_component_id="SLM2_phase_plane",
+            output_component_id="post_SLM2_pre_4F_diagnostic_plane",
+            physical_filter_modelled=False,
+            energy_selection_modelled=False,
+            order_efficiency_modelled=False,
+            zero_order_rejection_modelled=False,
+            field_provenance="no order-selection handoff; active branch remains post-SLM2 unfiltered diagnostic field",
+            claim_boundary="active unfiltered CSLM diagnostic only; not final lab output",
+            warnings=("4F filtering is inactive; no selected-order field is produced.",),
+        )
+    if mode == "ideal_selected_order_surrogate":
+        return OrderSelectionHandoff(
+            mode="ideal_selected_order_surrogate",
+            input_component_id="SLM2_phase_plane",
+            output_component_id="ideal_selected_order_handoff_plane",
+            physical_filter_modelled=False,
+            energy_selection_modelled=False,
+            order_efficiency_modelled=False,
+            zero_order_rejection_modelled=False,
+            field_provenance=(
+                "field arriving at SLM2 after SLM1 vortex propagation, multiplied by "
+                "SLM2 correction phase only; carrier removed as an ideal desired-order surrogate"
+            ),
+            claim_boundary="carrier-free desired-order benchmark; not a physical 4F prediction",
+            warnings=(
+                "Surrogate excludes carrier by construction and is not a Fourier-plane crop.",
+                "No order efficiency, zero-order rejection, or filter loss is modelled.",
+            ),
+        )
+    if mode == "physical_4f_filter":
+        return OrderSelectionHandoff(
+            mode="physical_4f_filter",
+            input_component_id="SLM2_phase_plane",
+            output_component_id="4F_output_plane",
+            physical_filter_modelled=False,
+            energy_selection_modelled=False,
+            order_efficiency_modelled=False,
+            zero_order_rejection_modelled=False,
+            field_provenance="requested physical 4F filter, but no component-owned Fourier-plane model exists",
+            claim_boundary="warning-only; physical 4F filtering unavailable in Stage 8C.3R.5.1",
+            warnings=("physical_4f_filter is not implemented; no filtered field is returned.",),
+        )
+    raise ValueError(f"Unsupported order_handoff_mode: {mode!r}")
+
+
+def build_ideal_selected_order_surrogate(
+    slm2_input_state: ComponentPlaneState,
+    grid: Mapping[str, Any],
+    config: CSLMRouteConfig,
+) -> tuple[ComponentPlaneState, np.ndarray]:
+    """Build the explicitly non-physical desired-order surrogate.
+
+    The field starts from the field arriving at SLM2, so it retains SLM1 vortex
+    conditioning and SLM1-to-SLM2 propagation.  It applies SLM2 correction phase
+    only and removes the carrier as a benchmark surrogate.  It is not a physical
+    Fourier filter or +1 selected-order field.
+    """
+
+    if slm2_input_state.field is None:
+        raise ValueError("slm2_input_state must contain a complex field.")
+    _, _, _, correction_phase = _compose_slm2_phase(grid, config, include_carrier=False)
+    field = slm2_input_state.field * np.exp(1j * correction_phase)
+    state = _make_state(
+        "ideal_selected_order_handoff_plane",
+        field,
+        slm2_input_state.x_um,
+        slm2_input_state.pulse_energy_after_uJ,
+        applied_components=("ideal_selected_order_surrogate_no_physical_filter",),
+        warnings=(
+            "carrier-free desired-order benchmark only",
+            "physical_filter_modelled=False",
+            "zero_order_rejection_modelled=False",
+            "order_efficiency_modelled=False",
+        ),
+        metadata={
+            "handoff_mode": "ideal_selected_order_surrogate",
+            "physical_filter_modelled": False,
+            "zero_order_rejection_modelled": False,
+            "order_efficiency_modelled": False,
+            "energy_selection_modelled": False,
+            "selected_order_energy_uJ": None,
+            "claim_boundary": "carrier-free desired-order benchmark; not a physical 4F prediction",
+            "field_provenance": (
+                "SLM2 input field after SLM1 vortex and propagation; SLM2 correction phase applied; "
+                "carrier omitted by non-physical surrogate"
+            ),
+            "final_export_allowed": False,
+        },
+    )
+    return state, correction_phase
 
 
 def _reference_field(
@@ -764,8 +995,25 @@ def _reference_field(
         n_medium=float(config.n_medium),
         bandlimit=bool(config.bandlimit),
     )
-    z_m = (config.slm2_to_reference_distance_um if distance_um is None else float(distance_um)) * _UM
+    default_distance_um = config.slm2_to_pre_4f_diagnostic_distance_um
+    z_m = (default_distance_um if distance_um is None else float(distance_um)) * _UM
     return prop(z_m)
+
+
+def _propagate_field_um(
+    field_yx: np.ndarray,
+    grid: Mapping[str, Any],
+    config: CSLMRouteConfig,
+    distance_um: float,
+) -> np.ndarray:
+    prop = make_bl_asm_propagator(
+        np.asarray(field_yx, dtype=complex),
+        dict(grid),
+        config.wavelength_m,
+        n_medium=float(config.n_medium),
+        bandlimit=bool(config.bandlimit),
+    )
+    return prop(float(distance_um) * _UM)
 
 
 def _propagated_stack(
@@ -806,6 +1054,54 @@ def _propagated_stack(
             "route_mode": config.route_mode,
             "n_medium": config.n_medium,
             "diagnostic_only": True,
+            "no_material_model": True,
+            "final_export_allowed": False,
+        },
+    )
+
+
+def _propagated_stack_to_distance(
+    field_yx: np.ndarray,
+    x_um: np.ndarray,
+    grid: Mapping[str, Any],
+    config: CSLMRouteConfig,
+    *,
+    distance_um: float,
+    sample_energy_uJ: float,
+    states: tuple[ComponentPlaneState, ...],
+    warnings: tuple[str, ...],
+    representation: str,
+) -> PropagatedFieldStack:
+    z_um = np.linspace(0.0, float(distance_um), int(config.n_z))
+    prop = make_bl_asm_propagator(
+        np.asarray(field_yx, dtype=complex),
+        dict(grid),
+        config.wavelength_m,
+        n_medium=float(config.n_medium),
+        bandlimit=bool(config.bandlimit),
+    )
+    intensity = np.empty((z_um.size, x_um.size, x_um.size), dtype=float)
+    for iz, z in enumerate(z_um):
+        intensity[iz] = np.abs(prop(float(z) * _UM)) ** 2
+    return PropagatedFieldStack(
+        intensity_zyx=intensity,
+        x_um=x_um,
+        y_um=x_um,
+        z_um=z_um,
+        input_pulse_energy_uJ=float(config.input_pulse_energy_uJ),
+        sample_pulse_energy_uJ=float(sample_energy_uJ),
+        transmitted_fraction=float(sample_energy_uJ) / max(float(config.input_pulse_energy_uJ), EPS),
+        plane_states=states,
+        warnings=warnings,
+        representation=representation,
+        final_export_allowed=FINAL_EXPORT_ALLOWED,
+        model_status=MODEL_STATUS,
+        metadata={
+            "stage": "8C.3R.5.1",
+            "route_mode": config.route_mode,
+            "n_medium": config.n_medium,
+            "diagnostic_only": True,
+            "benchmark_only": representation.startswith("benchmark"),
             "no_material_model": True,
             "final_export_allowed": False,
         },
@@ -939,6 +1235,145 @@ def _peak_radius_um(field_yx: np.ndarray, x_um: np.ndarray) -> float:
     return float(np.hypot(x_um[ix], x_um[iy]))
 
 
+def _route_axicon_config(config: CSLMRouteConfig) -> RouteAwareAxiconConfig:
+    return RouteAwareAxiconConfig(
+        wavelength_nm=config.wavelength_nm,
+        n_medium=config.n_medium,
+        grid_N=config.grid_N,
+        dx_um=config.dx_um,
+        n_z=config.n_z,
+        input_pulse_energy_uJ=config.input_pulse_energy_uJ,
+        physical_axicon_centre_x_um=config.physical_axicon_centre_x_um,
+        physical_axicon_centre_y_um=config.physical_axicon_centre_y_um,
+        physical_axicon_clear_aperture_radius_um=config.physical_axicon_clear_aperture_radius_um,
+        axicon_cone_parameter=config.physical_axicon_cone_parameter_rad_per_um,
+    )
+
+
+def _axicon_aperture_overlap(field_yx: np.ndarray, transmission: np.ndarray, config: CSLMRouteConfig) -> float:
+    before = field_power(field_yx, config.dx_um, config.dx_um)
+    after = field_power(field_yx * transmission, config.dx_um, config.dx_um)
+    return float(after / max(before, EPS))
+
+
+def _field_momentum_delta_mrad(a: np.ndarray, b: np.ndarray, config: CSLMRouteConfig) -> tuple[float, float]:
+    ax, ay = _angle_mrad(a, config)
+    bx, by = _angle_mrad(b, config)
+    return float(bx - ax), float(by - ay)
+
+
+def build_physical_axicon_benchmark(
+    surrogate_state: ComponentPlaneState,
+    grid: Mapping[str, Any],
+    config: CSLMRouteConfig,
+    handoff: OrderSelectionHandoff,
+) -> PhysicalAxiconBenchmarkResult:
+    """Apply the represented physical axicon to the ideal surrogate branch."""
+
+    if surrogate_state.field is None:
+        raise ValueError("surrogate_state must contain a complex field.")
+    x_um = surrogate_state.x_um
+    transmission = physical_axicon_transmission(grid, _route_axicon_config(config))
+    after_axicon_field = surrogate_state.field * transmission
+    overlap = _axicon_aperture_overlap(surrogate_state.field, transmission, config)
+    energy_before = float(surrogate_state.pulse_energy_after_uJ)
+    energy_after = energy_before * overlap
+    sx, sy = _centroid(surrogate_state.field, x_um)
+    rel_x = float(sx - config.physical_axicon_centre_x_um)
+    rel_y = float(sy - config.physical_axicon_centre_y_um)
+
+    axicon_state = _make_state(
+        "physical_axicon_plane",
+        after_axicon_field,
+        x_um,
+        energy_before,
+        energy_after_uJ=energy_after,
+        applied_components=("physical_axicon_benchmark_transmission",),
+        metadata={
+            "benchmark_only": True,
+            "not_physically_4F_filtered": True,
+            "not_experimental_prediction": True,
+            "physical_axicon_centre_x_um": config.physical_axicon_centre_x_um,
+            "physical_axicon_centre_y_um": config.physical_axicon_centre_y_um,
+            "physical_axicon_clear_aperture_radius_um": config.physical_axicon_clear_aperture_radius_um,
+            "physical_axicon_cone_parameter_rad_per_um": config.physical_axicon_cone_parameter_rad_per_um,
+            "axicon_aperture_overlap_fraction": overlap,
+            "final_export_allowed": False,
+        },
+    )
+
+    reference_field = _propagate_field_um(
+        after_axicon_field,
+        grid,
+        config,
+        config.physical_axicon_to_benchmark_reference_distance_um,
+    )
+    reference_state = _make_state(
+        "ideal_axicon_benchmark_reference_plane",
+        reference_field,
+        x_um,
+        energy_after,
+        applied_components=("post_axicon_benchmark_free_space",),
+        metadata={
+            "benchmark_only": True,
+            "not_physically_4F_filtered": True,
+            "not_experimental_prediction": True,
+            "n_medium": 1.0,
+            "diagnostic_only": True,
+            "no_material_model": True,
+            "final_export_allowed": False,
+        },
+    )
+    stack = _propagated_stack_to_distance(
+        after_axicon_field,
+        x_um,
+        grid,
+        config,
+        distance_um=config.physical_axicon_to_benchmark_reference_distance_um,
+        sample_energy_uJ=energy_after,
+        states=(surrogate_state, axicon_state, reference_state),
+        warnings=handoff.warnings
+        + (
+            "physical axicon benchmark only",
+            "not physically 4F filtered",
+            "not experimental prediction",
+        ),
+        representation="benchmark_physical_axicon_free_space",
+    )
+    I_ref = np.abs(reference_field) ** 2
+    annular = estimate_annular_axis(I_ref, x_um, x_um)
+    metrics = {
+        "handoff_mode": handoff.mode,
+        "energy_entering_axicon_uJ": energy_before,
+        "energy_after_axicon_uJ": energy_after,
+        "axicon_aperture_overlap_fraction": overlap,
+        "relative_beam_to_axicon_offset_x_um": rel_x,
+        "relative_beam_to_axicon_offset_y_um": rel_y,
+        "relative_beam_to_axicon_offset_um": float(np.hypot(rel_x, rel_y)),
+        "physical_axicon_centre_x_um": float(config.physical_axicon_centre_x_um),
+        "physical_axicon_centre_y_um": float(config.physical_axicon_centre_y_um),
+        "physical_axicon_clear_aperture_radius_um": float(config.physical_axicon_clear_aperture_radius_um),
+        "ring_radius_um": float(annular["ring_radius_um"]),
+        "dark_core_fraction": float(np.clip(1.0 - _core_fraction(reference_field, x_um, 4.0), 0.0, 1.0)),
+        "azimuthal_uniformity": float(annular["azimuthal_uniformity"]),
+        "selected_order_energy_uJ": None,
+        "order_efficiency_modelled": False,
+        "zero_order_rejection_modelled": False,
+        "physical_filter_modelled": False,
+        "final_export_allowed": False,
+    }
+    return PhysicalAxiconBenchmarkResult(
+        handoff=handoff,
+        ideal_selected_order_state=surrogate_state,
+        physical_axicon_state=axicon_state,
+        benchmark_reference_state=reference_state,
+        benchmark_stack=stack,
+        benchmark_route_chain=IDEAL_AXICON_BENCHMARK_COMPONENT_IDS,
+        transmission=transmission,
+        metrics=metrics,
+    )
+
+
 def _baseline_fields_and_metrics(
     grid: Mapping[str, Any],
     x_um: np.ndarray,
@@ -958,18 +1393,6 @@ def _baseline_fields_and_metrics(
 
     vortex_ref = _reference_field(slm2_input_field, grid, config)
 
-    external_axicon_q = _external_axicon_phase(grid, config)
-    external_axicon_ref = _reference_field(
-        zero_slm2_input * np.exp(1j * external_axicon_q),
-        grid,
-        config,
-    )
-    external_axicon_vortex_ref = _reference_field(
-        slm2_input_field * np.exp(1j * external_axicon_q),
-        grid,
-        config,
-    )
-
     next_charge = int(config.slm1_topological_charge) + 1
     changed_slm1_phase = _quantize_wrapped_phase(
         spp_phase_rad(np.asarray(grid["PHI"], dtype=float), next_charge),
@@ -988,8 +1411,6 @@ def _baseline_fields_and_metrics(
 
     zero_I = np.abs(zero_ref) ** 2
     vortex_I = np.abs(vortex_ref) ** 2
-    external_axicon_I = np.abs(external_axicon_ref) ** 2
-    external_axicon_vortex_I = np.abs(external_axicon_vortex_ref) ** 2
     changed_I = np.abs(changed_ref) ** 2
     metrics = {
         "zero_phase_power_ratio": field_power(zero_ref, config.dx_um, config.dx_um)
@@ -997,18 +1418,13 @@ def _baseline_fields_and_metrics(
         "slm1_vortex_peak_radius_um": _peak_radius_um(vortex_ref, x_um),
         "slm1_vortex_core_fraction_r4um": _core_fraction(vortex_ref, x_um, 4.0),
         "slm1_vortex_peak_intensity_arb": float(np.max(vortex_I)),
-        "external_axicon_reference_peak_radius_um": _peak_radius_um(external_axicon_ref, x_um),
-        "external_axicon_reference_peak_intensity_arb": float(np.max(external_axicon_I)),
-        "external_axicon_plus_vortex_peak_radius_um": _peak_radius_um(external_axicon_vortex_ref, x_um),
-        "external_axicon_plus_vortex_core_fraction_r4um": _core_fraction(external_axicon_vortex_ref, x_um, 4.0),
-        "external_axicon_plus_vortex_peak_intensity_arb": float(np.max(external_axicon_vortex_I)),
         "topological_charge_test_from": int(config.slm1_topological_charge),
         "topological_charge_test_to": next_charge,
         "topological_charge_owner": "SLM1_phase_plane",
         "topological_charge_intensity_similarity": _cosine_similarity(vortex_I, changed_I),
         "topological_charge_measurable_change": float(1.0 - _cosine_similarity(vortex_I, changed_I)),
         "slm2_axicon_phase_present": False,
-        "external_axicon_reference_executed": False,
+        "active_route_contains_physical_axicon": False,
         "phase_quantisation_before_propagation": True,
         "energy_conserved_across_phase_only_elements": True,
         "normalisation_policy": "no hidden renormalisation after passive losses",
@@ -1016,13 +1432,9 @@ def _baseline_fields_and_metrics(
     fields = {
         "zero_reference_field": zero_ref,
         "slm1_vortex_reference_field": vortex_ref,
-        "external_axicon_reference_field": external_axicon_ref,
-        "external_axicon_plus_vortex_reference_field": external_axicon_vortex_ref,
         "changed_charge_reference_field": changed_ref,
         "zero_reference_intensity": zero_I,
         "slm1_vortex_reference_intensity": vortex_I,
-        "external_axicon_reference_intensity": external_axicon_I,
-        "external_axicon_plus_vortex_reference_intensity": external_axicon_vortex_I,
         "changed_charge_reference_intensity": changed_I,
     }
     return fields, metrics
@@ -1112,40 +1524,76 @@ def run_cslm_baseline_route(
             "conjugate_mode": cfg.slm2_conjugate_mode,
             "carrier_frequency_cpm": cfg.slm2_carrier_frequency_cpm,
             "axicon_phase_produced_here": False,
+            "slm2_correction_kind": "uniform_piston_placeholder",
+            "slm2_correction_future_requirement": (
+                "spatial phase map (Zernike coefficient map / imported phase array / "
+                "calibrated correction mask); not implemented in this stage"
+            ),
             "phase_quantisation_levels": cfg.slm_phase_quantisation_levels,
             "phase_quantisation_before_propagation": True,
         },
     )
 
-    reference_field = _reference_field(slm2_state.field, grid, cfg)
-    reference_state = _make_state(
-        "free_space_reference_plane",
-        reference_field,
+    post_slm2_field = _propagate_field_um(
+        slm2_state.field,
+        grid,
+        cfg,
+        cfg.slm2_to_pre_4f_diagnostic_distance_um,
+    )
+    post_slm2_state = _make_state(
+        "post_SLM2_pre_4F_diagnostic_plane",
+        post_slm2_field,
         x_um,
         energy,
-        applied_components=("SLM2_to_reference_free_space",),
+        applied_components=("SLM2_to_pre_4F_diagnostic_free_space",),
         metadata={
             "n_medium": 1.0,
             "diagnostic_only": True,
+            "post_slm2_unfiltered_diagnostic_field": True,
+            "contains_carrier": abs(float(cfg.slm2_carrier_frequency_cpm)) > 0,
+            "not_final_lab_output": True,
             "no_material_model": True,
             "final_export_allowed": False,
-            "distance_from_SLM2_mm": cfg.slm2_to_reference_distance_mm,
+            "distance_from_SLM2_mm": cfg.slm2_to_pre_4f_diagnostic_distance_mm,
         },
     )
 
+    handoff = make_order_selection_handoff(cfg.order_handoff_mode)
+    surrogate_state: ComponentPlaneState | None = None
+    axicon_benchmark: PhysicalAxiconBenchmarkResult | None = None
+    if cfg.order_handoff_mode == "ideal_selected_order_surrogate":
+        surrogate_state, _surrogate_phase = build_ideal_selected_order_surrogate(
+            slm2_input_state,
+            grid,
+            cfg,
+        )
+        if cfg.physical_axicon_enabled_for_benchmark:
+            axicon_benchmark = build_physical_axicon_benchmark(
+                surrogate_state,
+                grid,
+                cfg,
+                handoff,
+            )
+    elif cfg.order_handoff_mode == "physical_4f_filter":
+        surrogate_state = None
+        axicon_benchmark = None
+
     warnings = (
         "4F lenses, Fourier plane, and +1 order filter are declared warning-only; no fake filtered field is generated.",
-        "SLM2 does not produce an axicon phase in this route; Bessel-like references require an external/non-executed axicon term.",
+        "SLM2 does not produce an axicon phase in this route; the physical axicon is only used in the explicit R5.1 benchmark branch.",
         "All geometry is diagnostic demo geometry unless measured hardware values are supplied in a future stage.",
         "No material/interface/dose/nonlinear/thermal model is active.",
     )
-    stack = _propagated_stack(
+    stack = _propagated_stack_to_distance(
         slm2_state.field,
         x_um,
         grid,
         cfg,
-        states=(source_state, slm1_state, slm2_input_state, slm2_state, reference_state),
+        distance_um=cfg.slm2_to_pre_4f_diagnostic_distance_um,
+        sample_energy_uJ=energy,
+        states=(source_state, slm1_state, slm2_input_state, slm2_state, post_slm2_state),
         warnings=warnings,
+        representation="angular_spectrum_post_slm2_pre_4f_diagnostic",
     )
 
     fields, metrics = _baseline_fields_and_metrics(grid, x_um, source, slm2_input_state.field, cfg)
@@ -1194,20 +1642,20 @@ def run_cslm_baseline_route(
             model_status="phase_only_correction_and_carrier_transform_no_axicon",
         ),
         _record(
-            by_id["SLM2_to_reference_segment"],
+            by_id["SLM2_to_pre_4F_diagnostic_segment"],
             slm2_state,
-            reference_state,
+            post_slm2_state,
             cfg,
             transform_applied=True,
             model_status="free_space_propagation",
         ),
         _record(
-            by_id["free_space_reference_plane"],
-            reference_state,
-            reference_state,
+            by_id["post_SLM2_pre_4F_diagnostic_plane"],
+            post_slm2_state,
+            post_slm2_state,
             cfg,
             transform_applied=False,
-            model_status="free_space_reference_plane_diagnostic_only",
+            model_status="post_slm2_unfiltered_diagnostic_only_not_final_lab_output",
         ),
     )
     feasibility = evaluate_fourier_filter_feasibility(cfg)
@@ -1220,13 +1668,17 @@ def run_cslm_baseline_route(
         slm1_state=slm1_state,
         slm2_input_state=slm2_input_state,
         slm2_state=slm2_state,
-        reference_plane_state=reference_state,
+        reference_plane_state=post_slm2_state,
         propagated_stack=stack,
         slm1_phase_rad=slm1_phase,
         slm2_phase_terms_rad=slm2_terms,
         slm2_composite_phase_rad=slm2_continuous,
         slm2_wrapped_phase_rad=slm2_wrapped,
         slm2_quantized_phase_rad=slm2_quantized,
+        post_slm2_unfiltered_state=post_slm2_state,
+        order_handoff=handoff,
+        ideal_selected_order_surrogate_state=surrogate_state,
+        axicon_benchmark=axicon_benchmark,
         baseline_fields=fields,
         baseline_metrics=metrics,
         fourier_feasibility=feasibility,
@@ -1256,8 +1708,8 @@ def save_cslm_phase_masks(
         slm2_quantized_phase_rad=run.slm2_quantized_phase_rad,
         slm1_topological_charge=np.array(run.config.slm1_topological_charge),
         carrier_frequency_cpm=np.array(run.config.slm2_carrier_frequency_cpm),
-        external_axicon_parameter_rad_per_um=np.array(run.config.external_axicon_parameter_rad_per_um),
         slm2_axicon_phase_present=np.array(False),
+        active_route_contains_physical_axicon=np.array(False),
     )
     return path
 
@@ -1348,7 +1800,8 @@ def plot_cslm_route_inspection(
             f"fourier_filter_physics_available = {run.fourier_filter_physics_available}",
             "warning-only: Fourier_lens_1, Fourier_plane, +1 filter, Fourier_lens_2, 4F_output",
             "",
-            "Reference plane: free-space, n=1.0, diagnostic_only, no material model",
+            "Active output: post-SLM2 pre-4F diagnostic plane",
+            "free-space, n=1.0, diagnostic_only, no material model, not final lab output",
         ]
     )
     ax.text(0.0, 1.0, "\n".join(status_lines), va="top", family="monospace", fontsize=8.5)
@@ -1377,36 +1830,15 @@ def plot_cslm_phase_and_field_baselines(
     extent_xy = (float(x[0]), float(x[-1]), float(x[0]), float(x[-1]))
     y0 = int(np.argmin(np.abs(x)))
 
-    grid = make_xy_grid(run.config.grid_N, run.config.dx_m)
-    vortex_stack = _propagated_stack(
-        run.slm2_input_state.field,
-        x,
-        grid,
-        run.config,
-        states=(run.slm2_input_state,),
-        warnings=run.warnings,
-    )
-    vortex_xz = vortex_stack.intensity_zyx[:, y0, :].T
-
-    external_axicon_phase = _external_axicon_phase(grid, run.config)
-    external_axicon_vortex_field = run.slm2_input_state.field * np.exp(1j * external_axicon_phase)
-    external_axicon_vortex_stack = _propagated_stack(
-        external_axicon_vortex_field,
-        x,
-        grid,
-        run.config,
-        states=(run.slm2_input_state,),
-        warnings=run.warnings,
-    )
-    external_axicon_vortex_xz = external_axicon_vortex_stack.intensity_zyx[:, y0, :].T
+    vortex_xz = run.propagated_stack.intensity_zyx[:, y0, :].T
 
     vmax_xy = max(
         float(np.max(run.baseline_fields["slm1_vortex_reference_intensity"])),
-        float(np.max(run.baseline_fields["external_axicon_reference_intensity"])),
-        float(np.max(run.baseline_fields["external_axicon_plus_vortex_reference_intensity"])),
+        float(np.max(run.baseline_fields["changed_charge_reference_intensity"])),
+        float(np.max(np.abs(run.post_slm2_unfiltered_state.field) ** 2)),
         EPS,
     )
-    vmax_xz = max(float(np.max(vortex_xz)), float(np.max(external_axicon_vortex_xz)), EPS)
+    vmax_xz = max(float(np.max(vortex_xz)), EPS)
 
     fig, axes = plt.subplots(3, 3, figsize=(14, 12))
     fig.suptitle(
@@ -1453,17 +1885,17 @@ def plot_cslm_phase_and_field_baselines(
     fig.colorbar(im, ax=axes[1, 0], fraction=0.046)
     im = _imshow(
         axes[1, 1],
-        run.baseline_fields["external_axicon_reference_intensity"],
+        np.abs(run.post_slm2_unfiltered_state.field) ** 2,
         extent=extent_xy,
-        title="External axicon reference XY - not SLM2",
+        title="Post-SLM2 unfiltered diagnostic XY",
         vmax=vmax_xy,
     )
     fig.colorbar(im, ax=axes[1, 1], fraction=0.046)
     im = _imshow(
         axes[1, 2],
-        run.baseline_fields["external_axicon_plus_vortex_reference_intensity"],
+        run.baseline_fields["changed_charge_reference_intensity"],
         extent=extent_xy,
-        title="SLM1 vortex + external axicon XY",
+        title=f"SLM1 charge {run.config.slm1_topological_charge + 1} comparison XY",
         vmax=vmax_xy,
     )
     fig.colorbar(im, ax=axes[1, 2], fraction=0.046)
@@ -1479,16 +1911,17 @@ def plot_cslm_phase_and_field_baselines(
     axes[2, 0].set_xlabel("z from SLM2 (um)")
     axes[2, 0].set_ylabel("x (um)")
     fig.colorbar(im, ax=axes[2, 0], fraction=0.046)
-    im = _imshow(
-        axes[2, 1],
-        external_axicon_vortex_xz,
-        extent=extent_xz,
-        title="External-axicon reference XZ - not executed",
-        vmax=vmax_xz,
+    axes[2, 1].axis("off")
+    axes[2, 1].text(
+        0.0,
+        1.0,
+        "Physical axicon benchmark is disabled in the default R5 route.\n"
+        "Use order_handoff_mode='ideal_selected_order_surrogate'\n"
+        "for the Stage 8C.3R.5.1 benchmark branch.",
+        va="top",
+        family="monospace",
+        fontsize=9,
     )
-    axes[2, 1].set_xlabel("z from SLM2 (um)")
-    axes[2, 1].set_ylabel("x (um)")
-    fig.colorbar(im, ax=axes[2, 1], fraction=0.046)
     axes[2, 2].axis("off")
     metrics = run.baseline_metrics
     metric_lines = [
@@ -1496,17 +1929,16 @@ def plot_cslm_phase_and_field_baselines(
         f"zero-phase power ratio: {metrics['zero_phase_power_ratio']:.6f}",
         f"SLM1 vortex peak radius: {metrics['slm1_vortex_peak_radius_um']:.2f} um",
         f"SLM1 vortex core fraction r<4um: {metrics['slm1_vortex_core_fraction_r4um']:.3f}",
-        f"external axicon ref peak radius: {metrics['external_axicon_reference_peak_radius_um']:.2f} um",
-        f"external axicon+vortex peak radius: {metrics['external_axicon_plus_vortex_peak_radius_um']:.2f} um",
         (
             "charge change similarity "
-            f"ell {metrics['topological_charge_test_from']}->{metrics['topological_charge_test_to']}: "
+            f"ell={metrics['topological_charge_test_from']}->{metrics['topological_charge_test_to']}: "
             f"{metrics['topological_charge_intensity_similarity']:.3f}"
         ),
         f"measurable charge delta: {metrics['topological_charge_measurable_change']:.3f}",
         "topological charge owner: SLM1",
         "SLM2 axicon phase present: FALSE",
-        "external axicon reference executed: FALSE",
+        "active route contains physical axicon: FALSE",
+        f"handoff mode: {run.order_handoff.mode}",
         "phase quantisation before propagation: TRUE",
         "material response: DISABLED",
     ]
@@ -1586,6 +2018,442 @@ def plot_cslm_fourier_order_selection_audit(
     return path
 
 
+def _require_axicon_benchmark(run: CSLMRouteRun) -> PhysicalAxiconBenchmarkResult:
+    if run.order_handoff.mode != "ideal_selected_order_surrogate" or run.axicon_benchmark is None:
+        raise ValueError(
+            "Stage 8C.3R.5.1 benchmark figures require "
+            "order_handoff_mode='ideal_selected_order_surrogate' and "
+            "physical_axicon_enabled_for_benchmark=True."
+        )
+    return run.axicon_benchmark
+
+
+def _phase_image(field_yx: np.ndarray) -> np.ndarray:
+    return np.angle(np.asarray(field_yx, dtype=complex))
+
+
+def _normalised_intensity(field_yx: np.ndarray) -> np.ndarray:
+    intensity = np.abs(np.asarray(field_yx, dtype=complex)) ** 2
+    return intensity / max(float(np.max(intensity)), EPS)
+
+
+def plot_cslm_to_axicon_handoff_audit(
+    run: CSLMRouteRun,
+    output_path: str | Path = "outputs/figures/digital_twin/stage8c3r5_1_cslm_to_axicon_handoff_audit.png",
+) -> Path:
+    """Plot the active CSLM branch beside the explicit ideal axicon benchmark."""
+
+    benchmark = _require_axicon_benchmark(run)
+    surrogate = benchmark.ideal_selected_order_state
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    x = np.asarray(run.post_slm2_unfiltered_state.x_um, dtype=float)
+    z = np.asarray(benchmark.benchmark_stack.z_um, dtype=float)
+    extent_xy = (float(x[0]), float(x[-1]), float(x[0]), float(x[-1]))
+    extent_xz = (float(z[0]), float(z[-1]), float(x[0]), float(x[-1]))
+    y0 = int(np.argmin(np.abs(x)))
+    axicon_phase = np.angle(benchmark.transmission)
+    axicon_aperture = np.abs(benchmark.transmission) > 0.0
+    benchmark_xz = benchmark.benchmark_stack.intensity_zyx[:, y0, :].T
+
+    fig, axes = plt.subplots(3, 3, figsize=(15, 13))
+    fig.suptitle(
+        "Stage 8C.3R.5.1 CSLM-to-physical-axicon handoff audit\n"
+        "active post-SLM2 diagnostic branch plus opt-in ideal selected-order benchmark",
+        fontsize=14,
+    )
+
+    im = _imshow(
+        axes[0, 0],
+        run.slm1_phase_rad,
+        extent=extent_xy,
+        title="active executed diagnostic: SLM1 vortex phase",
+        cmap="twilight",
+        vmin=0.0,
+        vmax=TWOPI,
+    )
+    fig.colorbar(im, ax=axes[0, 0], fraction=0.046)
+    im = _imshow(
+        axes[0, 1],
+        _normalised_intensity(run.slm2_input_state.field),
+        extent=extent_xy,
+        title="active executed diagnostic: field arriving at SLM2",
+    )
+    fig.colorbar(im, ax=axes[0, 1], fraction=0.046)
+    im = _imshow(
+        axes[0, 2],
+        run.slm2_quantized_phase_rad,
+        extent=extent_xy,
+        title="active executed diagnostic: SLM2 correction + carrier, no axicon",
+        cmap="twilight",
+        vmin=0.0,
+        vmax=TWOPI,
+    )
+    fig.colorbar(im, ax=axes[0, 2], fraction=0.046)
+
+    im = _imshow(
+        axes[1, 0],
+        _normalised_intensity(run.post_slm2_unfiltered_state.field),
+        extent=extent_xy,
+        title="active executed diagnostic: post-SLM2 pre-4F field",
+    )
+    fig.colorbar(im, ax=axes[1, 0], fraction=0.046)
+    im = _imshow(
+        axes[1, 1],
+        _normalised_intensity(surrogate.field),
+        extent=extent_xy,
+        title="ideal selected-order surrogate: carrier removed non-physically",
+    )
+    fig.colorbar(im, ax=axes[1, 1], fraction=0.046)
+    im = _imshow(
+        axes[1, 2],
+        axicon_phase,
+        extent=extent_xy,
+        title="physical axicon benchmark: scalar phase",
+        cmap="twilight",
+        vmin=-np.pi,
+        vmax=np.pi,
+    )
+    fig.colorbar(im, ax=axes[1, 2], fraction=0.046)
+    X_um, Y_um = np.meshgrid(x, x, indexing="xy")
+    axes[1, 2].contour(
+        X_um,
+        Y_um,
+        axicon_aperture.astype(float),
+        levels=[0.5],
+        colors="white",
+        linewidths=0.8,
+    )
+
+    im = _imshow(
+        axes[2, 0],
+        _normalised_intensity(benchmark.physical_axicon_state.field),
+        extent=extent_xy,
+        title="physical axicon benchmark: immediately after axicon",
+    )
+    fig.colorbar(im, ax=axes[2, 0], fraction=0.046)
+    im = _imshow(
+        axes[2, 1],
+        benchmark_xz,
+        extent=extent_xz,
+        title="physical axicon benchmark: post-axicon XZ free-space",
+    )
+    axes[2, 1].set_xlabel("z after axicon (um)")
+    axes[2, 1].set_ylabel("x (um)")
+    fig.colorbar(im, ax=axes[2, 1], fraction=0.046)
+    axes[2, 2].axis("off")
+    lines = [
+        "Branch/claim boundary",
+        "A active: post_slm2_unfiltered_diagnostic_field",
+        "  no 4F filter; not final lab output",
+        "B benchmark: ideal_selected_order_surrogate_field",
+        "  carrier-free desired-order surrogate",
+        "  not a physical 4F prediction",
+        "Axicon: physical scalar phase + clear aperture",
+        "Material response: disabled",
+        "final_export_allowed: False",
+        "",
+        f"handoff mode: {run.order_handoff.mode}",
+        f"4F physics available: {run.fourier_filter_physics_available}",
+    ]
+    axes[2, 2].text(0.0, 1.0, "\n".join(lines), va="top", family="monospace", fontsize=8.5)
+
+    for ax in axes.ravel():
+        if ax.has_data():
+            ax.set_xlabel(ax.get_xlabel() or "x (um)")
+            if not ax.get_ylabel():
+                ax.set_ylabel("y (um)")
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.93))
+    fig.stage8c3r5_1_metadata = {
+        "diagnostic_only": True,
+        "benchmark_only": True,
+        "physical_filter_modelled": False,
+        "final_export_allowed": False,
+    }
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    return path
+
+
+def plot_unfiltered_vs_ideal_handoff(
+    run: CSLMRouteRun,
+    output_path: str | Path = "outputs/figures/digital_twin/stage8c3r5_1_unfiltered_vs_ideal_handoff.png",
+) -> Path:
+    """Compare actual unfiltered post-SLM2 field with the ideal surrogate."""
+
+    benchmark = _require_axicon_benchmark(run)
+    surrogate = benchmark.ideal_selected_order_state
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    x = np.asarray(run.post_slm2_unfiltered_state.x_um, dtype=float)
+    extent_xy = (float(x[0]), float(x[-1]), float(x[0]), float(x[-1]))
+    actual = run.post_slm2_unfiltered_state.field
+    ideal = surrogate.field
+    actual_i = _normalised_intensity(actual)
+    ideal_i = _normalised_intensity(ideal)
+    actual_metrics = _field_metrics(actual, x, run.config)
+    ideal_metrics = _field_metrics(ideal, x, run.config)
+
+    fig, axes = plt.subplots(2, 3, figsize=(15, 9))
+    fig.suptitle(
+        "Stage 8C.3R.5.1 unfiltered CSLM output versus ideal handoff\n"
+        "the surrogate is not a physically simulated 4F selected order",
+        fontsize=14,
+    )
+    vmax = max(float(np.max(actual_i)), float(np.max(ideal_i)), EPS)
+    im = _imshow(
+        axes[0, 0],
+        actual_i,
+        extent=extent_xy,
+        title="active executed diagnostic: post-SLM2 unfiltered intensity",
+        vmax=vmax,
+    )
+    fig.colorbar(im, ax=axes[0, 0], fraction=0.046)
+    im = _imshow(
+        axes[0, 1],
+        ideal_i,
+        extent=extent_xy,
+        title="ideal selected-order surrogate intensity",
+        vmax=vmax,
+    )
+    fig.colorbar(im, ax=axes[0, 1], fraction=0.046)
+    axes[0, 2].axis("off")
+    energy_lines = [
+        "Energy and order boundary",
+        f"post-SLM2 diagnostic energy: {run.post_slm2_unfiltered_state.pulse_energy_after_uJ:.3f} uJ",
+        f"surrogate energy: {surrogate.pulse_energy_after_uJ:.3f} uJ",
+        "selected_order_energy_uJ: None",
+        "order_efficiency_modelled: False",
+        "zero_order_rejection_modelled: False",
+        "physical_filter_modelled: False",
+        f"carrier period: {run.config.carrier_spatial_period_um:.2f} um",
+    ]
+    axes[0, 2].text(0.0, 1.0, "\n".join(energy_lines), va="top", family="monospace", fontsize=9)
+
+    im = _imshow(
+        axes[1, 0],
+        _phase_image(actual),
+        extent=extent_xy,
+        title="active executed diagnostic: carrier-bearing phase",
+        cmap="twilight",
+        vmin=-np.pi,
+        vmax=np.pi,
+    )
+    fig.colorbar(im, ax=axes[1, 0], fraction=0.046)
+    im = _imshow(
+        axes[1, 1],
+        _phase_image(ideal),
+        extent=extent_xy,
+        title="ideal surrogate phase: correction only after SLM1 propagation",
+        cmap="twilight",
+        vmin=-np.pi,
+        vmax=np.pi,
+    )
+    fig.colorbar(im, ax=axes[1, 1], fraction=0.046)
+    axes[1, 2].axis("off")
+    metric_lines = [
+        "Centroid / momentum",
+        (
+            "actual centroid: "
+            f"({actual_metrics['centroid_x_um']:.3f}, {actual_metrics['centroid_y_um']:.3f}) um"
+        ),
+        (
+            "ideal centroid: "
+            f"({ideal_metrics['centroid_x_um']:.3f}, {ideal_metrics['centroid_y_um']:.3f}) um"
+        ),
+        (
+            "actual angle: "
+            f"({actual_metrics['angle_x_mrad']:.3f}, {actual_metrics['angle_y_mrad']:.3f}) mrad"
+        ),
+        (
+            "ideal angle: "
+            f"({ideal_metrics['angle_x_mrad']:.3f}, {ideal_metrics['angle_y_mrad']:.3f}) mrad"
+        ),
+        "",
+        "Carrier removal here is a labelled non-physical surrogate.",
+        "It is not a Fourier-plane crop and not a +1 filtered field.",
+    ]
+    axes[1, 2].text(0.0, 1.0, "\n".join(metric_lines), va="top", family="monospace", fontsize=9)
+
+    for ax in axes.ravel():
+        if ax.has_data():
+            ax.set_xlabel(ax.get_xlabel() or "x (um)")
+            if not ax.get_ylabel():
+                ax.set_ylabel("y (um)")
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.91))
+    fig.stage8c3r5_1_metadata = {
+        "diagnostic_only": True,
+        "physical_filter_modelled": False,
+        "final_export_allowed": False,
+    }
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    return path
+
+
+def plot_ideal_vortex_bessel_axicon_benchmark(
+    run: CSLMRouteRun,
+    output_path: str | Path = "outputs/figures/digital_twin/stage8c3r5_1_ideal_vortex_bessel_axicon_benchmark.png",
+) -> Path:
+    """Plot the ideal selected-order plus physical-axicon benchmark branch."""
+
+    benchmark = _require_axicon_benchmark(run)
+    surrogate = benchmark.ideal_selected_order_state
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    x = np.asarray(surrogate.x_um, dtype=float)
+    z = np.asarray(benchmark.benchmark_stack.z_um, dtype=float)
+    extent_xy = (float(x[0]), float(x[-1]), float(x[0]), float(x[-1]))
+    extent_xz = (float(z[0]), float(z[-1]), float(x[0]), float(x[-1]))
+    y0 = int(np.argmin(np.abs(x)))
+    axicon_phase = np.angle(benchmark.transmission)
+    axicon_aperture = np.abs(benchmark.transmission) > 0.0
+    after_axicon_i = _normalised_intensity(benchmark.physical_axicon_state.field)
+    reference_i = np.abs(benchmark.benchmark_reference_state.field) ** 2
+    reference_i_norm = reference_i / max(float(np.max(reference_i)), EPS)
+    xz = benchmark.benchmark_stack.intensity_zyx[:, y0, :].T
+    fluence = stack_to_fluence(benchmark.benchmark_stack).fluence_zyx_j_cm2[-1]
+
+    fig, axes = plt.subplots(3, 3, figsize=(15, 13))
+    fig.suptitle(
+        "Ideal selected-order plus physical-axicon benchmark\n"
+        "Not a physical 4F-filtered CSLM prediction",
+        fontsize=15,
+    )
+    im = _imshow(
+        axes[0, 0],
+        _normalised_intensity(surrogate.field),
+        extent=extent_xy,
+        title="ideal selected-order field incident on axicon",
+    )
+    fig.colorbar(im, ax=axes[0, 0], fraction=0.046)
+    im = _imshow(
+        axes[0, 1],
+        axicon_aperture.astype(float),
+        extent=extent_xy,
+        title="physical axicon clear aperture",
+        cmap="gray",
+        vmin=0.0,
+        vmax=1.0,
+    )
+    fig.colorbar(im, ax=axes[0, 1], fraction=0.046)
+    im = _imshow(
+        axes[0, 2],
+        axicon_phase,
+        extent=extent_xy,
+        title="physical axicon scalar phase",
+        cmap="twilight",
+        vmin=-np.pi,
+        vmax=np.pi,
+    )
+    fig.colorbar(im, ax=axes[0, 2], fraction=0.046)
+
+    im = _imshow(
+        axes[1, 0],
+        after_axicon_i,
+        extent=extent_xy,
+        title="post-axicon XY intensity",
+    )
+    fig.colorbar(im, ax=axes[1, 0], fraction=0.046)
+    im = _imshow(
+        axes[1, 1],
+        xz,
+        extent=extent_xz,
+        title="post-axicon XZ propagation",
+    )
+    axes[1, 1].set_xlabel("z after axicon (um)")
+    axes[1, 1].set_ylabel("x (um)")
+    fig.colorbar(im, ax=axes[1, 1], fraction=0.046)
+    im = _imshow(
+        axes[1, 2],
+        reference_i_norm,
+        extent=extent_xy,
+        title="reference-plane XY intensity",
+    )
+    fig.colorbar(im, ax=axes[1, 2], fraction=0.046)
+
+    im = _imshow(
+        axes[2, 0],
+        fluence,
+        extent=extent_xy,
+        title="reference-plane optical fluence (J/cm^2)",
+    )
+    fig.colorbar(im, ax=axes[2, 0], fraction=0.046)
+    axes[2, 1].axis("off")
+    m = benchmark.metrics
+    metric_lines = [
+        "Benchmark metrics",
+        f"ring radius: {m['ring_radius_um']:.3f} um",
+        f"dark-core fraction: {m['dark_core_fraction']:.3f}",
+        f"azimuthal uniformity: {m['azimuthal_uniformity']:.3f}",
+        f"energy entering axicon: {m['energy_entering_axicon_uJ']:.3f} uJ",
+        f"energy after axicon: {m['energy_after_axicon_uJ']:.3f} uJ",
+        f"aperture overlap: {m['axicon_aperture_overlap_fraction']:.6f}",
+        f"relative offset: {m['relative_beam_to_axicon_offset_um']:.3f} um",
+    ]
+    axes[2, 1].text(0.0, 1.0, "\n".join(metric_lines), va="top", family="monospace", fontsize=9)
+    axes[2, 2].axis("off")
+    claim_lines = [
+        "Boundary",
+        "benchmark_only: True",
+        "not_physically_4F_filtered: True",
+        "not_experimental_prediction: True",
+        "order_efficiency_modelled: False",
+        "zero_order_rejection_modelled: False",
+        "material response: disabled",
+        "final_export_allowed: False",
+        "",
+        "Only represented loss: physical axicon aperture clipping.",
+    ]
+    axes[2, 2].text(0.0, 1.0, "\n".join(claim_lines), va="top", family="monospace", fontsize=9)
+
+    for ax in axes.ravel():
+        if ax.has_data():
+            ax.set_xlabel(ax.get_xlabel() or "x (um)")
+            if not ax.get_ylabel():
+                ax.set_ylabel("y (um)")
+    fig.tight_layout(rect=(0.0, 0.0, 1.0, 0.92))
+    fig.stage8c3r5_1_metadata = {
+        "diagnostic_only": True,
+        "benchmark_only": True,
+        "not_physically_4F_filtered": True,
+        "final_export_allowed": False,
+    }
+    fig.savefig(path, dpi=180)
+    plt.close(fig)
+    return path
+
+
+def generate_stage8c3r5_1_previews(
+    config: CSLMRouteConfig | None = None,
+    output_dir: str | Path = "outputs/figures/digital_twin",
+) -> dict[str, Path]:
+    """Generate explicitly enabled R5.1 ideal selected-order benchmark previews."""
+
+    if config is None:
+        raise ValueError(
+            "R5.1 previews require an explicit CSLMRouteConfig with "
+            "order_handoff_mode='ideal_selected_order_surrogate'."
+        )
+    cfg = config
+    if cfg.order_handoff_mode != "ideal_selected_order_surrogate":
+        raise ValueError("R5.1 previews require order_handoff_mode='ideal_selected_order_surrogate'.")
+    run = run_cslm_baseline_route(cfg)
+    out = Path(output_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    return {
+        "handoff_audit": plot_cslm_to_axicon_handoff_audit(
+            run, out / "stage8c3r5_1_cslm_to_axicon_handoff_audit.png"
+        ),
+        "unfiltered_vs_ideal_handoff": plot_unfiltered_vs_ideal_handoff(
+            run, out / "stage8c3r5_1_unfiltered_vs_ideal_handoff.png"
+        ),
+        "ideal_vortex_bessel_axicon_benchmark": plot_ideal_vortex_bessel_axicon_benchmark(
+            run, out / "stage8c3r5_1_ideal_vortex_bessel_axicon_benchmark.png"
+        ),
+    }
+
+
 def generate_stage8c3r5_previews(
     config: CSLMRouteConfig | None = None,
     output_dir: str | Path = "outputs/figures/digital_twin",
@@ -1613,7 +2481,11 @@ __all__ = [
     "CONCEPTUAL_CSLM_COMPONENT_IDS",
     "EXECUTED_CSLM_COMPONENT_IDS",
     "WARNING_ONLY_CSLM_COMPONENT_IDS",
+    "IDEAL_AXICON_BENCHMARK_COMPONENT_IDS",
     "FOUR_F_REQUIRED_PARAMETERS",
+    "OrderHandoffMode",
+    "OrderSelectionHandoff",
+    "PhysicalAxiconBenchmarkResult",
     "CSLMRouteConfig",
     "CSLMRouteRun",
     "FourFFeasibilityAudit",
@@ -1626,5 +2498,9 @@ __all__ = [
     "plot_cslm_route_inspection",
     "plot_cslm_phase_and_field_baselines",
     "plot_cslm_fourier_order_selection_audit",
+    "plot_cslm_to_axicon_handoff_audit",
+    "plot_unfiltered_vs_ideal_handoff",
+    "plot_ideal_vortex_bessel_axicon_benchmark",
     "generate_stage8c3r5_previews",
+    "generate_stage8c3r5_1_previews",
 ]

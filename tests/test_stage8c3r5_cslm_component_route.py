@@ -89,7 +89,7 @@ def test_changing_topological_charge_changes_generated_field_measurably():
     assert run.baseline_metrics["topological_charge_owner"] == "SLM1_phase_plane"
     assert run.baseline_metrics["topological_charge_measurable_change"] > 0.05
     assert run.baseline_metrics["slm1_vortex_core_fraction_r4um"] < 0.75
-    assert run.baseline_metrics["external_axicon_reference_executed"] is False
+    assert run.baseline_metrics["active_route_contains_physical_axicon"] is False
 
 
 def test_carrier_order_audit_uses_explicit_spatial_units():
