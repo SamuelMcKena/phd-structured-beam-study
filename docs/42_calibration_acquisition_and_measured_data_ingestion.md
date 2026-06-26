@@ -12,6 +12,11 @@ optical/fluence diagnostics; `fourier_filter_physics_available=False`; `camera_m
 
 ## Calibration families (`cslm_physical_axicon_calibration_campaign_v1.json`)
 
+Stage 9A direct Fourier-plane carrier mapping requires a temporary diagnostic method at or
+conjugate to the Fourier plane. The installed downstream final-focus camera is not direct
+Fourier-plane access; it supports Stage 9A.1B empirical carrier-and-stop response
+characterisation only.
+
 | family | kind | identifies |
 |---|---|---|
 | F0 dark/background reference | `dark_frame` | camera background, noise floor, saturation reference |
@@ -78,6 +83,11 @@ Family 2 measures the SLM2-carrier → Fourier-plane order position, which provi
 Fourier-plane physical-position coordinate convention and the carrier sign — the exact items that
 block level C (initial scalar 4F readiness, see docs/41). Once that mapping plus the lens focal
 lengths / apertures / distances are measured, level C can be revisited.
+
+This statement applies only to direct Fourier-plane or conjugate-plane access. The installed
+downstream final-focus camera is Stage 9A.1B evidence: it can record empirical carrier-and-stop
+response for operating-point selection and repeatability checks, but it does not by itself
+establish physical Fourier-plane coordinates or physical 4F readiness.
 
 ## Path from z-stack to later effective-aberration correction
 

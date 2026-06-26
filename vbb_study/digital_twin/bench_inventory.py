@@ -34,6 +34,7 @@ from vbb_study.digital_twin.coordinate_contract import (
 
 INVENTORY_PROFILE_NAME = "cslm_physical_axicon_bench_inventory"
 INVENTORY_PROFILE_STATUS = "diagnostic_demo_inventory_not_measured_bench"
+DOWNSTREAM_EMPIRICAL_EVIDENCE_STATE = "downstream_empirical_carrier_stop_response_available"
 
 # Hard blockers for an *initial* component-owned scalar 4F model (control ids).
 PHYSICAL_4F_HARD_BLOCKERS: tuple[str, ...] = (
@@ -346,12 +347,38 @@ def evaluate_physical_4f_readiness(
         "B_ideal_axicon_benchmark": level_b,
         "C_initial_scalar_4f_model": level_c,
         "D_measured_bench_camera": level_d,
+        DOWNSTREAM_EMPIRICAL_EVIDENCE_STATE: downstream_empirical_carrier_stop_evidence_effect(False),
         "fourier_filter_physics_available": False,
         "diagnostic_only": True,
         "final_export_allowed": False,
         "claim_boundary": "n=1.0 free-space optical/fluence diagnostic; no physical 4F field is "
                           "generated; changing 4F inventory values updates readiness only.",
         "physical_4f_hard_blockers": list(PHYSICAL_4F_HARD_BLOCKERS),
+    }
+
+
+def downstream_empirical_carrier_stop_evidence_effect(available: bool = False) -> dict[str, Any]:
+    """Declare what downstream carrier/stop evidence can and cannot unblock."""
+    return {
+        "evidence_state": DOWNSTREAM_EMPIRICAL_EVIDENCE_STATE,
+        "available": bool(available),
+        "supports": [
+            "practical operating-point selection",
+            "repeatability assessment",
+            "later comparison against a physical 4F model",
+        ],
+        "cannot_support": [
+            "physical_fourier_plane_coordinate_calibrated",
+            "physical_4f_readiness_ready",
+            "direct Fourier-plane order positions",
+            "direct stop radius in Fourier-plane mm",
+            "direct order-power fractions at the stop",
+        ],
+        "physical_4f_readiness_effect": "does_not_mark_ready",
+        "claim_boundary": (
+            "downstream final-focus images are empirical response evidence only; direct "
+            "Fourier-plane mapping still requires temporary access at or conjugate to the Fourier plane"
+        ),
     }
 
 

@@ -606,14 +606,14 @@
         "pixel pitch or active command area"
       ],
       "bench_evidence_required": [
-        "carrier command cycles to observed Fourier-plane order displacement",
+        "downstream response versus carrier command cycles and, separately, direct Fourier-plane order displacement only if temporary Fourier-plane access exists",
         "carrier sign convention",
         "selected-order purity and residual-order power"
       ],
-      "assumption_or_placeholder": "Carrier units remain command cycles across the displayed area until the first Fourier-plane carrier session maps them to observed order positions.",
+      "assumption_or_placeholder": "Carrier units remain command cycles across the displayed area. The installed downstream camera measures empirical response only; direct Fourier-plane order positions require temporary access at or conjugate to the Fourier plane.",
       "known_limitations": [],
       "what_this_does_not_prove": [
-        "local Fourier-plane scaling",
+        "direct Fourier-plane coordinates from downstream images",
         "stop position",
         "selected-order purity",
         "lens geometry or bench alignment"
@@ -632,7 +632,7 @@
       "bench_evidence_status": "needs_bench_measurement",
       "local_bench_validation_status": "not_bench_validated",
       "what_can_currently_be_claimed": "generate command-domain carrier sweeps and cite the diffraction-order principle",
-      "what_cannot_currently_be_claimed": "claim local carrier-to-Fourier-plane scaling, stop placement, or selected-order purity",
+      "what_cannot_currently_be_claimed": "claim local carrier-to-Fourier-plane scaling, stop placement, selected-order purity, or direct Fourier-plane coordinates from downstream images",
       "next_action": "Attach manufacturer specification and then run the required bench measurement.",
       "evidence_layers": [
         {
@@ -657,7 +657,7 @@
           "layer_type": "bench_measurement",
           "status": "needs_bench_measurement",
           "required_items": [
-            "carrier command cycles to observed Fourier-plane order displacement",
+            "downstream response versus carrier command cycles and, separately, direct Fourier-plane order displacement only if temporary Fourier-plane access exists",
             "carrier sign convention",
             "selected-order purity and residual-order power"
           ]

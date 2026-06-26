@@ -48,7 +48,7 @@ Full structured records are stored in
 | `finite_sampling_and_aliasing_control` | implemented_active | matsushima2009bandlimited | needs_manufacturer_data | needs_bench_measurement | only the implemented diagnostic or method-boundary statement described by current_status and evidence layers | local bench validation, manufacturer calibration, or material/process outcome unless separately evidenced |
 | `phase_only_slm_mask_generation` | implemented_command_phase_model | engstrom2013slmcalibration | needs_manufacturer_data | needs_bench_measurement | generate mathematically wrapped phase command maps for SLM1/SLM2 with principle-level SLM calibration literature attached | claim calibrated physical phase response at 1030 nm, order efficiency, or local SLM non-uniformity correction |
 | `phase_quantisation_and_grayscale_export` | implemented_command_export_model | engstrom2013slmcalibration | needs_manufacturer_data | needs_bench_measurement | export wrapped/quantised command maps while declaring physical phase response unresolved | claim grayscale commands produce calibrated physical phase without manufacturer and bench evidence |
-| `command_domain_carrier_grating` | implemented_command_carrier_model | zhang2009zeroorder | needs_manufacturer_data | needs_bench_measurement | generate command-domain carrier sweeps and cite the diffraction-order principle | claim local carrier-to-Fourier-plane scaling, stop placement, or selected-order purity |
+| `command_domain_carrier_grating` | implemented_command_carrier_model | zhang2009zeroorder | needs_manufacturer_data | needs_bench_measurement | generate command-domain carrier sweeps and cite the diffraction-order principle | claim local carrier-to-Fourier-plane scaling, stop placement, selected-order purity, or direct Fourier-plane coordinates from downstream images |
 | `pixelated_slm_zero_order_and_unwanted_orders` | planned_future | zhang2009zeroorder | needs_manufacturer_data | needs_bench_measurement | cite zero-order/unwanted-order behaviour as a future 4F/order-selection concern | claim an active validated order-efficiency or physical 4F model |
 | `physical_fourier_filtering_future_route` | not_implemented | none | needs_manufacturer_data | needs_bench_measurement | only the implemented diagnostic or method-boundary statement described by current_status and evidence layers | local bench validation, manufacturer calibration, or material/process outcome unless separately evidenced |
 | `ideal_selected_order_handoff` | implemented_diagnostic_only | none | not_required | needs_bench_measurement | only the implemented diagnostic or method-boundary statement described by current_status and evidence layers | local bench validation, manufacturer calibration, or material/process outcome unless separately evidenced |
@@ -118,7 +118,7 @@ legacy/quarantine label.
 
 ## Immediate Lab Action
 
-Run the first Fourier-plane carrier calibration session from Stage 9A.1: record
-actual SLM/camera/lens/stop/axicon identifiers, capture dark and flat
-references, then measure SLM2 command-domain carrier cycles versus observed
-Fourier-plane order position without changing the bench mid-run.
+Run the downstream carrier-stop characterisation session from Stage 9A.1B:
+record actual SLM/camera/lens/stop/axicon identifiers, capture dark and flat
+references, then measure downstream response versus SLM2 command-domain carrier
+cycles and Fourier-stop settings without moving the fixed downstream route.

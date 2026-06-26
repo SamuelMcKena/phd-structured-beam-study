@@ -46,6 +46,8 @@ CLAIM_BOUNDARY = (
 PHYSICAL_FREQUENCY_STATUS = "uncalibrated_command_domain"
 PHASE_WRAP_CONVENTION = "mod_2pi_0_to_2pi"
 DEFAULT_PHASE_RESPONSE_STATUS = "unknown_or_unverified"
+DIRECT_CALIBRATION_MODE = "direct_fourier_plane_access"
+DIRECT_CAMERA_ACCESS_STATUS = "requires_temporary_fourier_plane_or_conjugate_diagnostic_access"
 
 
 @dataclass(frozen=True)
@@ -57,7 +59,9 @@ class CarrierSweepConfig:
     phase_export_format: str = "phase_npy+quantised_npy+gray_png+metadata_json"
     phase_quantisation_levels: int = 256
     phase_response_calibration_status: str = DEFAULT_PHASE_RESPONSE_STATUS
+    calibration_mode: str = DIRECT_CALIBRATION_MODE
     camera_plane_label: str = "fourier_plane_or_accessible_equivalent"
+    camera_access_status: str = DIRECT_CAMERA_ACCESS_STATUS
     camera_coordinate_status: str = "pixel_only_uncalibrated"
     physical_axicon_state: str = "removed_or_bypassed_not_in_active_path"
     fourier_stop_state: str = "record_actual_state_do_not_assume"
@@ -242,7 +246,9 @@ def build_carrier_calibration_study(config: CarrierSweepConfig | None = None) ->
         "phase_export_format": config.phase_export_format,
         "phase_quantisation_levels": config.phase_quantisation_levels,
         "phase_response_calibration_status": config.phase_response_calibration_status,
+        "calibration_mode": config.calibration_mode,
         "camera_plane_label": config.camera_plane_label,
+        "camera_access_status": config.camera_access_status,
         "camera_coordinate_status": config.camera_coordinate_status,
         "physical_axicon_state": config.physical_axicon_state,
         "fourier_stop_state": config.fourier_stop_state,
@@ -261,7 +267,8 @@ def build_carrier_calibration_study(config: CarrierSweepConfig | None = None) ->
             "SLM1 displays the flat mask",
             "SLM2 displays only the command-domain carrier mask",
             "physical axicon removed/bypassed/not in active path",
-            "camera at the Fourier plane or an accessible equivalent diagnostic plane",
+            "temporary diagnostic camera/profiler/IR card/power meter at or conjugate to the Fourier plane",
+            "installed downstream final-focus camera is not direct Fourier-plane access",
             "record the Fourier-stop state (do not assume)",
             "do not move camera/SLMs/lenses without logging",
         ],
@@ -559,4 +566,3 @@ def plot_command_domain_carrier_mask_atlas(masks, carrier_config: CarrierSweepCo
         fig.savefig(out, dpi=dpi, bbox_inches="tight", metadata={
             "Title": "Stage 9A.1 command-domain carrier mask atlas", "final_export_allowed": "False"})
     return fig
-

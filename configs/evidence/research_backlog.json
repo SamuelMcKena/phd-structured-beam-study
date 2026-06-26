@@ -176,7 +176,7 @@
         "manufacturer_specification",
         "targeted_literature_search"
       ],
-      "concrete_next_deliverable": "first carrier-session image dataset mapping command cycles to observed Fourier-plane order position",
+      "concrete_next_deliverable": "downstream carrier-stop response dataset now; direct Fourier-plane mapping only with temporary Fourier-plane access",
       "next_deliverable_type": "first_carrier_session_image_dataset"
     },
     {

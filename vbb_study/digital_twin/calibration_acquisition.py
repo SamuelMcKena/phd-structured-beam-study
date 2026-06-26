@@ -56,6 +56,8 @@ CaptureKind = Literal[
     "dark_frame", "flat_field", "input_beam", "fourier_plane_carrier_sweep",
     "fourier_stop_scan", "post_axicon_xy", "post_axicon_z_stack",
     "energy_measurement", "alignment_reference", "manual_observation",
+    "downstream_carrier_sweep_fixed_stop", "downstream_stop_position_sweep",
+    "downstream_stop_radius_or_aperture_sweep", "downstream_repeatability_reference",
 ]
 
 DataStatus = Literal[

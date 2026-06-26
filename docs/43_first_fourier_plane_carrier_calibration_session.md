@@ -5,6 +5,12 @@ SLM2 carrier ramp moves the diffraction orders at the accessible Fourier plane. 
 files and a bench procedure only — no physical 4F propagation, camera physics, physical-axicon
 propagation, inverse/correction/AI, or material model.
 
+Stage 9A.1 is the **direct Fourier-plane access** mode. It requires a temporary diagnostic method
+at or conjugate to the Fourier plane, such as a movable camera, beam profiler, IR card, or power
+meter. The currently installed downstream final-focus camera is not direct Fourier-plane access.
+For the installed setup, use Stage 9A.1B downstream mode: it supports empirical carrier-and-stop
+response characterisation only, not physical Fourier-plane order-position calibration.
+
 Boundary: `physical_4f_filter_modelled=False`; `camera_model_enabled=False`;
 `material_model_enabled=False`; `diagnostic_only=True`; `final_export_allowed=False`.
 
@@ -78,7 +84,7 @@ under the run ID. 10. Complete the capture manifest before leaving. **Look for**
 position; +1/−1 positions; order movement under sign reversal; order separation vs command cycles;
 saturation; clipping; unexpected multiple orders; asymmetry/rotation.
 
-## How results feed Stage 9B and unblock physical-4F readiness
+## How direct-mode results feed Stage 9B and unblock physical-4F readiness
 
 The measured (carrier cycles → observed order position) relation, together with recorded SLM
 geometry and the Fourier-plane scale, provides the **Fourier-plane physical-position coordinate
@@ -86,8 +92,15 @@ convention and carrier sign** — exactly the items blocking docs/41 level C (in
 model). Stage 9B can then convert command-domain cycles to a calibrated Fourier-plane mapping and
 revisit C readiness.
 
+With only the installed downstream camera, those direct coordinate conclusions remain blocked. The
+downstream Stage 9A.1B session can select a practical operating point and record sensitivity to
+carrier/stop settings, but it does not unblock physical 4F coordinate readiness.
+
 ## What cannot be concluded from this session alone
 
 It does **not** validate physical 4F propagation, estimate aberrations, build a correction map, or
 predict any fused-silica/material outcome. It records command-domain masks and a measured
-order-position dataset; everything physical-unit remains blocked until the mapping is calibrated.
+order-position dataset only when direct Fourier-plane or conjugate-plane access exists. Everything
+physical-unit remains blocked until the mapping is calibrated. Direct Fourier-plane mapping requires
+a temporary diagnostic method at or conjugate to the Fourier plane. The installed downstream camera
+supports empirical carrier-and-stop response characterisation only.

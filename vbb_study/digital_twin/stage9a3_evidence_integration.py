@@ -78,7 +78,7 @@ CLAIM_CAN = {
 CLAIM_CANNOT = {
     "phase_only_slm_mask_generation": "claim calibrated physical phase response at 1030 nm, order efficiency, or local SLM non-uniformity correction",
     "phase_quantisation_and_grayscale_export": "claim grayscale commands produce calibrated physical phase without manufacturer and bench evidence",
-    "command_domain_carrier_grating": "claim local carrier-to-Fourier-plane scaling, stop placement, or selected-order purity",
+    "command_domain_carrier_grating": "claim local carrier-to-Fourier-plane scaling, stop placement, selected-order purity, or direct Fourier-plane coordinates from downstream images",
     "pixelated_slm_zero_order_and_unwanted_orders": "claim an active validated order-efficiency or physical 4F model",
     "fused_silica_bessel_channel_or_tgv_future": "claim TGV/channel formation in this apparatus or any fused-silica process window",
     "fused_silica_waveguide_future": "claim waveguide writing, index change, loss, or mode quality",
@@ -101,7 +101,7 @@ P0_CONCRETE_DELIVERABLE = {
     "P0_SLM_SPEC": "manufacturer datasheet for actual SLM model plus bench orientation measurement",
     "P0_SLM_PHASE": "bench measurement of 1030 nm grayscale-to-phase or diffraction-efficiency response",
     "P0_LENS_GEOMETRY": "manufacturer datasheet plus bench measurement of lens positions and apertures",
-    "P0_CARRIER_MAPPING": "first carrier-session image dataset mapping command cycles to observed Fourier-plane order position",
+    "P0_CARRIER_MAPPING": "downstream carrier-stop response dataset now; direct Fourier-plane mapping only with temporary Fourier-plane access",
     "P0_FOURIER_STOP": "bench measurement of Fourier-stop centre, radius, and adjustment convention",
     "P0_CAMERA": "manufacturer datasheet plus bench measurement of scale, orientation, and linearity",
     "P0_AXICON": "manufacturer datasheet plus bench measurement of physical axicon pose",
@@ -239,16 +239,17 @@ def _apply_required_claim_reclassifications(claims: list[dict[str, Any]]) -> Non
             "pixel pitch or active command area",
         ],
         bench_evidence_required=[
-            "carrier command cycles to observed Fourier-plane order displacement",
+            "downstream response versus carrier command cycles and, separately, direct Fourier-plane order displacement only if temporary Fourier-plane access exists",
             "carrier sign convention",
             "selected-order purity and residual-order power",
         ],
         assumption_or_placeholder=(
-            "Carrier units remain command cycles across the displayed area until the first "
-            "Fourier-plane carrier session maps them to observed order positions."
+            "Carrier units remain command cycles across the displayed area. The installed "
+            "downstream camera measures empirical response only; direct Fourier-plane order "
+            "positions require temporary access at or conjugate to the Fourier plane."
         ),
         what_this_does_not_prove=[
-            "local Fourier-plane scaling",
+            "direct Fourier-plane coordinates from downstream images",
             "stop position",
             "selected-order purity",
             "lens geometry or bench alignment",
@@ -893,10 +894,10 @@ legacy/quarantine label.
 
 ## Immediate Lab Action
 
-Run the first Fourier-plane carrier calibration session from Stage 9A.1: record
-actual SLM/camera/lens/stop/axicon identifiers, capture dark and flat
-references, then measure SLM2 command-domain carrier cycles versus observed
-Fourier-plane order position without changing the bench mid-run.
+Run the downstream carrier-stop characterisation session from Stage 9A.1B:
+record actual SLM/camera/lens/stop/axicon identifiers, capture dark and flat
+references, then measure downstream response versus SLM2 command-domain carrier
+cycles and Fourier-stop settings without moving the fixed downstream route.
 """
 
 
@@ -947,10 +948,10 @@ The broad `fused_silica_application_boundary` is retained only as
 
 ## Immediate Lab Action
 
-Run the first Fourier-plane carrier calibration session from Stage 9A.1:
+Run the downstream carrier-stop characterisation session from Stage 9A.1B:
 record actual SLM/camera/lens/stop/axicon identifiers, capture dark and flat
-references, then measure SLM2 command-domain carrier cycles versus observed
-Fourier-plane order position without changing the bench mid-run.
+references, then measure downstream response versus SLM2 command-domain carrier
+cycles and Fourier-stop settings without moving the fixed downstream route.
 """
 
 

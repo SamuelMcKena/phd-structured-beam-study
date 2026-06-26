@@ -50,7 +50,7 @@ The broad `fused_silica_application_boundary` is retained only as
 
 ## Immediate Lab Action
 
-Run the first Fourier-plane carrier calibration session from Stage 9A.1:
+Run the downstream carrier-stop characterisation session from Stage 9A.1B:
 record actual SLM/camera/lens/stop/axicon identifiers, capture dark and flat
-references, then measure SLM2 command-domain carrier cycles versus observed
-Fourier-plane order position without changing the bench mid-run.
+references, then measure downstream response versus SLM2 command-domain carrier
+cycles and Fourier-stop settings without moving the fixed downstream route.
