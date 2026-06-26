@@ -1,0 +1,142 @@
+{
+  "stage": "9B.0",
+  "study_name": "cslm_nominal_4f_candidate_atlas_v1",
+  "candidate_id": "vortex_ell_2",
+  "candidate_family": "vortex_charge_sweep",
+  "candidate_status_labels": [
+    "nominally_simulated",
+    "hardware_command_exportable",
+    "not_bench_validated"
+  ],
+  "simulation_status": "nominal_unvalidated",
+  "hardware_realizability_status": "hardware_command_exportable_not_bench_validated",
+  "export_permission": "hardware_command_exportable_not_final",
+  "model_label": "Nominal F300 4F scenario - not bench calibrated",
+  "claim_boundary_labels": [
+    "nominal_4f_forward_model",
+    "not_bench_calibrated",
+    "not_physical_4f_readiness_ready",
+    "not_camera_modelled",
+    "not_material_modelled"
+  ],
+  "slm_role_contract": {
+    "SLM1": "vortex/structured phase source; ell=2",
+    "SLM2": "carrier/future correction only",
+    "SLM2_contains_axicon_phase": false
+  },
+  "phase_generator": "SLM1_vortex_or_flat_plus_SLM2_carrier",
+  "required_components": [
+    "SLM1_phase_plane",
+    "SLM2_carrier_phase_plane",
+    "nominal_F300_4F_relay",
+    "nominal_Fourier_stop"
+  ],
+  "known_model_limits": [
+    "nominal 4F geometry only",
+    "no physical 4F readiness",
+    "no camera model",
+    "no material response",
+    "SLM2 contains carrier/future correction only, not an axicon phase"
+  ],
+  "physical_4f_readiness": "blocked",
+  "carrier_coordinate_status": "nominal_model_not_bench_calibrated",
+  "camera_validation": "absent",
+  "material_prediction": "absent",
+  "relay_output_to_axicon_mode": "unknown_not_simulated",
+  "handoff_modes_supported_by_contract": [
+    "unknown_not_simulated",
+    "nominal_user_scenario",
+    "later_measured_bench_geometry"
+  ],
+  "metrics": {
+    "relative_transmitted_energy": 0.22668276091937084,
+    "pinhole_transmitted_fraction": 0.22968187195263415,
+    "lens1_pupil_transmitted_fraction": 0.9995730600851488,
+    "lens2_pupil_transmitted_fraction": 0.9873638709355413,
+    "output_centroid_x_m": -1.5044785240495536e-05,
+    "output_centroid_y_m": 1.724057366897142e-05,
+    "output_second_moment_width_x_m": 0.0009801184880771257,
+    "output_second_moment_width_y_m": 0.0009805739289848747,
+    "output_field_of_view_margin_m": 0.003982759426331028,
+    "fourier_centroid_x_m": 0.0003051979871892794,
+    "fourier_centroid_y_m": -2.3421488154810515e-09,
+    "relay_quality_score": 0.5724538859078728,
+    "pupil_clipping_flag": false,
+    "pinhole_clipping_flag": true,
+    "warnings": ""
+  },
+  "robustness": {
+    "candidate_robustness_summary": {
+      "carrier_vs_nominal_stop_transmission": {
+        "num_points": 7,
+        "min_relative_transmitted_energy": 0.0026502997395554703,
+        "max_relative_transmitted_energy": 0.24361946720905073,
+        "transmission_span": 0.24096916746949526,
+        "mean_relay_quality_score": 0.48850040667791783
+      },
+      "stop_offset_x_transmission": {
+        "num_points": 5,
+        "min_relative_transmitted_energy": 0.22158270029088972,
+        "max_relative_transmitted_energy": 0.2792868316585707,
+        "transmission_span": 0.05770413136768099,
+        "mean_relay_quality_score": 0.5594781227592586
+      },
+      "pinhole_radius_transmission": {
+        "num_points": 4,
+        "min_relative_transmitted_energy": 0.04850081059853662,
+        "max_relative_transmitted_energy": 0.7471927129135294,
+        "transmission_span": 0.6986919023149928,
+        "mean_relay_quality_score": 0.6365706295658933
+      },
+      "beam_radius_vs_relay_quality": {
+        "num_points": 3,
+        "min_relative_transmitted_energy": 0.05962222761321761,
+        "max_relative_transmitted_energy": 0.474006041612619,
+        "transmission_span": 0.4143838139994014,
+        "mean_relay_quality_score": 0.5897994949085058
+      },
+      "input_decentre_vs_output_centroid": {
+        "num_points": 5,
+        "min_relative_transmitted_energy": 0.24361946720905073,
+        "max_relative_transmitted_energy": 0.25455054588655646,
+        "transmission_span": 0.010931078677505729,
+        "mean_relay_quality_score": 0.5710155565684484
+      }
+    },
+    "overall_nominal_score": 0.5578188435988771,
+    "simulation_status": "nominal_unvalidated",
+    "physical_4f_readiness": "blocked",
+    "final_export_allowed": false
+  },
+  "warnings": [],
+  "config": {
+    "simulation_plane_width_m": 0.008,
+    "simulation_grid_size": 128,
+    "wavelength_m": 1.03e-06,
+    "n_medium": 1.0,
+    "input_beam_radius_m": 0.0008,
+    "input_beam_decentre_x_m": 0.0,
+    "input_beam_decentre_y_m": 0.0,
+    "input_beam_ellipticity": 1.0,
+    "input_beam_rotation_deg": 0.0,
+    "lens_clear_radius_m": 0.0032,
+    "pinhole_radius_m": 0.00018,
+    "pinhole_offset_x_m": 0.00031,
+    "pinhole_offset_y_m": 0.0,
+    "command_domain_carrier_cycles_x": 8.0,
+    "command_domain_carrier_cycles_y": 0.0,
+    "numerical_model_carrier_cycles_x": 8.0,
+    "numerical_model_carrier_cycles_y": 0.0,
+    "slm2_to_lens1_m": 0.3,
+    "lens1_focal_length_m": 0.3,
+    "lens1_to_fourier_plane_m": 0.3,
+    "fourier_plane_to_lens2_m": 0.3,
+    "lens2_focal_length_m": 0.3,
+    "lens2_to_nominal_relay_output_m": 0.3,
+    "bandlimit": true,
+    "slm_phase_quantisation_levels": 256,
+    "relay_output_to_axicon_mode": "unknown_not_simulated",
+    "relay_output_to_axicon_distance_m": null
+  },
+  "final_export_allowed": false
+}

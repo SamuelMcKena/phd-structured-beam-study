@@ -1,0 +1,199 @@
+{
+  "stage": "9B.0",
+  "study_name": "cslm_nominal_4f_candidate_atlas_v1",
+  "study_status": "nominal_4f_candidate_atlas_not_bench_validated",
+  "model_label": "Nominal F300 4F scenario - not bench calibrated",
+  "claim_boundary_labels": [
+    "nominal_4f_forward_model",
+    "not_bench_calibrated",
+    "not_physical_4f_readiness_ready",
+    "not_camera_modelled",
+    "not_material_modelled"
+  ],
+  "candidate_status_labels": [
+    "nominally_simulated",
+    "hardware_command_exportable",
+    "not_bench_validated"
+  ],
+  "final_export_allowed": false,
+  "slm_role_contract": {
+    "SLM1": "vortex/structured phase conditioning source",
+    "SLM2": "carrier grating and future correction map only",
+    "SLM2_forbidden_content": [
+      "axicon phase",
+      "material correction",
+      "validated inverse correction"
+    ]
+  },
+  "nominal_4f_contract": {
+    "component_sequence": [
+      "SLM2",
+      "300 mm free-space segment",
+      "Lens 1 f=300 mm",
+      "300 mm free-space segment",
+      "Fourier/pinhole plane",
+      "300 mm free-space segment",
+      "Lens 2 f=300 mm",
+      "300 mm free-space segment",
+      "nominal relay output"
+    ],
+    "physical_4f_readiness": "blocked",
+    "carrier_coordinate_status": "nominal_model_not_bench_calibrated"
+  },
+  "candidate_families": {
+    "gaussian_reference": {
+      "ell_values": [
+        0
+      ]
+    },
+    "vortex_charge_sweep": {
+      "ell_values": [
+        1,
+        2,
+        3,
+        4
+      ]
+    },
+    "input_beam_size_variants": {
+      "beam_radius_m": [
+        0.00055,
+        0.0008,
+        0.00105
+      ]
+    },
+    "input_decentre_variants": {
+      "decentre_m": [
+        [
+          0.0,
+          0.0
+        ],
+        [
+          -8e-05,
+          0.0
+        ],
+        [
+          8e-05,
+          0.0
+        ],
+        [
+          0.0,
+          -8e-05
+        ],
+        [
+          0.0,
+          8e-05
+        ]
+      ]
+    },
+    "pinhole_robustness_variants": {
+      "pinhole_radius_m": [
+        0.00012,
+        0.00018,
+        0.00026
+      ],
+      "pinhole_offset_m": [
+        [
+          0.00031,
+          0.0
+        ],
+        [
+          0.00023,
+          0.0
+        ],
+        [
+          0.00039,
+          0.0
+        ],
+        [
+          0.00031,
+          8e-05
+        ]
+      ]
+    }
+  },
+  "robustness_sweeps": {
+    "carrier_vs_stop_offset_transmission": {
+      "carrier_cycles_x": [
+        -12,
+        -8,
+        -4,
+        0,
+        4,
+        8,
+        12
+      ],
+      "stop_offset_delta_x_m": [
+        -0.00016,
+        -8e-05,
+        0.0,
+        8e-05,
+        0.00016
+      ]
+    },
+    "pinhole_radius_vs_stop_offset_transmission": {
+      "pinhole_radius_m": [
+        0.00012,
+        0.00018,
+        0.00026,
+        0.00034
+      ],
+      "stop_offset_delta_x_m": [
+        -0.00012,
+        0.0,
+        0.00012
+      ]
+    },
+    "beam_radius_vs_relay_quality": {
+      "beam_radius_m": [
+        0.00055,
+        0.0008,
+        0.00105
+      ]
+    },
+    "input_decentre_vs_output_centroid": {
+      "decentre_m": [
+        [
+          -8e-05,
+          0.0
+        ],
+        [
+          0.0,
+          0.0
+        ],
+        [
+          8e-05,
+          0.0
+        ],
+        [
+          0.0,
+          -8e-05
+        ],
+        [
+          0.0,
+          8e-05
+        ]
+      ]
+    }
+  },
+  "package_contract": {
+    "root": "outputs/nominal_4f_candidate_runs",
+    "required_files": [
+      "run_manifest.json",
+      "candidate_manifest.json",
+      "nominal_4f_profile_snapshot.json",
+      "SLM1 phase_rad.npy",
+      "SLM1 quantised_rad.npy",
+      "SLM1 gray.png",
+      "SLM2 phase_rad.npy",
+      "SLM2 quantised_rad.npy",
+      "SLM2 gray.png",
+      "fourier_plane_pre_stop.png",
+      "fourier_stop_transmission.png",
+      "fourier_plane_post_stop.png",
+      "nominal_relay_output_xy.png",
+      "energy_ledger.csv",
+      "robustness_summary.csv",
+      "claim_boundary.md"
+    ]
+  }
+}

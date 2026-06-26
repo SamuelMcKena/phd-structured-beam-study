@@ -1,0 +1,9 @@
+component_id,component_type,energy_after_arb_m2,energy_before_arb_m2,note,transmitted_fraction
+SLM2_phase_plane,phase_plane,1.005309649148734e-06,1.005309649148734e-06,carrier phase only; no axicon on SLM2,1.0
+SLM2_to_lens1_propagation,free_space_propagation_segment,1.0053096491487344e-06,1.005309649148734e-06,300 mm nominal propagation,1.0000000000000004
+lens1_thin_phase_and_pupil,thin_lens_with_finite_pupil,1.0048804423327278e-06,1.0053096491487344e-06,scalar thin-lens phase plus editable nominal pupil,0.9995730600851488
+lens1_to_fourier_plane_propagation,free_space_propagation_segment,1.0048804423327282e-06,1.0048804423327278e-06,300 mm nominal propagation,1.0000000000000004
+fourier_stop_pinhole,fourier_plane_circular_amplitude_stop,2.3080282108357205e-07,1.0048804423327282e-06,nominal_stop_parameter; not_measured_bench_geometry,0.22968187195263415
+fourier_plane_to_lens2_propagation,free_space_propagation_segment,2.3080282108357215e-07,2.3080282108357205e-07,300 mm nominal propagation,1.0000000000000004
+lens2_thin_phase_and_pupil,thin_lens_with_finite_pupil,2.2788636684791898e-07,2.3080282108357215e-07,scalar thin-lens phase plus editable nominal pupil,0.9873638709355413
+lens2_to_nominal_relay_output_propagation,free_space_propagation_segment,2.2788636684791906e-07,2.2788636684791898e-07,300 mm nominal propagation,1.0000000000000004
