@@ -43,7 +43,23 @@
       "value": null,
       "unit": "dB/cm",
       "evidence_status": "needs_bench_measurement"
+    },
+    "weld_strength": {
+      "value": null,
+      "unit": null,
+      "evidence_status": "needs_bench_measurement"
+    },
+    "channel_or_tgv_morphology": {
+      "value": null,
+      "unit": null,
+      "evidence_status": "needs_bench_measurement"
     }
   },
-  "forbidden_transfer": "Do not copy CrZnSe proxy values into this profile."
+  "forbidden_transfer": "Do not copy CrZnSe proxy values into this profile.",
+  "stage": "9A.3",
+  "application_claims": {
+    "channel_or_tgv": "fused_silica_bessel_channel_or_tgv_future",
+    "waveguide": "fused_silica_waveguide_future",
+    "welding": "fused_silica_welding_future"
+  }
 }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 
@@ -101,15 +102,19 @@ def test_p0_items_are_level_c_or_d_readiness_blockers():
 def test_literature_search_entries_contain_no_fabricated_citations():
     entries = _json(SEARCH_PATH)["entries"]
     assert entries
-    forbidden = ("doi:", "10.", "@article", "journal =", "author =", "year =")
+    bib_text = (ROOT / "references" / "structured_beam_methods.bib").read_text(encoding="utf-8").lower()
+    bib_keys = set(re.findall(r"@\w+\{\s*([^,\s]+)", bib_text))
+    forbidden = ("doi:", "@article", "journal =", "author =", "year =")
     for entry in entries:
         blob = json.dumps(entry).lower()
-        assert entry["candidate_source_status"] == "search_needed_no_verified_citation"
-        assert not any(token in blob for token in forbidden), entry["claim_id"]
+        status = entry["candidate_source_status"]
+        assert status in {"search_needed_no_verified_citation", "targeted_search_required", "verified_seed_integrated"}
+        if status == "verified_seed_integrated":
+            assert set(entry["verified_reference_keys"]).issubset(bib_keys), entry["claim_id"]
+        else:
+            assert not any(token in blob for token in forbidden), entry["claim_id"]
 
-    bib = (ROOT / "references" / "structured_beam_methods.bib").read_text(encoding="utf-8").lower()
-    assert "@article" not in bib
-    assert "no verified bibliography records yet" in bib
+    assert bib_keys
 
 
 def test_manufacturer_and_bench_registers_distinguish_value_states():

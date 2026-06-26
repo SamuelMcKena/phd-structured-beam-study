@@ -1,6 +1,6 @@
 {
-  "stage": "9A.2",
-  "status": "audit_backlog_not_started",
+  "stage": "9A.3",
+  "status": "verified_seed_integrated_open_validation_layers",
   "priority_vocabulary": [
     "P0",
     "P1",
@@ -27,7 +27,6 @@
       "linked_code_paths": [
         "vbb_study/equations/holography.py",
         "vbb_study/digital_twin/cslm_route.py",
-        "vbb_study/equations/holography.py",
         "vbb_study/digital_twin/slm_calibration_masks.py"
       ],
       "why_the_code_needs_this": "Moves the labelled assumption from placeholder/search-needed to measured or source-verified evidence.",
@@ -48,7 +47,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": "Level-C"
+      "readiness_blocker_level": "Level-C",
+      "required_evidence_layers": [
+        "manufacturer_specification",
+        "bench_measurement",
+        "peer_reviewed_primary_source"
+      ],
+      "concrete_next_deliverable": "manufacturer datasheet for actual SLM model plus bench orientation measurement",
+      "next_deliverable_type": "manufacturer_datasheet"
     },
     {
       "research_id": "P0_SLM_PHASE",
@@ -62,7 +68,6 @@
       "linked_code_paths": [
         "vbb_study/equations/holography.py",
         "vbb_study/digital_twin/cslm_route.py",
-        "vbb_study/equations/holography.py",
         "vbb_study/digital_twin/slm_calibration_masks.py"
       ],
       "why_the_code_needs_this": "Moves the labelled assumption from placeholder/search-needed to measured or source-verified evidence.",
@@ -83,7 +88,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": "Level-C"
+      "readiness_blocker_level": "Level-C",
+      "required_evidence_layers": [
+        "manufacturer_specification",
+        "bench_measurement",
+        "peer_reviewed_primary_source"
+      ],
+      "concrete_next_deliverable": "bench measurement of 1030 nm grayscale-to-phase or diffraction-efficiency response",
+      "next_deliverable_type": "bench_measurement"
     },
     {
       "research_id": "P0_LENS_GEOMETRY",
@@ -115,7 +127,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": "Level-C"
+      "readiness_blocker_level": "Level-C",
+      "required_evidence_layers": [
+        "manufacturer_specification",
+        "bench_measurement",
+        "targeted_literature_search"
+      ],
+      "concrete_next_deliverable": "manufacturer datasheet plus bench measurement of lens positions and apertures",
+      "next_deliverable_type": "manufacturer_datasheet_and_bench_measurement"
     },
     {
       "research_id": "P0_CARRIER_MAPPING",
@@ -150,7 +169,15 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": "Level-C"
+      "readiness_blocker_level": "Level-C",
+      "required_evidence_layers": [
+        "bench_measurement",
+        "peer_reviewed_primary_source",
+        "manufacturer_specification",
+        "targeted_literature_search"
+      ],
+      "concrete_next_deliverable": "first carrier-session image dataset mapping command cycles to observed Fourier-plane order position",
+      "next_deliverable_type": "first_carrier_session_image_dataset"
     },
     {
       "research_id": "P0_FOURIER_STOP",
@@ -182,7 +209,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": "Level-C"
+      "readiness_blocker_level": "Level-C",
+      "required_evidence_layers": [
+        "manufacturer_specification",
+        "bench_measurement",
+        "targeted_literature_search"
+      ],
+      "concrete_next_deliverable": "bench measurement of Fourier-stop centre, radius, and adjustment convention",
+      "next_deliverable_type": "bench_measurement"
     },
     {
       "research_id": "P0_CAMERA",
@@ -217,7 +251,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": "Level-D"
+      "readiness_blocker_level": "Level-D",
+      "required_evidence_layers": [
+        "manufacturer_specification",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "manufacturer datasheet plus bench measurement of scale, orientation, and linearity",
+      "next_deliverable_type": "manufacturer_datasheet_and_bench_measurement"
     },
     {
       "research_id": "P0_AXICON",
@@ -230,8 +270,7 @@
       ],
       "linked_code_paths": [
         "vbb_study/digital_twin/route_aware_axicon.py",
-        "vbb_study/digital_twin/cslm_route.py",
-        "vbb_study/digital_twin/route_aware_axicon.py"
+        "vbb_study/digital_twin/cslm_route.py"
       ],
       "why_the_code_needs_this": "Moves the labelled assumption from placeholder/search-needed to measured or source-verified evidence.",
       "current_gap": "Benchmark uses demo axicon parameters until measured.",
@@ -251,7 +290,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": "Level-D"
+      "readiness_blocker_level": "Level-D",
+      "required_evidence_layers": [
+        "manufacturer_specification",
+        "bench_measurement",
+        "targeted_literature_search"
+      ],
+      "concrete_next_deliverable": "manufacturer datasheet plus bench measurement of physical axicon pose",
+      "next_deliverable_type": "manufacturer_datasheet_and_bench_measurement"
     },
     {
       "research_id": "P0_INPUT_BEAM",
@@ -285,7 +331,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": "Level-D"
+      "readiness_blocker_level": "Level-D",
+      "required_evidence_layers": [
+        "bench_measurement",
+        "targeted_literature_search",
+        "declared_assumption_or_placeholder"
+      ],
+      "concrete_next_deliverable": "bench measurement of beam size, centring, ellipticity, and polarisation",
+      "next_deliverable_type": "bench_measurement"
     },
     {
       "research_id": "P1_BLASM",
@@ -299,7 +352,6 @@
       "linked_code_paths": [
         "vbb_study/equations/propagation.py",
         "vbb_study/digital_twin/component_plane_pipeline.py",
-        "vbb_study/equations/propagation.py",
         "vbb_study/digital_twin/slm_calibration_masks.py"
       ],
       "why_the_code_needs_this": "Moves the labelled assumption from placeholder/search-needed to measured or source-verified evidence.",
@@ -320,7 +372,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "manufacturer_specification",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "validated sampling memo",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P1_4F_MODEL",
@@ -352,7 +411,15 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "targeted_literature_search",
+        "manufacturer_specification",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "4F model design note",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P1_SLM_DIFFRACTION",
@@ -384,7 +451,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "manufacturer_specification",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "order-efficiency evidence plan",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P1_PHASE_QUANT",
@@ -416,7 +490,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "manufacturer_specification",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "phase quantisation sensitivity note",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P1_AXICON_TOL",
@@ -447,7 +528,15 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "manufacturer_specification",
+        "targeted_literature_search",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "axicon tolerance register",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P1_CAMERA_PROFILING",
@@ -482,7 +571,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "targeted_literature_search",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "metric validity memo",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P2_PHASE_RETRIEVAL",
@@ -513,7 +609,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "algorithm literature review",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P2_PHASE_DIVERSITY",
@@ -544,7 +646,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "phase-diversity feasibility note",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P2_IDENTIFIABILITY",
@@ -575,7 +683,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "identifiability risk register",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P2_ZERNIKE_BASIS",
@@ -607,7 +721,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "manufacturer_specification",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "basis convention doc",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P2_SLM_CONJ",
@@ -639,7 +760,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "manufacturer_specification",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "correction validation plan",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P2_SENSORLESS",
@@ -671,7 +799,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "manufacturer_specification",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "sensorless optimisation literature note",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P2_NEURAL",
@@ -702,7 +837,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "targeted_literature_search",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "AI feasibility note",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P3_FS_REGIMES",
@@ -710,11 +851,13 @@
       "priority": "P3",
       "time_horizon": "pre_fused_silica_pilot",
       "linked_claim_ids": [
-        "fused_silica_application_boundary"
+        "fused_silica_bessel_channel_or_tgv_future",
+        "fused_silica_welding_future"
       ],
       "linked_code_paths": [
         "configs/materials/fused_silica_evidence_template.json",
-        "docs/44_code_to_evidence_audit.md"
+        "docs/44_code_to_evidence_audit.md",
+        "vbb_study/equations/capsule_geometry.py"
       ],
       "why_the_code_needs_this": "Moves the labelled assumption from placeholder/search-needed to measured or source-verified evidence.",
       "current_gap": "No fused-silica process evidence in repo.",
@@ -734,7 +877,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "fused-silica literature table",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P3_FS_INTERFACE",
@@ -742,11 +891,14 @@
       "priority": "P3",
       "time_horizon": "pre_fused_silica_pilot",
       "linked_claim_ids": [
-        "fused_silica_application_boundary"
+        "fused_silica_bessel_channel_or_tgv_future",
+        "fused_silica_waveguide_future",
+        "fused_silica_welding_future"
       ],
       "linked_code_paths": [
         "configs/materials/fused_silica_evidence_template.json",
-        "docs/44_code_to_evidence_audit.md"
+        "docs/44_code_to_evidence_audit.md",
+        "vbb_study/equations/capsule_geometry.py"
       ],
       "why_the_code_needs_this": "Moves the labelled assumption from placeholder/search-needed to measured or source-verified evidence.",
       "current_gap": "No sample-interface model is active.",
@@ -766,7 +918,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "bench_measurement",
+        "targeted_literature_search"
+      ],
+      "concrete_next_deliverable": "interface research note",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P3_TGV",
@@ -774,7 +933,7 @@
       "priority": "P3",
       "time_horizon": "pre_fused_silica_pilot",
       "linked_claim_ids": [
-        "fused_silica_application_boundary"
+        "fused_silica_bessel_channel_or_tgv_future"
       ],
       "linked_code_paths": [
         "configs/materials/fused_silica_evidence_template.json",
@@ -798,7 +957,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "TGV evidence plan",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P3_WAVEGUIDE",
@@ -806,7 +971,7 @@
       "priority": "P3",
       "time_horizon": "pre_fused_silica_pilot",
       "linked_claim_ids": [
-        "fused_silica_application_boundary"
+        "fused_silica_waveguide_future"
       ],
       "linked_code_paths": [
         "configs/materials/fused_silica_evidence_template.json",
@@ -830,7 +995,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "targeted_literature_search",
+        "bench_measurement"
+      ],
+      "concrete_next_deliverable": "waveguide evidence plan",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "P3_WELDING",
@@ -838,7 +1009,7 @@
       "priority": "P3",
       "time_horizon": "pre_fused_silica_pilot",
       "linked_claim_ids": [
-        "fused_silica_application_boundary",
+        "fused_silica_welding_future",
         "capsule_or_weld_feature_geometry_branch"
       ],
       "linked_code_paths": [
@@ -866,7 +1037,14 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "peer_reviewed_primary_source",
+        "bench_measurement",
+        "declared_assumption_or_placeholder"
+      ],
+      "concrete_next_deliverable": "welding evidence plan",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "LEGACY_CRZNSE",
@@ -899,7 +1077,13 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "targeted_literature_search",
+        "declared_assumption_or_placeholder"
+      ],
+      "concrete_next_deliverable": "legacy separation note",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "LEGACY_VECTOR",
@@ -932,7 +1116,12 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "targeted_literature_search"
+      ],
+      "concrete_next_deliverable": "optional vector review",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "LEGACY_POLYGONAL",
@@ -965,7 +1154,12 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "declared_assumption_or_placeholder"
+      ],
+      "concrete_next_deliverable": "optional beam-shaping review",
+      "next_deliverable_type": "documented_evidence_artifact"
     },
     {
       "research_id": "LEGACY_CAPSULE",
@@ -998,7 +1192,12 @@
       "what_claim_it_makes_possible": "A narrower simulation or bench-validation claim with explicit evidence provenance.",
       "owner": "project",
       "status": "not_started",
-      "readiness_blocker_level": null
+      "readiness_blocker_level": null,
+      "required_evidence_layers": [
+        "declared_assumption_or_placeholder"
+      ],
+      "concrete_next_deliverable": "optional geometry review",
+      "next_deliverable_type": "documented_evidence_artifact"
     }
   ]
 }

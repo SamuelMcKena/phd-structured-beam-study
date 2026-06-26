@@ -1,39 +1,52 @@
-# Stage 9A.2 Code-to-Evidence Audit Summary
+# Stage 9A.2 / 9A.3 Evidence Audit Summary
 
-Starting checkpoint: Stage 9A.1 first Fourier carrier calibration session pack (`51071bc`).
+Starting checkpoint for Stage 9A.3: Stage 9A.2 code evidence audit and research
+backlog (`6bbc210`).
 
-Stage 9A.2 creates an evidence-aware project map and research backlog.  No new
-optical propagation, calibration fitting, correction, AI, camera model, or
-material-response physics is implemented.
+Stage 9A.3 integrates the supplied verified seed bibliography and adds explicit
+multi-layer evidence records. No optical propagation, physical 4F, camera model,
+inverse correction, neural network, or material-response physics is implemented.
 
-## Created
+## Verified Bibliography
 
-- `docs/44_code_to_evidence_audit.md`
-- `configs/evidence/project_claim_registry.json`
-- `configs/evidence/research_backlog.json`
-- `configs/evidence/literature_search_plan.json`
-- `configs/evidence/manufacturer_evidence_register.json`
-- `configs/evidence/bench_evidence_register.json`
-- `configs/materials/fused_silica_evidence_template.json`
-- `references/README.md`
 - `references/structured_beam_methods.bib`
-- `outputs/figures/digital_twin/stage9a2_code_to_evidence_roadmap.png`
-- `tests/test_stage9a2_code_to_evidence_audit.py`
+- Verified entries: 8
+- Source seed: `references/incoming/structured_beam_methods_verified_seed.bib`
 
-## Claim Counts
+## Claims Linked To Verified References
 
-- Canonical active claims: 8
-- Placeholder/assumption claims: 5
-- Manufacturer-data blockers: 10
-- Bench-data blockers: 21
-- Literature/source blockers: 8
+- `angular_spectrum_or_bl_asm_propagation`
+- `finite_sampling_and_aliasing_control`
+- `phase_only_slm_mask_generation`
+- `phase_quantisation_and_grayscale_export`
+- `command_domain_carrier_grating`
+- `pixelated_slm_zero_order_and_unwanted_orders`
+- `multi_plane_phase_retrieval_future`
+- `effective_aberration_inference_future`
+- `zernike_or_phase_conjugate_correction_future`
+- `fused_silica_bessel_channel_or_tgv_future`
+- `fused_silica_welding_future`
 
-## Backlog Counts
+## Reclassified To Avoid Overstating Physical Validation
 
-- P0: 8
-- P1: 6
-- P2: 7
-- P3 including legacy optional branches: 9
+- `phase_only_slm_mask_generation`
+- `phase_quantisation_and_grayscale_export`
+- `command_domain_carrier_grating`
+- `pixelated_slm_zero_order_and_unwanted_orders`
+
+## Fused-Silica Split
+
+- `fused_silica_bessel_channel_or_tgv_future`
+- `fused_silica_waveguide_future`
+- `fused_silica_welding_future`
+
+The broad `fused_silica_application_boundary` is retained only as
+`superseded_by_specific_application_claims`.
+
+## Backlog And Search Plan
+
+- Backlog items: 30
+- Literature/search-plan entries: 19
 
 ## Immediate Lab Action
 

@@ -64,6 +64,64 @@
       "raw_data_path": null,
       "derived_data_path": null,
       "ready": false
+    },
+    {
+      "evidence_id": "B_SLM_PHASE_RESPONSE",
+      "measurement": "1030 nm SLM grayscale-to-phase and diffraction-efficiency calibration",
+      "required_for_claim_ids": [
+        "phase_only_slm_mask_generation",
+        "phase_quantisation_and_grayscale_export"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    },
+    {
+      "evidence_id": "B_ORDER_POWER_SPLIT",
+      "measurement": "zero/+1/residual order fractions and selected-order purity",
+      "required_for_claim_ids": [
+        "command_domain_carrier_grating",
+        "pixelated_slm_zero_order_and_unwanted_orders"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    },
+    {
+      "evidence_id": "B_FUSED_SILICA_CHANNEL_TGV",
+      "measurement": "future fused-silica channel/TGV morphology and material metrology",
+      "required_for_claim_ids": [
+        "fused_silica_bessel_channel_or_tgv_future"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    },
+    {
+      "evidence_id": "B_FUSED_SILICA_WAVEGUIDE",
+      "measurement": "future fused-silica waveguide mode/loss/material metrology",
+      "required_for_claim_ids": [
+        "fused_silica_waveguide_future"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    },
+    {
+      "evidence_id": "B_FUSED_SILICA_WELDING",
+      "measurement": "future fused-silica/glass weld cross-section and strength/leak metrology",
+      "required_for_claim_ids": [
+        "fused_silica_welding_future"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
     }
-  ]
+  ],
+  "stage": "9A.3"
 }

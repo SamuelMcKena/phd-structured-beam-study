@@ -1,0 +1,50 @@
+{
+  "seed_scope": "Method-principle seed references only. They do not validate the specific bench, geometry, material process, or correction engine.",
+  "claim_to_keys": {
+    "angular_spectrum_or_bl_asm_propagation": [
+      "matsushima2009bandlimited"
+    ],
+    "finite_sampling_and_aliasing_control": [
+      "matsushima2009bandlimited"
+    ],
+    "phase_only_slm_mask_generation": [
+      "engstrom2013slmcalibration"
+    ],
+    "phase_quantisation_and_grayscale_export": [
+      "engstrom2013slmcalibration"
+    ],
+    "command_domain_carrier_grating": [
+      "zhang2009zeroorder"
+    ],
+    "pixelated_slm_zero_order_and_unwanted_orders": [
+      "zhang2009zeroorder"
+    ],
+    "multi_plane_phase_retrieval_future": [
+      "miao2022besselretrieval"
+    ],
+    "effective_aberration_inference_future": [
+      "neil2000closedloop"
+    ],
+    "zernike_or_phase_conjugate_correction_future": [
+      "neil2000closedloop",
+      "lopezquesada2009slmcorrection"
+    ],
+    "fused_silica_channel_future": [
+      "bhuyan2010microchannels"
+    ],
+    "fused_silica_welding_future": [
+      "zhang2018besselwelding"
+    ]
+  },
+  "claims_deliberately_not_filled_by_this_seed": [
+    "physical_axicon_bessel_conversion",
+    "physical_axicon_aperture_and_decentre",
+    "physical_fourier_filtering_future_route",
+    "camera_z_stack_acquisition",
+    "camera_coordinate_calibration",
+    "neural_fast_estimator_future",
+    "fused_silica_waveguide_future",
+    "legacy_crznse_material_proxy_branch"
+  ],
+  "reason": "These need a targeted source search, manufacturer data, bench evidence, or should remain quarantined."
+}

@@ -2,21 +2,22 @@
 
 This directory stores verified bibliography records only.
 
-Acceptable references:
+- The bibliography supports method principles, not automatic validation of this bench.
+- DOI/publisher metadata must be verified before a new entry is committed.
+- Reviews may support orientation, but primary papers are preferred for implemented methods.
+- Manufacturer documents belong in the manufacturer-evidence register, not BibTeX by default.
+- Bench measurements belong in the bench-evidence register, not BibTeX.
+- Every citation key must be linked to at least one project claim ID.
 
-- peer-reviewed primary research papers for methods, propagation models,
-  phase retrieval, SLM diffraction, axicon tolerance, and material processing;
-- authoritative textbooks or standards for Fourier optics and sampling
-  conventions;
-- manufacturer datasheets or application notes for component properties.
+## Current Verified Claim Links
 
-Do not add a BibTeX entry until DOI, title, authors, journal/publisher, year,
-and source URL or PDF metadata have been checked against the actual source.
-Review articles may guide searches, but claim support should point to primary
-literature whenever possible.  Manufacturer specifications and bench evidence
-are stored separately in `configs/evidence/manufacturer_evidence_register.json`
-and `configs/evidence/bench_evidence_register.json`.
+- `bhuyan2010microchannels` -> fused_silica_bessel_channel_or_tgv_future
+- `engstrom2013slmcalibration` -> phase_only_slm_mask_generation, phase_quantisation_and_grayscale_export
+- `lopezquesada2009slmcorrection` -> zernike_or_phase_conjugate_correction_future
+- `matsushima2009bandlimited` -> angular_spectrum_or_bl_asm_propagation, finite_sampling_and_aliasing_control
+- `miao2022besselretrieval` -> multi_plane_phase_retrieval_future
+- `neil2000closedloop` -> effective_aberration_inference_future, zernike_or_phase_conjugate_correction_future
+- `zhang2009zeroorder` -> command_domain_carrier_grating, pixelated_slm_zero_order_and_unwanted_orders
+- `zhang2018besselwelding` -> fused_silica_welding_future
 
-Each accepted reference must list the claim IDs it supports.  A reference can
-support a physical principle without validating this repository's numerical
-implementation, the real bench alignment, or fused-silica process outcome.
+The canonical registry is `configs/evidence/project_claim_registry.json`.

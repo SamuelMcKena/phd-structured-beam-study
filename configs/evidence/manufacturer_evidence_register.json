@@ -21,7 +21,15 @@
         "pixel_pitch_um",
         "resolution",
         "phase_stroke_at_1030_nm",
-        "polarisation"
+        "polarisation",
+        "wavelength-specific phase stroke",
+        "grayscale-to-phase LUT",
+        "input polarisation requirement",
+        "incidence-angle condition",
+        "active area / pixel geometry",
+        "spatial phase non-uniformity",
+        "fill factor",
+        "reflectivity"
       ],
       "current_value_state": "unknown",
       "source_document": null,
@@ -40,7 +48,14 @@
         "pixel_pitch_um",
         "active_area",
         "fill_factor",
-        "reflectivity"
+        "reflectivity",
+        "wavelength-specific phase stroke",
+        "grayscale-to-phase LUT",
+        "input polarisation requirement",
+        "incidence-angle condition",
+        "active area / pixel geometry",
+        "spatial phase non-uniformity",
+        "fill factor"
       ],
       "current_value_state": "unknown",
       "source_document": null,
@@ -82,7 +97,8 @@
       "evidence_id": "M_AXICON",
       "component": "physical axicon",
       "required_for_claim_ids": [
-        "physical_axicon_bessel_conversion"
+        "physical_axicon_bessel_conversion",
+        "physical_axicon_aperture_and_decentre"
       ],
       "needed_fields": [
         "cone_angle",
@@ -94,5 +110,6 @@
       "source_document": null,
       "verified": false
     }
-  ]
+  ],
+  "stage": "9A.3"
 }
