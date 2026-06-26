@@ -19,6 +19,9 @@ Taxonomy labels:
 
 ## Planning Proxy Warning
 
+This branch contains CrZnSe-specific proxy assumptions and is not validated
+for fused-silica TGV, waveguide, welding, or modification predictions.
+
 Material modification, threshold, incubation, capsule, and
 fluence-threshold outputs are planning proxies. They are not calibrated
 predictions of ablation, melt, void formation, refractive-index change,

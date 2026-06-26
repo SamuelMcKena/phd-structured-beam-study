@@ -1,0 +1,69 @@
+{
+  "register_type": "bench_evidence",
+  "value_state_vocabulary": [
+    "unknown",
+    "placeholder",
+    "estimated",
+    "manufacturer_specified",
+    "measured"
+  ],
+  "entries": [
+    {
+      "evidence_id": "B_CARRIER_MAPPING",
+      "measurement": "carrier command to Fourier-plane order position",
+      "required_for_claim_ids": [
+        "command_domain_carrier_grating",
+        "physical_fourier_filtering_future_route"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    },
+    {
+      "evidence_id": "B_STOP_GEOMETRY",
+      "measurement": "Fourier-stop centre/radius/adjustment convention",
+      "required_for_claim_ids": [
+        "physical_fourier_filtering_future_route"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    },
+    {
+      "evidence_id": "B_CAMERA_SCALE",
+      "measurement": "camera magnification/orientation/reference-plane relation",
+      "required_for_claim_ids": [
+        "camera_coordinate_calibration"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    },
+    {
+      "evidence_id": "B_AXICON_ZSTACK",
+      "measurement": "Gaussian/vortex post-axicon z-stack",
+      "required_for_claim_ids": [
+        "physical_axicon_bessel_conversion",
+        "ring_centre_radius_dark_core_and_uniformity_metrics"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    },
+    {
+      "evidence_id": "B_INPUT_BEAM",
+      "measurement": "beam size/ellipticity/centring/polarisation",
+      "required_for_claim_ids": [
+        "slm1_to_slm2_propagation"
+      ],
+      "current_value_state": "unknown",
+      "raw_data_path": null,
+      "derived_data_path": null,
+      "ready": false
+    }
+  ]
+}
