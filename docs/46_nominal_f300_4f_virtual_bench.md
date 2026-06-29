@@ -1,9 +1,13 @@
 # Stage 9B.0 Nominal F300 4F Virtual Bench
 
-Stage 9B.0 adds an opt-in scalar forward model for the nominal F300 relay:
+Stage 9B.0 adds an opt-in scalar forward model for the nominal F300 relay.
+Stage 9B.0.1 clarifies that candidate runs enter this model through the
+upstream CSLM bridge as `field_arriving_at_slm2`; SLM1 phase is not applied
+directly at the F300 input.
 
 ```text
-SLM2
+field arriving at SLM2 from existing CSLM route
+-> SLM2 ideal continuous carrier surrogate
 -> 300 mm free-space propagation
 -> Lens 1, f = 300 mm, thin scalar phase plus editable clear aperture
 -> 300 mm free-space propagation
@@ -31,6 +35,10 @@ final_export_allowed = false
 
 The physical 4F readiness gate remains blocked. Existing CSLM route execution
 and the downstream empirical carrier-stop characterisation are not changed.
+
+The SLM2 carrier is an ideal continuous-ramp/blazed-shift surrogate. It is not
+a pixelated-SLM diffraction-order, fill-factor, zero-order leakage, physical
+order-efficiency, or selected-order-purity model.
 
 ## Implemented Components
 

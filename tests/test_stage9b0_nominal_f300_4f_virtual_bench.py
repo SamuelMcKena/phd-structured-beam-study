@@ -179,13 +179,14 @@ def test_candidate_package_contains_required_files_and_boundaries(tmp_path):
 def test_atlas_specs_cover_required_candidate_families():
     specs = build_candidate_specs()
     families = {spec.candidate_family for spec in specs}
-    assert {
+    assert families == {"gaussian_reference", "vortex_charge_sweep"}
+    assert [spec.candidate_id for spec in specs] == [
         "gaussian_reference",
-        "vortex_charge_sweep",
-        "input_beam_size_variants",
-        "input_decentre_variants",
-        "pinhole_robustness_variants",
-    }.issubset(families)
+        "vortex_ell_1",
+        "vortex_ell_2",
+        "vortex_ell_3",
+        "vortex_ell_4",
+    ]
     assert {spec.ell for spec in specs if spec.candidate_family == "vortex_charge_sweep"} == {1, 2, 3, 4}
 
 

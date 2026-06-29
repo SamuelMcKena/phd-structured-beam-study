@@ -1,35 +1,39 @@
-# Stage 9B.0 Candidate Beam Atlas Contract
+# Stage 9B.0/9B.0.1 Candidate Beam Atlas Contract
 
 The candidate atlas uses the nominal F300 4F virtual bench to compare
-hardware-exportable command candidates before bench calibration exists.
+unvalidated command-mask candidates before bench calibration exists.
 
 It is explicitly:
 
 ```text
 nominally_simulated
-hardware_command_exportable
+command_masks_exportable_unvalidated
 not_bench_validated
 final_export_allowed = false
 ```
 
+Stage 9B.0.1 requires the upstream CSLM bridge. Candidate fields arrive at
+SLM2 from the existing component route; SLM1 phase is not applied directly at
+the nominal F300 input.
+
 ## SLM Role Contract
 
 ```text
-SLM1: vortex / structured phase conditioning
-SLM2: command-domain carrier and future correction map only
+SLM1: vortex / structured phase conditioning at SLM1
+SLM1_to_SLM2_segment: propagated upstream field
+SLM2: ideal continuous carrier surrogate and future correction map only
 ```
 
-SLM2 must not be used to generate an axicon phase in this atlas.
+SLM2 must not be used to generate an axicon phase in this atlas. The carrier is
+not a pixelated-SLM diffraction-order, zero-order leakage, fill-factor, or
+selected-order-purity model.
 
 ## Candidate Families
 
-The initial atlas covers:
+The Stage 9B.0.1 initial atlas covers:
 
 - Gaussian reference,
-- vortex charge sweep,
-- input beam size variants,
-- input decentre variants,
-- pinhole offset and radius robustness variants.
+- vortex charge sweep for `ell=1..4`.
 
 The study contract is stored in:
 
@@ -43,10 +47,10 @@ The atlas reports nominal sensitivity only:
 
 - carrier cycles versus stop-offset transmission,
 - pinhole radius versus stop-offset transmission,
-- beam radius versus relay quality,
-- input decentre versus output centroid.
+- beam radius versus relay quality.
 
-These sweeps are not physical 4F validation and do not infer camera-plane
+These sweeps are exploratory only unless stop sampling and convergence gates
+pass. They are not physical 4F validation and do not infer camera-plane
 coordinates.
 
 ## Candidate Package
@@ -63,6 +67,7 @@ Required files:
 run_manifest.json
 candidate_manifest.json
 nominal_4f_profile_snapshot.json
+stop_sampling_convergence_report.json
 SLM1 phase_rad.npy
 SLM1 quantised_rad.npy
 SLM1 gray.png
@@ -86,6 +91,9 @@ physical_4f_readiness = blocked
 camera_validation = absent
 material_prediction = absent
 final_export_allowed = false
+carrier_realism = ideal_continuous_phase_ramp
+pixelated_slm_diffraction_orders_modelled = false
+stop_sampling_status = convergence_verified or exploratory_only
 ```
 
 ## Unsupported

@@ -8,6 +8,12 @@ beam atlas. It does not alter the active CSLM route, does not mark physical 4F
 readiness ready, and does not add camera, inverse correction, AI, GUI, axicon
 handoff, material response, or Stage 8D work.
 
+Stage 9B.0.1 supersedes one atlas shortcut: candidate fields now arrive at SLM2
+through the existing CSLM component route, and SLM1 phase is no longer accepted
+as a direct input to the nominal F300 model. SLM2 carrier handling is labelled
+as an ideal continuous-ramp surrogate, not pixelated-SLM diffraction-order
+physics.
+
 ## Added
 
 - `configs/hardware/cslm_f300_nominal_4f_profile.json`
@@ -47,8 +53,8 @@ Candidate packages are generated under:
 outputs/nominal_4f_candidate_runs/<run_id>/<candidate_id>/
 ```
 
-They are hardware-command exportable but not final, not bench validated, and not
-publication-ready physical outputs.
+They are `command_masks_exportable_unvalidated` but not final, not bench
+validated, and not publication-ready physical outputs.
 
 ## Unsupported
 

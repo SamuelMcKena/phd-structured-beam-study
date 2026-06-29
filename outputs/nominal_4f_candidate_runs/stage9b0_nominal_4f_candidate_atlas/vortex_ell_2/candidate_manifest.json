@@ -1,16 +1,27 @@
 {
-  "stage": "9B.0",
+  "stage": "9B.0.1",
   "study_name": "cslm_nominal_4f_candidate_atlas_v1",
   "candidate_id": "vortex_ell_2",
   "candidate_family": "vortex_charge_sweep",
+  "topological_charge": 2,
   "candidate_status_labels": [
     "nominally_simulated",
-    "hardware_command_exportable",
+    "command_masks_exportable_unvalidated",
     "not_bench_validated"
   ],
   "simulation_status": "nominal_unvalidated",
-  "hardware_realizability_status": "hardware_command_exportable_not_bench_validated",
-  "export_permission": "hardware_command_exportable_not_final",
+  "upstream_source_mode": "existing_cslm_component_route",
+  "slm1_to_slm2_propagation_included": true,
+  "slm1_phase_applied_at_slm1": true,
+  "slm2_carrier_mode": "ideal_continuous_phase_ramp",
+  "carrier_realism": "ideal_continuous_phase_ramp",
+  "carrier_boundary": "The Fourier-plane stop selects a region of the ideal continuous-ramp spectrum. It is not a simulation of physical pixelated-SLM zero-order leakage, discrete diffraction-order power fractions, or measured selected-order purity.",
+  "stop_sampling_status": "convergence_verified",
+  "convergence_status": "passed_for_nominal_scenario",
+  "hardware_command_export_status": "command_masks_exportable_unvalidated",
+  "hardware_realizability_status": "command_masks_exportable_unvalidated",
+  "export_permission": "command_masks_exportable_unvalidated_not_final",
+  "bench_validation_status": "not_bench_validated",
   "model_label": "Nominal F300 4F scenario - not bench calibrated",
   "claim_boundary_labels": [
     "nominal_4f_forward_model",
@@ -21,12 +32,24 @@
   ],
   "slm_role_contract": {
     "SLM1": "vortex/structured phase source; ell=2",
-    "SLM2": "carrier/future correction only",
+    "SLM2": "ideal continuous carrier/future correction only",
     "SLM2_contains_axicon_phase": false
   },
-  "phase_generator": "SLM1_vortex_or_flat_plus_SLM2_carrier",
+  "carrier_boundary_flags": {
+    "carrier_realism": "ideal_continuous_phase_ramp",
+    "ideal_blazed_carrier_shift_surrogate": true,
+    "pixelated_slm_diffraction_orders_modelled": false,
+    "zero_order_modelled": false,
+    "physical_order_efficiency_modelled": false,
+    "selected_order_purity_predicted": false,
+    "carrier_boundary": "The Fourier-plane stop selects a region of the ideal continuous-ramp spectrum. It is not a simulation of physical pixelated-SLM zero-order leakage, discrete diffraction-order power fractions, or measured selected-order purity."
+  },
+  "phase_generator": "SLM1_owned_vortex_or_flat_plus_SLM2_ideal_carrier",
   "required_components": [
+    "source_field",
+    "input_conditioning_boundary",
     "SLM1_phase_plane",
+    "SLM1_to_SLM2_segment",
     "SLM2_carrier_phase_plane",
     "nominal_F300_4F_relay",
     "nominal_Fourier_stop"
@@ -34,6 +57,7 @@
   "known_model_limits": [
     "nominal 4F geometry only",
     "no physical 4F readiness",
+    "SLM2 continuous carrier is an ideal shift surrogate, not pixelated-SLM order physics",
     "no camera model",
     "no material response",
     "SLM2 contains carrier/future correction only, not an axicon phase"
@@ -49,69 +73,107 @@
     "later_measured_bench_geometry"
   ],
   "metrics": {
-    "relative_transmitted_energy": 0.22668276091937084,
-    "pinhole_transmitted_fraction": 0.22968187195263415,
-    "lens1_pupil_transmitted_fraction": 0.9995730600851488,
-    "lens2_pupil_transmitted_fraction": 0.9873638709355413,
-    "output_centroid_x_m": -1.5044785240495536e-05,
-    "output_centroid_y_m": 1.724057366897142e-05,
-    "output_second_moment_width_x_m": 0.0009801184880771257,
-    "output_second_moment_width_y_m": 0.0009805739289848747,
-    "output_field_of_view_margin_m": 0.003982759426331028,
-    "fourier_centroid_x_m": 0.0003051979871892794,
-    "fourier_centroid_y_m": -2.3421488154810515e-09,
-    "relay_quality_score": 0.5724538859078728,
-    "pupil_clipping_flag": false,
+    "relative_transmitted_energy": 0.2532815723667845,
+    "pinhole_transmitted_fraction": 0.2732832780461384,
+    "lens1_pupil_transmitted_fraction": 0.9981144629569978,
+    "lens2_pupil_transmitted_fraction": 0.9571762809442672,
+    "output_centroid_x_m": -2.3877258160320695e-05,
+    "output_centroid_y_m": -1.3905611887672627e-05,
+    "output_second_moment_width_x_m": 0.0009043753937607173,
+    "output_second_moment_width_y_m": 0.0008990323500072306,
+    "output_field_of_view_margin_m": 0.003976122741839679,
+    "fourier_centroid_x_m": 0.0003080347495859151,
+    "fourier_centroid_y_m": -7.189805152288589e-09,
+    "preview_relay_quality_score": 0.4864309704795061,
+    "relay_quality_score": 0.4864309704795061,
+    "nominal_candidate_score": 0.4864309704795061,
+    "robustness_rank": null,
+    "recommended_for_first_bench_screen": true,
+    "stop_sampling_status": "convergence_verified",
+    "convergence_status": "passed_for_nominal_scenario",
+    "ranking_allowed": true,
+    "carrier_realism": "ideal_continuous_phase_ramp",
+    "ideal_blazed_carrier_shift_surrogate": true,
+    "pixelated_slm_diffraction_orders_modelled": false,
+    "physical_order_efficiency_modelled": false,
+    "selected_order_purity_predicted": false,
+    "upstream_source_mode": "existing_cslm_component_route",
+    "slm1_to_slm2_propagation_included": true,
+    "pupil_clipping_flag": true,
     "pinhole_clipping_flag": true,
-    "warnings": ""
+    "warnings": "beam clipping at lens2 pupil"
   },
   "robustness": {
     "candidate_robustness_summary": {
       "carrier_vs_nominal_stop_transmission": {
         "num_points": 7,
-        "min_relative_transmitted_energy": 0.0026502997395554703,
-        "max_relative_transmitted_energy": 0.24361946720905073,
-        "transmission_span": 0.24096916746949526,
-        "mean_relay_quality_score": 0.48850040667791783
+        "min_relative_transmitted_energy": 0.0027097778993283852,
+        "max_relative_transmitted_energy": 0.22667229733393782,
+        "transmission_span": 0.22396251943460943,
+        "mean_preview_relay_quality_score": 0.383156520982964,
+        "ranking_use": "exploratory_only_not_for_final_ranking"
       },
       "stop_offset_x_transmission": {
         "num_points": 5,
-        "min_relative_transmitted_energy": 0.22158270029088972,
-        "max_relative_transmitted_energy": 0.2792868316585707,
-        "transmission_span": 0.05770413136768099,
-        "mean_relay_quality_score": 0.5594781227592586
+        "min_relative_transmitted_energy": 0.21607510221965953,
+        "max_relative_transmitted_energy": 0.2762210588129208,
+        "transmission_span": 0.060145956593261274,
+        "mean_preview_relay_quality_score": 0.4536542057233842,
+        "ranking_use": "exploratory_only_not_for_final_ranking"
       },
       "pinhole_radius_transmission": {
         "num_points": 4,
-        "min_relative_transmitted_energy": 0.04850081059853662,
-        "max_relative_transmitted_energy": 0.7471927129135294,
-        "transmission_span": 0.6986919023149928,
-        "mean_relay_quality_score": 0.6365706295658933
+        "min_relative_transmitted_energy": 0.06015389794270999,
+        "max_relative_transmitted_energy": 0.7243114628268901,
+        "transmission_span": 0.6641575648841801,
+        "mean_preview_relay_quality_score": 0.5369676979480449,
+        "ranking_use": "exploratory_only_not_for_final_ranking"
       },
       "beam_radius_vs_relay_quality": {
         "num_points": 3,
-        "min_relative_transmitted_energy": 0.05962222761321761,
-        "max_relative_transmitted_energy": 0.474006041612619,
-        "transmission_span": 0.4143838139994014,
-        "mean_relay_quality_score": 0.5897994949085058
-      },
-      "input_decentre_vs_output_centroid": {
-        "num_points": 5,
-        "min_relative_transmitted_energy": 0.24361946720905073,
-        "max_relative_transmitted_energy": 0.25455054588655646,
-        "transmission_span": 0.010931078677505729,
-        "mean_relay_quality_score": 0.5710155565684484
+        "min_relative_transmitted_energy": 0.05583463009628817,
+        "max_relative_transmitted_energy": 0.4440761638674068,
+        "transmission_span": 0.3882415337711186,
+        "mean_preview_relay_quality_score": 0.4809921482590049,
+        "ranking_use": "exploratory_only_not_for_final_ranking"
       }
     },
-    "overall_nominal_score": 0.5578188435988771,
+    "overall_preview_score": 0.44953757431930863,
     "simulation_status": "nominal_unvalidated",
     "physical_4f_readiness": "blocked",
     "final_export_allowed": false
   },
-  "warnings": [],
+  "convergence": {
+    "candidate_id": "vortex_ell_2",
+    "candidate_family": "vortex_charge_sweep",
+    "topological_charge": 2,
+    "convergence_status": "passed_for_nominal_scenario",
+    "transmitted_energy_relative_difference": 0.1050580773966177,
+    "relay_output_centroid_difference_m": 3.237682003863075e-05,
+    "second_moment_width_relative_difference": 0.08721763992143651,
+    "normalised_intensity_correlation": 0.9637064793204451,
+    "exploratory_stop_sampling_status": "exploratory_only",
+    "standard_stop_sampling_status": "ranking_eligible",
+    "exploratory_warnings": [
+      "stop sampling exploratory_only: not_for_stop_robustness_ranking"
+    ],
+    "standard_warnings": [
+      "beam clipping at lens2 pupil"
+    ],
+    "warning_status_comparison": "different",
+    "thresholds": {
+      "energy_relative_tolerance": 0.35,
+      "centroid_tolerance_m": 0.00025,
+      "width_relative_tolerance": 0.35,
+      "intensity_correlation_minimum": 0.85
+    }
+  },
+  "warnings": [
+    "beam clipping at lens2 pupil"
+  ],
   "config": {
     "simulation_plane_width_m": 0.008,
-    "simulation_grid_size": 128,
+    "simulation_grid_size": 256,
     "wavelength_m": 1.03e-06,
     "n_medium": 1.0,
     "input_beam_radius_m": 0.0008,
@@ -135,6 +197,8 @@
     "lens2_to_nominal_relay_output_m": 0.3,
     "bandlimit": true,
     "slm_phase_quantisation_levels": 256,
+    "minimum_stop_diameter_pixels_for_exploration": 6.0,
+    "minimum_stop_diameter_pixels_for_ranking": 10.0,
     "relay_output_to_axicon_mode": "unknown_not_simulated",
     "relay_output_to_axicon_distance_m": null
   },
