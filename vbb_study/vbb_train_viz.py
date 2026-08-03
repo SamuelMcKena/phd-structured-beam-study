@@ -13,11 +13,11 @@ import matplotlib.colors  # noqa: F401 — kept for potential downstream use
 
 from . import vbb_axicon, vbb_polarized_train, vbb_regime, vbb_studies, vbb_style
 from vbb_study.config import BeamDesign, EPS as BT_EPS, PathKind, TWOPI as BT_TWOPI, TwinConfig, um as BT_UM
-from vbb_study.design import compute_design_from_targets
+from vbb_study.design import compute_design_from_config
 from vbb_study.equations.fields import gaussian_amplitude, make_xy_grid, phase_wrap
 from vbb_study.equations.propagation import focus_to_focal_plane, make_bl_asm_propagator
 from vbb_study.facade import core as _bt
-from vbb_study.viz_fields import complex_field_image
+from vbb_study.viz_fields import complex_field_image, phase_winding
 
 Method = Literal["holographic", "physical"]
 
@@ -62,7 +62,7 @@ def _crop_center(arr: np.ndarray, grid: dict[str, Any], max_pixels: int = 192) -
 
 def _air_config_and_design(config: TwinConfig) -> tuple[TwinConfig, BeamDesign]:
     air = vbb_studies.beam_air_config(config)
-    design = compute_design_from_targets(air.laser, air.target, air.material)
+    design = compute_design_from_config(air)
     return air, design
 
 
@@ -191,6 +191,11 @@ def physical_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list
     amp = np.exp(-(grid["R"] ** 2) / max(float(design.w0_sample_m), BT_EPS) ** 2)
     frames = [TrainFrame("input Gaussian on SLM1", amp.astype(complex), grid, {"plane": "SLM1"})]
     charge = int(design.ell if physical_cfg.slm1_vortex_charge is None else physical_cfg.slm1_vortex_charge)
+    mode_key = vbb_axicon.validate_slm2_vortex_contract(
+        physical_cfg.slm2_conjugate_mode,
+        charge,
+        allow_vortex_removal=physical_cfg.allow_vortex_removal,
+    )
     slm1_phase = charge * grid["PHI"]
     U1 = amp * np.exp(1j * slm1_phase)
     frames.append(
@@ -208,10 +213,10 @@ def physical_train_frames(config: TwinConfig, *, lab: bool = True) -> tuple[list
         prop = make_bl_asm_propagator(U1, grid, air.laser.wavelength_m, n_medium=float(physical_cfg.inter_slm_n), bandlimit=True)
         U2 = prop(z)
     frames.append(TrainFrame("before SLM2", U2, grid, {"inter_slm_z_m": z}))
-    reference_phase = charge * np.asarray(grid["PHI"], dtype=float) if str(physical_cfg.slm2_conjugate_mode).lower().strip() == "preserve_vortex" else None
+    reference_phase = charge * np.asarray(grid["PHI"], dtype=float) if mode_key == "preserve_vortex" else None
     U2_flat, diag = vbb_axicon.slm2_conjugate(
         U2,
-        mode=physical_cfg.slm2_conjugate_mode,
+        mode=mode_key,
         stroke_levels=physical_cfg.slm2_stroke_levels,
         reference_phase=reference_phase,
         return_diagnostics=True,
@@ -511,7 +516,7 @@ def plot_holographic_carrier_filter_tradeoff(
         for ax in axes:
             ax.axvline(xopt, color="#009E73", lw=1.4, ls="--", label="chosen optimum" if ax is axes[0] else None)
     air = vbb_studies.beam_air_config(config)
-    design = compute_design_from_targets(air.laser, air.target, air.material)
+    design = compute_design_from_config(air)
     dx_eff = air.slm.pixel_pitch_m * max(1, int(air.grid.device_downsample))
     simulation_carrier_wall = 1.0 / (2.0 * dx_eff) / 1.0e3 - abs(design.kr_slm_m_inv) / BT_TWOPI / 1.0e3
     slm_carrier_wall = 1.0 / (2.0 * air.slm.pixel_pitch_m) / 1.0e3 - abs(design.kr_slm_m_inv) / BT_TWOPI / 1.0e3
@@ -555,6 +560,13 @@ def method_comparison_table(
             actual_path = path if method == "holographic" else "ideal"
             result = _bt().run_case(cfg, preset=str(cfg.grid.label or "fast"), path=actual_path, case_id=f"{regime_name}_{method}")
             meta = result.get("axicon_metadata", {})
+            surface = result["surface_field"]
+            design = result["design"]
+            winding = phase_winding(
+                surface.Ex,
+                surface.grid,
+                float(design.vortex_main_ring_radius_m),
+            )
             rows.append(
                 {
                     "regime": regime_name,
@@ -568,6 +580,24 @@ def method_comparison_table(
                     "realised_k_r_m_inv": result.get("axicon_result", None).k_r if result.get("axicon_result") is not None else result["design"].kr_sample_m_inv,
                     "slm2_residual_before_rad": meta.get("slm2_residual_phase_rms_before_rad", np.nan),
                     "slm2_residual_after_rad": meta.get("slm2_residual_phase_rms_after_rad", np.nan),
+                    "requested_vortex_charge": int(design.ell),
+                    "measured_winding": float(winding),
+                    "winding_error": float(abs(winding - int(design.ell))),
+                    "winding_pass": bool(abs(winding - int(design.ell)) < 0.1),
+                    "slm2_conjugate_mode": (
+                        str(cfg.physical_axicon.slm2_conjugate_mode)
+                        if method == "physical"
+                        else "not_applicable"
+                    ),
+                    "vortex_removal_acknowledged": (
+                        bool(cfg.physical_axicon.allow_vortex_removal)
+                        if method == "physical"
+                        else False
+                    ),
+                    "propagation_power_drift_fraction": result["metrics"].get("propagation_power_drift_fraction"),
+                    "propagation_power_label": result["metrics"].get("propagation_power_label"),
+                    "quantitative_metrics_valid": result["metrics"].get("quantitative_metrics_valid"),
+                    "quantitative_metrics_invalid_reason": result["metrics"].get("quantitative_metrics_invalid_reason"),
                     "validity_valid": result["validity_report"]["valid"],
                 }
             )

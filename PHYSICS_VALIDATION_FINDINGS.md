@@ -1,5 +1,13 @@
 # Physics Validation Findings — Stage 5
 
+> **Phase 1 status update (2026-07-15):** This file preserves the pre-repair measurements and
+> diagnoses. `F-A3p` is resolved for the safe physical-route default by vortex-preserving SLM2
+> correction; full conjugation remains only as an explicitly acknowledged zero-winding diagnostic.
+> `F-A6` is not numerically repaired, but cases above 5% drift are now hard-invalid for quantitative
+> use under `flag`/`warn`/`raise` governance. The paper-resolution physical `F-A1c` cases and the
+> fast general case now pass after topology preservation; the fast limits case remains grid-limited.
+> See `docs/88_phase1_critical_physics_repairs.md` for the authoritative post-repair contract.
+
 Generated: 2026-06-15  
 Engine: `bessel_twin_core.py` (characterisation lock 9/9 green throughout)  
 Preset used: `fast` (device_downsample=4, ideal_N=512, ideal_dx=0.25 µm)

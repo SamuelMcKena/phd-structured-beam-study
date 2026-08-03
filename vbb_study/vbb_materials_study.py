@@ -19,7 +19,7 @@ import numpy as np
 import pandas as pd
 
 from vbb_study.config import EPS as BT_EPS, TwinConfig, uJ as BT_UJ, um as BT_UM
-from vbb_study.design import compute_design_from_targets
+from vbb_study.design import compute_design_from_config
 from vbb_study.facade import core as _bt
 from . import vbb_capsule, vbb_materials, vbb_style
 
@@ -220,7 +220,7 @@ def holographic_max_zone_um(
             target_bessel_length_m=1.0 * BT_UM,
         ),
     )
-    design = compute_design_from_targets(cfg_probe.laser, cfg_probe.target, cfg_probe.material)
+    design = compute_design_from_config(cfg_probe)
     kr_sample = float(design.kr_sample_m_inv)
     k_medium = float(cfg_probe.laser.k0 * cfg_probe.material.refractive_index)
     w_slm = float(cfg_probe.laser.beam_radius_on_slm_m)
@@ -363,7 +363,7 @@ def design_solver_with_gap(
                         ),
                         energy=replace(base_config.energy, pulse_energy_in_J=float(energy_uJ) * BT_UJ),
                     )
-                    design = compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
+                    design = compute_design_from_config(cfg)
                     cone_lpmm = float(abs(design.kr_slm_m_inv) / (2.0 * math.pi) / 1e3)
                     holo_feasible = bool(cone_lpmm + filter_lpmm < carrier_lpmm - 0.06)
 
@@ -382,6 +382,10 @@ def design_solver_with_gap(
                         "filter_lpmm": filter_lpmm,
                         "gamma_slm_deg": float(design.gamma_slm_deg),
                         "w0_sample_um": float(design.w0_sample_m / BT_UM),
+                        "mapping_mode": str(design.mapping_mode),
+                        "objective_map_source": str(design.objective_map_source),
+                        "objective_map_demag": float(design.objective_map_demag),
+                        "predicted_bessel_length_um": float(design.predicted_bessel_length_m / BT_UM),
                         # Holographic route
                         "holo_first_order_feasible": holo_feasible,
                         "max_holo_zone_um": float(max_holo_um),

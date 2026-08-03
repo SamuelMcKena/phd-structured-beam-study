@@ -11,7 +11,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 from vbb_study.config import EPS, TwinConfig
-from vbb_study.design import compute_design_from_targets
+from vbb_study.design import compute_design_from_config
 from vbb_study.equations.fields import make_xy_grid
 from vbb_study.equations.propagation import focus_to_focal_plane
 from vbb_study.vector_field import VectorField, propagate_vector_asm
@@ -57,7 +57,7 @@ def _grid_r_phi(grid: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, np.nda
 def resolve_vector_axicon_parameters(config: TwinConfig) -> VectorAxiconParameters:
     """Resolve axicon and ObjectiveMap-derived wavevector parameters."""
 
-    design = compute_design_from_targets(config.laser, config.target, config.material)
+    design = compute_design_from_config(config)
     physical = config.physical_axicon
     n_axicon = float(design.n_axicon if physical.n_axicon is None else physical.n_axicon)
     n_medium = float(getattr(physical, "axicon_medium_n", design.hologram_medium_n))
@@ -171,7 +171,7 @@ def focus_vector_to_surface(field: VectorField, config: TwinConfig) -> VectorFie
 def default_surface_z_values(config: TwinConfig) -> np.ndarray:
     """Return the air-side z-stack around the focused surface plane."""
 
-    design = compute_design_from_targets(config.laser, config.target, config.material)
+    design = compute_design_from_config(config)
     half_span = float(design.target_bessel_length_m)
     return np.linspace(-half_span, half_span, int(config.grid.axial_points))
 

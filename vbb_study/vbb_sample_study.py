@@ -9,7 +9,7 @@ from typing import Any, Mapping, Sequence
 import numpy as np
 
 from vbb_study.config import BeamDesign, EPS as BT_EPS, LaserConfig, TWOPI as BT_TWOPI, TwinConfig, uJ as BT_UJ, um as BT_UM
-from vbb_study.design import compute_design_from_targets
+from vbb_study.design import compute_design_from_config
 from vbb_study.equations.fields import fft2c, ifft2c, quantize_phase
 from vbb_study.equations.interface import fit_interface_zernike_terms, interface_aberration_pupil
 from vbb_study.equations.propagation import make_bl_asm_propagator
@@ -449,7 +449,7 @@ def run_through_sample(
         raise ValueError("Through-sample z_axis_m is measured from the surface and must be non-negative.")
 
     volume = _propagate_components(selected_fields, grid, config, z_axis, n_medium=n_medium)
-    design = compute_design_from_targets(config.laser, config.target, config.material)
+    design = compute_design_from_config(config)
     correction_label = "ideal_numerical_correction" if bool(correct_interface) else "uncorrected_interface"
     energy_report = {
         "surface_power_air": surface_power,
@@ -459,9 +459,9 @@ def run_through_sample(
         "phase_only_power_relative_error": float(phase_rel_error),
         "volume_power_min": float(np.nanmin(volume["total_power"])),
         "volume_power_max": float(np.nanmax(volume["total_power"])),
-        "volume_power_drift_fraction": float(
-            (np.nanmax(volume["total_power"]) - np.nanmin(volume["total_power"])) / (np.nanmean(volume["total_power"]) + BT_EPS)
-        ),
+        "volume_power_drift_fraction": float(volume["propagation_power_drift_fraction"]),
+        "quantitative_metrics_valid": bool(volume["quantitative_metrics_valid"]),
+        "quantitative_metrics_invalid_reason": str(volume["quantitative_metrics_invalid_reason"]),
         "power_check_pass": bool(phase_rel_error <= 1e-6),
     }
     correction_report = {

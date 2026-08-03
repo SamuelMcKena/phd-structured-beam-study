@@ -158,6 +158,17 @@ def _phase_winding(
     return float(np.sum(steps) + closing) / _TWOPI
 
 
+def phase_winding(
+    field_2d: np.ndarray,
+    grid: dict[str, Any],
+    sample_radius_m: float,
+    n_phi: int = 256,
+) -> float:
+    """Measure complex-field winding around a closed circular contour."""
+
+    return _phase_winding(field_2d, grid, sample_radius_m, n_phi=n_phi)
+
+
 def measured_charge_label(
     field_2d: np.ndarray,
     grid: dict[str, Any],
@@ -172,7 +183,7 @@ def measured_charge_label(
     Charge is noted as preserved when winding ≈ design_ell (within 0.15 turns);
     otherwise the discrepancy is flagged with the conjugate_mode culprit if supplied.
     """
-    winding = _phase_winding(field_2d, grid, sample_radius_m, n_phi=n_phi)
+    winding = phase_winding(field_2d, grid, sample_radius_m, n_phi=n_phi)
     if abs(winding - design_ell) < 0.15:
         return (
             f"measured winding = {winding:.2f}"

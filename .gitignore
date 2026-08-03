@@ -1,0 +1,7 @@
+.tmp_*/
+.tmp_pytest/
+.tmp_pytest_cache/
+outputs/pytest_cache/
+outputs/pytest_runtime/
+__pycache__/
+*.pyc

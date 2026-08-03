@@ -41,6 +41,7 @@ class ObjectiveMap:
     demag: float
     n_sample: float = 2.44
     source: str = "effective_objective_relay"
+    mapping_mode: str = "fixed_physical_optics"
 
     def __post_init__(self) -> None:
         if float(self.demag) <= 0.0:
@@ -90,6 +91,7 @@ def objective_map_from_waists(
     sample_radius_m: float,
     n_sample: float = 2.44,
     source: str = "target_matched_bessel_gauss_waist_audit",
+    mapping_mode: str = "target_matched_inverse_design",
 ) -> ObjectiveMap:
     """Build the target-matched waist-ratio audit map."""
 
@@ -97,6 +99,7 @@ def objective_map_from_waists(
         demag=float(sample_radius_m) / max(float(pre_objective_radius_m), 1.0e-30),
         n_sample=float(n_sample),
         source=source,
+        mapping_mode=mapping_mode,
     )
 
 
@@ -106,6 +109,7 @@ def objective_map_from_optics(
     effective_relay_f_m: float,
     n_sample: float = 2.44,
     source: str = "objective_f_eff_over_effective_relay_f",
+    mapping_mode: str = "fixed_physical_optics",
 ) -> ObjectiveMap:
     """Build the optics-derived focused-plane demag from objective/relay data."""
 
@@ -113,6 +117,7 @@ def objective_map_from_optics(
         demag=float(objective_f_eff_m) / max(float(effective_relay_f_m), 1.0e-30),
         n_sample=float(n_sample),
         source=source,
+        mapping_mode=mapping_mode,
     )
 
 

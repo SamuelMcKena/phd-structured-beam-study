@@ -8,9 +8,8 @@ Stage 5.5 additive test.  This lock guards the paper-preset (production) baselin
 The fast-preset lock (tests/test_characterisation_lock.py + baselines/) is LEFT
 UNTOUCHED and remains the primary quick-regression gate.
 
-This lock captures CURRENT behaviour including the known Finding F-A3p (physical
-route carries charge=0 due to SLM2 full-conjugate design).  That finding is
-deliberately locked here so any future fix appears as a known intentional diff.
+The physical cases remain an explicitly acknowledged full-conjugation legacy
+diagnostic. The safe production route now defaults to vortex preservation.
 """
 
 from __future__ import annotations
@@ -46,6 +45,12 @@ EXPECTED_CASES = {
     "limits_holographic_lab",
     "limits_physical_ideal",
     "limits_physical_lab",
+}
+PHASE1_INTENTIONAL_PAYLOAD_PATHS = {
+    "payload.metrics.objective_map_source",
+    "payload.metrics.propagation_power_clipping_note",
+    "payload.result_fields.metrics_config.physical_axicon.slm2_conjugate_mode",
+    "payload.result_fields.sampling_report.propagation_power_clipping_note",
 }
 
 
@@ -127,6 +132,58 @@ def _payload_from_result(result: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _phase1_expected_config(baseline: Mapping[str, Any], config: bt.TwinConfig) -> dict[str, Any]:
+    """Extend the immutable baseline schema with intentional Phase 1 fields."""
+
+    expected = dict(baseline["config_flat"])
+    route = str(baseline["case_definition"]["route"])
+    expected["mapping_mode"] = "target_matched_inverse_design"
+    expected["physical_axicon.allow_vortex_removal"] = route == "physical"
+    expected["physical_axicon.slm2_conjugate_mode"] = (
+        "full" if route == "physical" else "preserve_vortex"
+    )
+    assert config.mapping_mode == expected["mapping_mode"]
+    return expected
+
+
+def _project_to_baseline_schema(expected: Any, actual: Any) -> Any:
+    """Retain every historical key while excluding separately tested additions."""
+
+    if isinstance(expected, dict) and isinstance(actual, dict):
+        return {
+            key: _project_to_baseline_schema(value, actual[key])
+            if key in actual
+            else "<missing>"
+            for key, value in expected.items()
+        }
+    if isinstance(expected, list) and isinstance(actual, list):
+        projected = [
+            _project_to_baseline_schema(left, right)
+            for left, right in zip(expected, actual)
+        ]
+        return projected + actual[len(expected):]
+    return actual
+
+
+def _assert_phase1_additive_contract(result: Mapping[str, Any], route: str) -> None:
+    design = result["design"]
+    metrics = result["metrics"]
+    volume = result["volume"]
+    report = result["propagation_power_validity_report"]
+    assert design.mapping_mode == "target_matched_inverse_design"
+    assert metrics["mapping_mode"] == design.mapping_mode
+    assert metrics["objective_map_source"] == design.objective_map_source
+    assert metrics["objective_map_demag"] == design.objective_map_demag
+    assert "Quantitative metrics require drift<=0.05" in metrics["propagation_power_clipping_note"]
+    assert metrics["quantitative_metrics_valid"] == report["quantitative_metrics_valid"]
+    assert metrics["propagation_power_drift_fraction"] == volume["propagation_power_drift_fraction"]
+    expected_mode = "full" if route == "physical" else "preserve_vortex"
+    assert result["metrics_config"].physical_axicon.slm2_conjugate_mode == expected_mode
+    assert "Quantitative metrics require drift<=0.05" in result["sampling_report"]["propagation_power_clipping_note"]
+    if route == "physical":
+        assert result["axicon_metadata"]["vortex_preservation_contract"] == "explicitly_acknowledged_removal"
+
+
 def _build_case(case_definition: Mapping[str, Any]) -> tuple[bt.TwinConfig, str, str]:
     preset = str(case_definition["preset"])
     regime = str(case_definition["regime"])
@@ -143,6 +200,7 @@ def _build_case(case_definition: Mapping[str, Any]) -> tuple[bt.TwinConfig, str,
                 config.physical_axicon,
                 slm2_stroke_levels=case_definition["physical_slm2_stroke_levels"],
                 slm2_conjugate_mode=str(case_definition["physical_slm2_conjugate_mode"]),
+                allow_vortex_removal=True,
             ),
         )
         path = "ideal"
@@ -202,7 +260,8 @@ def test_prod_characterisation_lock_matches_baseline(baseline_path: Path) -> Non
     config, path, rebuilt_case_id = _build_case(baseline["case_definition"])
     assert rebuilt_case_id == case_id
 
-    config_diffs = _diff(baseline["config_flat"], _flatten_config(config), "config_flat")
+    expected_config = _phase1_expected_config(baseline, config)
+    config_diffs = _diff(expected_config, _flatten_config(config), "config_flat")
     if config_diffs:
         key, expected, actual = config_diffs[0]
         pytest.fail(
@@ -216,8 +275,11 @@ def test_prod_characterisation_lock_matches_baseline(baseline_path: Path) -> Non
         path=path,
         case_id=case_id,
     )
+    _assert_phase1_additive_contract(result, str(baseline["case_definition"]["route"]))
     actual_payload = _payload_from_result(result)
-    payload_diffs = _diff(baseline["payload"], actual_payload, "payload")
+    projected_payload = _project_to_baseline_schema(baseline["payload"], actual_payload)
+    payload_diffs = _diff(baseline["payload"], projected_payload, "payload")
+    payload_diffs = [diff for diff in payload_diffs if diff[0] not in PHASE1_INTENTIONAL_PAYLOAD_PATHS]
     if payload_diffs:
         lines = [f"[prod] {case_id} changed at {len(payload_diffs)} key(s). First differences:"]
         for key, expected, actual in payload_diffs[:10]:

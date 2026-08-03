@@ -101,12 +101,17 @@ def slm_to_pupil_magnification(f_relay_m: float, f_tube_m: float) -> float:
 # ---------------------------------------------------------------------------
 
 
-def fourier_plane_ring_radius_m(kr_m_inv: float, f_lens_m: float) -> float:
+def fourier_plane_ring_radius_m(
+    kr_m_inv: float,
+    f_lens_m: float,
+    wavelength_m: float,
+) -> float:
     """Return the Bessel-ring radius in the Fourier plane of a lens.
 
     A lens of focal length ``f`` maps the transverse spatial frequency
     ``k_r / (2*pi)`` (cycles/m) to a radial position
-    ``r = k_r * f / (2*pi)`` in its back focal plane.  This is where the
+    ``r = wavelength * f * k_r / (2*pi) = f * k_r / k0`` in its back focal
+    plane.  This is where the
     Bessel ring appears, and where the first-order filter must be centred.
 
     Parameters
@@ -115,16 +120,24 @@ def fourier_plane_ring_radius_m(kr_m_inv: float, f_lens_m: float) -> float:
         Transverse wavevector (axicon ring spatial frequency), rad/m.
     f_lens_m:
         Focal length of the Fourier-transform lens, m.
+    wavelength_m:
+        Vacuum wavelength, m. It is explicit because this function returns a
+        physical distance rather than a spatial-frequency coordinate.
     """
 
-    return float(kr_m_inv) * float(f_lens_m) / (2.0 * math.pi)
+    return float(wavelength_m) * float(kr_m_inv) * float(f_lens_m) / (2.0 * math.pi)
 
 
-def fourier_plane_carrier_separation_m(carrier_cpm: float, f_lens_m: float) -> float:
+def fourier_plane_carrier_separation_m(
+    carrier_cpm: float,
+    f_lens_m: float,
+    wavelength_m: float,
+) -> float:
     """Return the lateral shift of the blaze carrier in the Fourier plane.
 
     A carrier grating with frequency ``carrier_cpm`` (cycles/m) shifts the
-    first diffraction order by ``f * carrier_cpm`` in the Fourier plane.
+    first diffraction order by ``wavelength * f * carrier_cpm`` in the
+    Fourier plane.
     The filter must be positioned at this offset to capture the first order.
 
     Parameters
@@ -133,9 +146,11 @@ def fourier_plane_carrier_separation_m(carrier_cpm: float, f_lens_m: float) -> f
         Blaze carrier spatial frequency, cycles/m.
     f_lens_m:
         Focal length of the Fourier-transform lens, m.
+    wavelength_m:
+        Vacuum wavelength, m.
     """
 
-    return float(carrier_cpm) * float(f_lens_m)
+    return float(wavelength_m) * float(carrier_cpm) * float(f_lens_m)
 
 
 # ---------------------------------------------------------------------------
@@ -147,6 +162,7 @@ def first_order_filter_inner_radius_m(
     carrier_cpm: float,
     f_lens_m: float,
     kr_m_inv: float,
+    wavelength_m: float,
     *,
     safety_factor: float = 0.5,
 ) -> float:
@@ -168,8 +184,8 @@ def first_order_filter_inner_radius_m(
         Fraction of the carrier separation used as inner clearance (0–1).
     """
 
-    ring_r = fourier_plane_ring_radius_m(kr_m_inv, f_lens_m)
-    carrier_shift = fourier_plane_carrier_separation_m(carrier_cpm, f_lens_m)
+    ring_r = fourier_plane_ring_radius_m(kr_m_inv, f_lens_m, wavelength_m)
+    carrier_shift = fourier_plane_carrier_separation_m(carrier_cpm, f_lens_m, wavelength_m)
     # The first-order ring sits at carrier_shift ± ring_r.
     # Inner edge clears the DC spot; set to carrier_shift - ring_r with margin.
     inner = max(carrier_shift - ring_r * (1.0 + float(safety_factor)), 0.0)
@@ -180,6 +196,7 @@ def first_order_filter_outer_radius_m(
     carrier_cpm: float,
     f_lens_m: float,
     kr_m_inv: float,
+    wavelength_m: float,
     *,
     safety_factor: float = 0.5,
 ) -> float:
@@ -194,8 +211,8 @@ def first_order_filter_outer_radius_m(
         Fraction of the ring-to-second-order gap retained as outer margin (0–1).
     """
 
-    ring_r = fourier_plane_ring_radius_m(kr_m_inv, f_lens_m)
-    carrier_shift = fourier_plane_carrier_separation_m(carrier_cpm, f_lens_m)
+    ring_r = fourier_plane_ring_radius_m(kr_m_inv, f_lens_m, wavelength_m)
+    carrier_shift = fourier_plane_carrier_separation_m(carrier_cpm, f_lens_m, wavelength_m)
     # Second-order ring sits at 2*carrier_shift.  Outer edge should be less.
     outer = carrier_shift + ring_r * (1.0 + float(safety_factor))
     outer = min(outer, 2.0 * carrier_shift - ring_r * float(safety_factor))

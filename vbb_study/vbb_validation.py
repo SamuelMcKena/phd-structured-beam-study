@@ -19,7 +19,7 @@ import pandas as pd
 from scipy import special as sp
 
 from vbb_study.config import EPS as BT_EPS, um as BT_UM
-from vbb_study.design import compute_design_from_targets, default_config
+from vbb_study.design import compute_design_from_config, default_config
 from vbb_study.equations.fields import gaussian_amplitude, make_xy_grid
 from vbb_study.equations.propagation import angular_spectrum_propagate_bl, make_bl_asm_propagator, scalable_angular_spectrum_propagate
 from vbb_study.equations.scalar_bessel import build_conical_axicon_field_ideal
@@ -302,7 +302,7 @@ def sas_bl_asm_comparison(output_dir: str | Path | None = None, *, save_figure: 
     N = 256
     dx = 0.45 * BT_UM
     grid = make_xy_grid(N, dx)
-    design = compute_design_from_targets(base.laser, base.target, base.material)
+    design = compute_design_from_config(base)
     fields = {
         "gaussian": gaussian_amplitude(grid["R"], 12.0 * BT_UM),
         "soft_square_aperture": ((np.abs(grid["X"]) <= 8.0 * BT_UM) & (np.abs(grid["Y"]) <= 8.0 * BT_UM)).astype(float),

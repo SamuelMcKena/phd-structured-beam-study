@@ -140,6 +140,7 @@ def _build_case(case_def: dict) -> tuple:
                 config.physical_axicon,
                 slm2_stroke_levels=case_def["physical_slm2_stroke_levels"],
                 slm2_conjugate_mode=str(case_def["physical_slm2_conjugate_mode"]),
+                allow_vortex_removal=True,
             ),
         )
     case_id = f"{regime}_{route}_{variant}"
@@ -215,8 +216,9 @@ def capture_all() -> None:
         "note": (
             "Production-resolution (paper preset: N=2048, device_downsample=1, "
             "axial_points=181, ideal_N=1024, ideal_dx=0.18um) baselines. "
-            "Physical route still carries charge=0 (Finding F-A3p, fixed in next stage). "
-            "This baseline locks the CURRENT behaviour bit-for-bit at production resolution."
+            "Physical full conjugation is explicitly acknowledged as an intentional "
+            "zero-winding legacy diagnostic. This baseline locks that diagnostic "
+            "behaviour bit-for-bit at production resolution."
         ),
     }
     (BASELINE_DIR / "PROVENANCE.json").write_text(

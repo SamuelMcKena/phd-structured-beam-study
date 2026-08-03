@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from typing import Any, Literal, Mapping
 
 import numpy as np
 
@@ -12,6 +12,17 @@ from vbb_study.equations.fields import phase_wrap
 from vbb_study.vector_arm_config import SLMPanelConfig
 
 TWOPI = 2.0 * np.pi
+
+SLMFillFactorModel = Literal[
+    "throughput_only",
+    "resolved_pixel_aperture",
+    "coherent_unmodulated_deadspace",
+]
+SLM_FILL_FACTOR_MODELS: tuple[str, ...] = (
+    "throughput_only",
+    "resolved_pixel_aperture",
+    "coherent_unmodulated_deadspace",
+)
 
 
 def _grid_xy(grid: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, float, float]:
@@ -43,6 +54,49 @@ def slm_active_aperture(grid: Mapping[str, Any], panel_cfg: SLMPanelConfig) -> n
     half_w = 0.5 * panel_cfg.active_width_m
     half_h = 0.5 * panel_cfg.active_height_m
     return (np.abs(X) <= half_w) & (np.abs(Y) <= half_h)
+
+
+def resolved_pixel_aperture(
+    grid: Mapping[str, Any],
+    panel_cfg: SLMPanelConfig,
+) -> np.ndarray:
+    """Return a resolved square-pixel active-area mask with mean area ``FF``.
+
+    A binary pixel aperture is meaningful only when the computational grid has
+    at least two samples per physical pixel in both axes. Coarser simulations
+    must use ``throughput_only`` or the explicitly labelled unresolved
+    coherent fallback instead of presenting aliased borders as hardware.
+    """
+
+    X, Y, dx, dy = _grid_xy(grid)
+    pitch = float(panel_cfg.pitch_m)
+    if max(abs(dx), abs(dy)) > 0.5 * pitch:
+        raise ValueError(
+            "resolved_pixel_aperture requires at least two computational "
+            "samples per SLM pixel in both axes"
+        )
+    ff = float(np.clip(panel_cfg.fill_factor, 0.0, 1.0))
+    if ff >= 1.0:
+        return np.ones_like(X, dtype=float)
+    duty = np.sqrt(ff)
+    xmod = np.mod(X / pitch + 0.5, 1.0) - 0.5
+    ymod = np.mod(Y / pitch + 0.5, 1.0) - 0.5
+    return ((np.abs(xmod) <= 0.5 * duty) & (np.abs(ymod) <= 0.5 * duty)).astype(float)
+
+
+def _coherent_deadspace_mask(
+    grid: Mapping[str, Any],
+    panel_cfg: SLMPanelConfig,
+) -> tuple[np.ndarray, str]:
+    """Return the coherent active-region mask and its sampling classification."""
+
+    X, _, dx, dy = _grid_xy(grid)
+    if max(abs(dx), abs(dy)) <= 0.5 * float(panel_cfg.pitch_m):
+        return resolved_pixel_aperture(grid, panel_cfg), "resolved_binary_pixel_aperture"
+    return (
+        np.full_like(X, float(np.clip(panel_cfg.fill_factor, 0.0, 1.0)), dtype=float),
+        "unresolved_effective_duty",
+    )
 
 
 def pixelate(
@@ -197,14 +251,18 @@ def apply_slm(
     quantise_phase: bool = True,
     apply_fill_factor: bool = True,
     apply_carrier: bool = True,
+    fill_factor_model: SLMFillFactorModel = "coherent_unmodulated_deadspace",
 ) -> SLMApplication:
     """Apply the Stage 7 phase-only SLM model to one scalar component.
 
-    The reflected field is
-    ``FF * exp(i psi) * E_in + (1 - FF) * E_in`` on the active rectangle.
-    The ledger assertion includes the interference term, so the bookkeeping is
-    exact even before a Fourier-plane iris separates modulated and zero-order
-    leakage.
+    ``throughput_only`` applies ``sqrt(FF) exp(i psi)`` and owns the associated
+    power loss. ``resolved_pixel_aperture`` applies a binary active-pixel mask.
+    ``coherent_unmodulated_deadspace`` applies
+    ``M exp(i psi) + (1-M)`` and therefore retains the coherent zero order.
+
+    The coherent model is the compatibility default for the established vector
+    route. On an unresolved grid it uses the old effective-duty expression
+    ``M=FF`` and labels that approximation in metadata.
     """
 
     incident_full = np.asarray(field, dtype=complex)
@@ -222,9 +280,29 @@ def apply_slm(
         raise ValueError("field and phase arrays must have the same shape.")
     aperture = slm_active_aperture(grid, panel_cfg)
     incident = np.where(aperture, incident_full, 0.0)
+    model = str(fill_factor_model).strip().lower()
+    if model not in SLM_FILL_FACTOR_MODELS:
+        raise ValueError(
+            f"fill_factor_model must be one of {SLM_FILL_FACTOR_MODELS}; got {fill_factor_model!r}"
+        )
     ff = float(panel_cfg.fill_factor) if apply_fill_factor else 1.0
-    modulated = ff * np.exp(1j * psi) * incident
-    unmodulated = (1.0 - ff) * incident
+    sampling = "not_applicable"
+    if model == "throughput_only":
+        modulated = np.sqrt(ff) * np.exp(1j * psi) * incident
+        unmodulated = np.zeros_like(modulated)
+    elif model == "resolved_pixel_aperture":
+        mask = resolved_pixel_aperture(grid, panel_cfg) if apply_fill_factor else np.ones_like(psi)
+        modulated = mask * np.exp(1j * psi) * incident
+        unmodulated = np.zeros_like(modulated)
+        sampling = "resolved_binary_pixel_aperture"
+    else:
+        mask, sampling = (
+            _coherent_deadspace_mask(grid, panel_cfg)
+            if apply_fill_factor
+            else (np.ones_like(psi), "fill_factor_disabled")
+        )
+        modulated = mask * np.exp(1j * psi) * incident
+        unmodulated = (1.0 - mask) * incident
     total = modulated + unmodulated
     ledger = _ledger(modulated, unmodulated, total, incident, grid)
     assert ledger.relative_error < 1e-12
@@ -237,6 +315,10 @@ def apply_slm(
         ledger=ledger,
         metadata={
             "fill_factor": ff,
+            "fill_factor_model": model,
+            "fill_factor_sampling": sampling,
+            "fill_factor_loss_already_in_field": bool(model != "coherent_unmodulated_deadspace"),
+            "energy_ledger_must_not_reapply_fill_factor": True,
             "quantise_phase": bool(quantise_phase),
             "apply_carrier": bool(apply_carrier),
             "phase_is_prepared": bool(phase_is_prepared),
@@ -246,6 +328,8 @@ def apply_slm(
 
 __all__ = [
     "SLMApplication",
+    "SLMFillFactorModel",
+    "SLM_FILL_FACTOR_MODELS",
     "SLMLedger",
     "apply_slm",
     "carrier_phase",
@@ -254,5 +338,6 @@ __all__ = [
     "prepare_slm_phase",
     "quantise",
     "quantize",
+    "resolved_pixel_aperture",
     "slm_active_aperture",
 ]

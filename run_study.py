@@ -125,6 +125,13 @@ STAGE_NOTEBOOKS: OrderedDict[str, list[str]] = OrderedDict([
         "notebooks/advanced/02_hexagonal_polygonal_beams.ipynb",
         "notebooks/advanced/03_discrete_nfold_beams.ipynb",
     ]),
+    ("digital_twin", [
+        "notebooks/digital_twin/03_nathan_vector_hexagon_target_field.ipynb",
+        "notebooks/digital_twin/04_patterned_hwp_vector_route.ipynb",
+        "notebooks/digital_twin/05_serial_dual_slm_vector_route.ipynb",
+        "notebooks/digital_twin/06_shared_axicon_hexagon_propagation.ipynb",
+        "notebooks/digital_twin/07_nathan_vector_hexagon_robustness_and_equivalence.ipynb",
+    ]),
     ("publication_exports", [
         "notebooks/publication_exports/03_report_export.ipynb",
     ]),

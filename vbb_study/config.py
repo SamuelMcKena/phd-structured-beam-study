@@ -31,7 +31,8 @@ GenerationMethod = Literal["holographic", "physical"]
 Slm2ConjugateMode = Literal["full", "lowpass", "zernike", "preserve_vortex"]
 StudyKind = Literal["beam_to_surface", "through_sample", "full_source_to_sample"]
 RegimeName = Literal["general", "limits"]
-ValidityViolationAction = Literal["flag", "raise"]
+ValidityViolationAction = Literal["flag", "warn", "raise"]
+OpticalMappingMode = Literal["target_matched_inverse_design", "fixed_physical_optics"]
 SurfacePlacement = Literal["zone_center", "zone_start", "custom"]
 
 
@@ -243,7 +244,11 @@ class BeamDesign:
     gamma_slm_rad: float
     gamma_slm_deg: float
     magnification_to_sample: float
+    mapping_mode: OpticalMappingMode
+    objective_map_source: str
+    objective_map_demag: float
     w0_sample_m: float
+    predicted_bessel_length_m: float
     equivalent_l0_core_radius_m: float
     equivalent_l0_core_diameter_m: float
     equivalent_l0_first_zero_radius_m: float
@@ -291,7 +296,8 @@ class PhysicalAxiconConfig:
 
     inter_slm_z_m: float = 25.0 * um
     inter_slm_n: float = 1.0
-    slm2_conjugate_mode: Slm2ConjugateMode = "full"
+    slm2_conjugate_mode: Slm2ConjugateMode = "preserve_vortex"
+    allow_vortex_removal: bool = False
     slm2_stroke_levels: Optional[int] = 256
     slm1_vortex_charge: Optional[int] = None
     n_axicon: Optional[float] = None
@@ -319,6 +325,7 @@ class TwinConfig:
     slm: SLMConfig = field(default_factory=SLMConfig)
     objective: ObjectiveConfig = field(default_factory=ObjectiveConfig)
     relay: RelayConfig = field(default_factory=RelayConfig)
+    mapping_mode: OpticalMappingMode = "target_matched_inverse_design"
     material: MaterialConfig = field(default_factory=MaterialConfig.cr_znse)
     energy: EnergyBudget = field(default_factory=EnergyBudget)
     target: BeamTarget = field(default_factory=BeamTarget)
@@ -353,6 +360,7 @@ __all__ = [
     "LaserConfig",
     "MaterialConfig",
     "ObjectiveConfig",
+    "OpticalMappingMode",
     "PathKind",
     "PhysicalAxiconConfig",
     "PropagationConfig",

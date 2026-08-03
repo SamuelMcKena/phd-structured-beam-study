@@ -18,7 +18,7 @@ import numpy as np
 import pandas as pd
 
 from vbb_study.config import EPS as BT_EPS, PathKind, TwinConfig, nm as BT_NM, uJ as BT_UJ, um as BT_UM
-from vbb_study.design import compute_design_from_targets
+from vbb_study.design import compute_design_from_config
 from vbb_study.facade import core as _bt
 from . import vbb_materials, vbb_metrics, vbb_style
 from .equations import capsule_geometry
@@ -66,7 +66,7 @@ def design_solver(
                     ),
                     energy=replace(base_config.energy, pulse_energy_in_J=float(energy_uJ) * BT_UJ),
                 )
-                design = compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
+                design = compute_design_from_config(cfg)
                 refs = _bt().analytic_references(cfg, design)
                 feature_radius_um = (
                     float(refs["core_radius_2405_um"])
@@ -83,9 +83,13 @@ def design_solver(
                         "kr_m_inv": float(design.kr_sample_m_inv),
                         "w0_sample_um": float(design.w0_sample_m / BT_UM),
                         "gamma_slm_deg": float(design.gamma_slm_deg),
+                        "mapping_mode": str(design.mapping_mode),
+                        "objective_map_source": str(design.objective_map_source),
+                        "objective_map_demag": float(design.objective_map_demag),
                         "predicted_feature_radius_um": feature_radius_um,
                         "predicted_feature_diameter_um": 2.0 * feature_radius_um,
                         "predicted_zmax_um": float(refs["zmax_baliyan_um"]),
+                        "predicted_bessel_length_um": float(design.predicted_bessel_length_m / BT_UM),
                         "hardware_reachable": bool(_bt()._hardware_reachable(cfg, design)),
                         "config": cfg,
                         "design": design,

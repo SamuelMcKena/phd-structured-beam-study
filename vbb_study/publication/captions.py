@@ -18,6 +18,7 @@ CAPTION_CONTEXTS = {
     "lab_realism",
     "interface_correction",
     "vector_current_lab",
+    "digital_twin_vector_hexagon",
     "materials_proxy",
     "capsule_proxy",
     "advanced_hex_polygonal_discrete",
@@ -113,6 +114,14 @@ def caption_gate(context: str, **kwargs: Any) -> CaptionGateResult:
             "Vector/Jones current-lab route output.",
             "Current lab Case 1 is a limited SOP-encoded approximation, not true radial/azimuthal vector-beam generation.",
             True,
+            "amber",
+        )
+
+    if key == "digital_twin_vector_hexagon":
+        return _result(
+            "Nathan vector-hexagon digital-twin route output.",
+            "Exploratory air-side optical prediction; no material response, camera model, Richards-Wolf focus, or bench-calibrated 4F stop validation.",
+            False,
             "amber",
         )
 

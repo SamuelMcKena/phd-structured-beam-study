@@ -16,6 +16,7 @@ from vbb_study.config import (
     GridConfig,
     LaserConfig,
     MaterialConfig,
+    OpticalMappingMode,
     SimulationPreset,
     TwinConfig,
     um,
@@ -106,6 +107,9 @@ def compute_design_from_targets(
     target: BeamTarget,
     material: MaterialConfig,
     beam_radius_on_slm_m: Optional[float] = None,
+    *,
+    mapping_mode: OpticalMappingMode = "target_matched_inverse_design",
+    fixed_objective_map: Optional[vbb_planes.ObjectiveMap] = None,
 ) -> BeamDesign:
     """Inverse-design SLM cone strength from target scale and length.
 
@@ -122,10 +126,27 @@ def compute_design_from_targets(
     # Do not read D as a vortex-ring diameter. It is the J0 first-zero
     # diameter that would give the same transverse wavevector for ell=0.
     kr_sample = 2.0 * 2.405 / D
-    w0_sample = L * kr_sample / max(k_medium, EPS)
-    objective_map = objective_map_from_design_inputs(laser, target, material, beam_radius_on_slm_m=beam_radius_on_slm_m)
+    required_w0_sample = L * kr_sample / max(k_medium, EPS)
+    mode = str(mapping_mode).lower().strip()
+    if mode == "target_matched_inverse_design":
+        objective_map = objective_map_from_design_inputs(
+            laser,
+            target,
+            material,
+            beam_radius_on_slm_m=beam_radius_on_slm_m,
+        )
+        w0_sample = required_w0_sample
+    elif mode == "fixed_physical_optics":
+        if fixed_objective_map is None:
+            raise ValueError("fixed_physical_optics requires an explicit fixed_objective_map")
+        objective_map = fixed_objective_map
+        w_slm = float(laser.beam_radius_on_slm_m if beam_radius_on_slm_m is None else beam_radius_on_slm_m)
+        w0_sample = objective_map.pre_to_sample_m(w_slm)
+    else:
+        raise ValueError(f"Unsupported optical mapping mode: {mapping_mode!r}")
     M = float(objective_map.demag)
     kr_slm = objective_map.sample_to_pre_spatial_frequency_m_inv(kr_sample)
+    predicted_bessel_length = float(w0_sample * k_medium / max(kr_sample, EPS))
 
     denom = laser.k0 * (float(target.n_axicon) - float(target.hologram_medium_n))
     gamma = math.atan(kr_slm / max(denom, EPS))
@@ -148,7 +169,11 @@ def compute_design_from_targets(
         gamma_slm_rad=float(gamma),
         gamma_slm_deg=float(math.degrees(gamma)),
         magnification_to_sample=float(M),
+        mapping_mode=mode,
+        objective_map_source=str(objective_map.source),
+        objective_map_demag=float(objective_map.demag),
         w0_sample_m=float(w0_sample),
+        predicted_bessel_length_m=predicted_bessel_length,
         equivalent_l0_core_radius_m=first_zero_r,
         equivalent_l0_core_diameter_m=first_zero_d,
         equivalent_l0_first_zero_radius_m=first_zero_r,
@@ -159,14 +184,15 @@ def compute_design_from_targets(
     )
 
 
-def objective_map_from_config(config: TwinConfig, design: Optional[BeamDesign] = None):
-    """Return the optics-derived pre-objective to focused-plane map."""
+def fixed_objective_map_from_config(config: TwinConfig) -> vbb_planes.ObjectiveMap:
+    """Return only hardware-configured mapping, never a target-derived fallback."""
 
     if config.relay.magnification_to_sample is not None:
         return vbb_planes.ObjectiveMap(
             demag=float(config.relay.magnification_to_sample),
             n_sample=float(config.material.refractive_index),
             source="RelayConfig.magnification_to_sample",
+            mapping_mode="fixed_physical_optics",
         )
     relay_f = float(getattr(config.relay, "effective_relay_f_m", 0.0))
     if relay_f > EPS:
@@ -174,20 +200,51 @@ def objective_map_from_config(config: TwinConfig, design: Optional[BeamDesign] =
             demag=float(config.objective.f_eff_m) / relay_f,
             n_sample=float(config.material.refractive_index),
             source="objective_f_eff_over_effective_relay_f",
+            mapping_mode="fixed_physical_optics",
         )
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
-    return vbb_planes.objective_map_from_waists(
-        pre_objective_radius_m=float(config.laser.beam_radius_on_slm_m),
-        sample_radius_m=float(design.w0_sample_m),
+    raise ValueError(
+        "fixed_physical_optics requires RelayConfig.magnification_to_sample "
+        "or a positive RelayConfig.effective_relay_f_m"
+    )
+
+
+def compute_design_from_config(config: TwinConfig) -> BeamDesign:
+    """Build a design under the configuration's explicit mapping contract."""
+
+    mode = str(config.mapping_mode).lower().strip()
+    fixed_map = fixed_objective_map_from_config(config) if mode == "fixed_physical_optics" else None
+    return compute_design_from_targets(
+        config.laser,
+        config.target,
+        config.material,
+        mapping_mode=mode,
+        fixed_objective_map=fixed_map,
+    )
+
+
+def objective_map_from_config(config: TwinConfig, design: Optional[BeamDesign] = None):
+    """Return the map selected by the explicit optical mapping mode."""
+
+    mode = str(config.mapping_mode).lower().strip()
+    if mode == "fixed_physical_optics":
+        return fixed_objective_map_from_config(config)
+    if mode != "target_matched_inverse_design":
+        raise ValueError(f"Unsupported optical mapping mode: {config.mapping_mode!r}")
+    design = design or compute_design_from_config(config)
+    return vbb_planes.ObjectiveMap(
+        demag=float(design.objective_map_demag),
         n_sample=float(config.material.refractive_index),
-        source="target_matched_bessel_gauss_waist_audit",
+        source=str(design.objective_map_source),
+        mapping_mode="target_matched_inverse_design",
     )
 
 
 __all__ = [
     "axial_scan_values",
     "compute_design_from_targets",
+    "compute_design_from_config",
     "default_config",
+    "fixed_objective_map_from_config",
     "get_preset",
     "objective_map_from_config",
 ]

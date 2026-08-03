@@ -25,8 +25,9 @@ explicit future hooks.  All propagation is scalar paraxial BL-ASM or SAS.
   (``bessel_region_metrics``).  Always ≤ canonical zone.
 - ``vortex_main_ring_diameter_m`` — bright-ring diameter for ell > 0, from J'_ell.
   NOT the same as ``target_core_diameter_m`` which is the equivalent ell=0 first-zero.
-- ``propagation_power_drift_fraction`` — power lost to BL-ASM bandlimit / SAS
-  retention.  Labels: pass ≤ 5 %, marginal ≤ 20 %, fail > 20 %.
+- ``propagation_power_drift_fraction`` - numerical transverse-power drift over
+  the propagated z stack. Quantitative metrics are valid only at or below 5 %;
+  intentional optical filtering is reported separately.
 - ``build_sample_field_ideal`` — deprecated; use ``build_conical_axicon_field_ideal``
   (axicon source plane) or ``build_bessel_gauss_field_ideal`` (true J_ell target).
 """
@@ -65,6 +66,7 @@ from vbb_study.config import (
     LaserConfig,
     MaterialConfig,
     ObjectiveConfig,
+    OpticalMappingMode,
     PathKind,
     PhysicalAxiconConfig,
     PropagationConfig,
@@ -90,8 +92,10 @@ from vbb_study.config import (
 )
 from vbb_study.design import (
     axial_scan_values,
+    compute_design_from_config,
     compute_design_from_targets,
     default_config,
+    fixed_objective_map_from_config,
     get_preset,
     objective_map_from_config,
 )
@@ -142,7 +146,7 @@ from vbb_study.equations.objective_pupil import headline_length_tags, objective_
 def analytic_references(config: TwinConfig, design: Optional[BeamDesign] = None) -> Dict[str, float]:
     """Return Baliyan/Bessel reference quantities for QA and tables."""
 
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_config(config)
     k_medium = config.laser.k0 * config.material.refractive_index
     zmax = design.w0_sample_m * k_medium / max(design.kr_sample_m_inv, EPS)
     ell_abs = abs(int(design.ell))
@@ -163,17 +167,24 @@ def analytic_references(config: TwinConfig, design: Optional[BeamDesign] = None)
         "vortex_first_ring_diameter_um": float(2.0 * ring / um),
         "vortex_second_ring_radius_um": float(second / um) if np.isfinite(second) else np.nan,
         "magnification_to_sample": float(design.magnification_to_sample),
+        "mapping_mode": str(design.mapping_mode),
+        "objective_map_source": str(design.objective_map_source),
+        "objective_map_demag": float(design.objective_map_demag),
         "w0_sample_um": float(design.w0_sample_m / um),
+        "predicted_bessel_length_um": float(design.predicted_bessel_length_m / um),
     }
 
 
 def inverse_design_round_trip(config: TwinConfig, rtol: float = 0.03) -> Dict[str, Any]:
-    """Check target -> design -> analytic target recovery."""
+    """Check target recovery under the explicit optical mapping contract."""
 
-    design = compute_design_from_targets(config.laser, config.target, config.material)
+    design = compute_design_from_config(config)
     refs = analytic_references(config, design)
     core_err = abs(refs["core_diameter_2405_um"] * um - config.target.target_core_diameter_m) / max(config.target.target_core_diameter_m, EPS)
     length_err = abs(refs["zmax_baliyan_um"] * um - config.target.target_bessel_length_m) / max(config.target.target_bessel_length_m, EPS)
+    mapping_mode = str(design.mapping_mode)
+    target_within_tolerance = bool(core_err <= rtol and length_err <= rtol)
+    inverse_mode = mapping_mode == "target_matched_inverse_design"
     return {
         "target_core_um": config.target.target_core_diameter_m / um,
         "recovered_core_um": refs["core_diameter_2405_um"],
@@ -181,7 +192,12 @@ def inverse_design_round_trip(config: TwinConfig, rtol: float = 0.03) -> Dict[st
         "recovered_length_um": refs["zmax_baliyan_um"],
         "core_relative_error": float(core_err),
         "length_relative_error": float(length_err),
-        "pass": bool(core_err <= rtol and length_err <= rtol),
+        "mapping_mode": mapping_mode,
+        "objective_map_source": str(design.objective_map_source),
+        "objective_map_demag": float(design.objective_map_demag),
+        "claim_scope": "inverse_design_feasibility" if inverse_mode else "fixed_bench_prediction",
+        "hardware_target_achieved": bool((not inverse_mode) and target_within_tolerance),
+        "pass": target_within_tolerance,
     }
 
 
@@ -244,7 +260,7 @@ def render_device_hologram(
 ) -> Dict[str, Any]:
     """Render the exact rectangular device hologram used for SLM upload."""
 
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_config(config)
     quantize = config.include_quantization if quantize is None else bool(quantize)
     grid = make_rect_grid(config.slm.resolution_x, config.slm.resolution_y, config.slm.pixel_pitch_m)
     parts = _continuous_phase(grid, config, design)
@@ -324,7 +340,7 @@ def build_realistic_slm_field(
 ) -> Dict[str, Any]:
     """Build the realistic SLM/pupil field that is propagated to the sample."""
 
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_config(config)
     include_quantization = config.include_quantization if include_quantization is None else bool(include_quantization)
     include_fill_factor = config.include_fill_factor if include_fill_factor is None else bool(include_fill_factor)
     include_active_aperture = config.include_active_aperture if include_active_aperture is None else bool(include_active_aperture)
@@ -482,7 +498,7 @@ def export_hologram_png(
 
     if Image is None:
         raise RuntimeError("Pillow is required for PNG export.")
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_config(config)
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     if basename is None:
@@ -567,6 +583,88 @@ def _resample_intensity_to_common_grid(I: np.ndarray, source_grid: Dict[str, Any
     return out
 
 
+PROPAGATION_POWER_DRIFT_QUANTITATIVE_MAX = 0.05
+
+
+def _propagation_power_drift_from_values(total_power: Any) -> float:
+    power = np.asarray(total_power, dtype=float)
+    power = power[np.isfinite(power)]
+    if power.size < 2:
+        return float("nan")
+    return float((np.max(power) - np.min(power)) / (np.mean(power) + EPS))
+
+
+def _propagation_power_label(drift: float) -> str:
+    if not np.isfinite(drift):
+        return "not_evaluated"
+    if drift <= PROPAGATION_POWER_DRIFT_QUANTITATIVE_MAX:
+        return "pass"
+    if drift <= 0.20:
+        return "marginal"
+    return "fail"
+
+
+def propagation_power_validity_report(volume: Dict[str, Any]) -> Dict[str, Any]:
+    """Return numerical-propagation validity from one authoritative drift.
+
+    Optical filtering before propagation is intentionally outside this report.
+    The drift compares propagated transverse powers across the evaluated axial
+    stack and therefore governs only numerical propagation convergence.
+    """
+
+    raw = volume.get("propagation_power_drift_fraction", np.nan)
+    drift = float(raw) if raw is not None else float("nan")
+    if not np.isfinite(drift):
+        drift = _propagation_power_drift_from_values(volume.get("total_power", []))
+    evaluated = bool(np.isfinite(drift))
+    valid = bool(evaluated and drift <= PROPAGATION_POWER_DRIFT_QUANTITATIVE_MAX)
+    if not evaluated:
+        reason = "numerical propagation power drift was not evaluated over at least two finite planes"
+        violations = ["propagation_power_drift_not_evaluated"]
+    elif not valid:
+        reason = (
+            f"numerical propagation power drift {drift:.6g} exceeds the "
+            f"quantitative limit {PROPAGATION_POWER_DRIFT_QUANTITATIVE_MAX:.2f}"
+        )
+        violations = ["propagation_power_drift_exceeds_0p05"]
+    else:
+        reason = ""
+        violations = []
+    return {
+        "validity_name": "Propagation quantitative validity",
+        "valid": valid,
+        "violations": violations,
+        "quantitative_metrics_valid": valid,
+        "quantitative_metrics_invalid_reason": reason,
+        "propagation_power_drift_evaluated": evaluated,
+        "propagation_power_drift_fraction": drift,
+        "propagation_power_label": _propagation_power_label(drift),
+        "quantitative_power_drift_limit_fraction": PROPAGATION_POWER_DRIFT_QUANTITATIVE_MAX,
+    }
+
+
+def _propagation_power_metric_fields(report: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "quantitative_metrics_valid": bool(report["quantitative_metrics_valid"]),
+        "quantitative_metrics_invalid_reason": str(report["quantitative_metrics_invalid_reason"]),
+        "propagation_power_drift_evaluated": bool(report["propagation_power_drift_evaluated"]),
+        "propagation_power_drift_fraction": float(report["propagation_power_drift_fraction"]),
+        "propagation_power_label": str(report["propagation_power_label"]),
+        "quantitative_power_drift_limit_fraction": float(report["quantitative_power_drift_limit_fraction"]),
+    }
+
+
+def enforce_propagation_power_validity(
+    volume: Dict[str, Any],
+    on_violation: ValidityViolationAction = "flag",
+) -> Dict[str, Any]:
+    """Apply the shared flag/warn/raise policy to numerical power drift."""
+
+    report = propagation_power_validity_report(volume)
+    report["on_violation"] = str(on_violation)
+    return vbb_regime.enforce_validity(report, on_violation)
+
+
 def propagate_volume(
     U0: np.ndarray,
     grid: Dict[str, Any],
@@ -648,6 +746,11 @@ def propagate_volume(
             planes["middle"] = Ic.astype(np.float32)
         if i == len(z) - 1:
             planes["end"] = Ic.astype(np.float32)
+    propagation_power_drift = _propagation_power_drift_from_values(total_power)
+    power_report = propagation_power_validity_report({
+        "propagation_power_drift_fraction": propagation_power_drift,
+        "total_power": total_power,
+    })
     return {
         "z": z,
         "xz": xz,
@@ -663,6 +766,7 @@ def propagate_volume(
         "retained_power_fraction": retained,
         "native_grids": native_grids,
         "sas_metadata": sas_meta,
+        **_propagation_power_metric_fields(power_report),
     }
 
 
@@ -685,7 +789,7 @@ def realistic_slm_to_sample(
     signed focal-plane offsets with forward propagation distance.
     """
 
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_config(config)
     slm_field = build_realistic_slm_field(config, design)
     grid = slm_field["grid"]
     U = slm_field["U"]
@@ -973,6 +1077,10 @@ def extract_vortex_safe_metrics(result: Dict[str, Any], config: TwinConfig) -> D
     study_kind = str(result.get("study_kind", getattr(config, "study_kind", "full_source_to_sample")))
     is_beam_study = study_kind == "beam_to_surface"
     objective_map = objective_map_from_config(config, design)
+    try:
+        legacy_objective_map = fixed_objective_map_from_config(config)
+    except ValueError:
+        legacy_objective_map = objective_map
     pulse_energy_for_fluence_J = (
         config.energy.pulse_energy_at_surface_air_J if is_beam_study else config.energy.pulse_energy_at_sample_J
     )
@@ -1012,11 +1120,28 @@ def extract_vortex_safe_metrics(result: Dict[str, Any], config: TwinConfig) -> D
         "vortex_main_ring_radius_um": design.vortex_main_ring_radius_m / um,
         "vortex_main_ring_diameter_um": design.vortex_main_ring_diameter_m / um,
         "target_bessel_length_um": design.target_bessel_length_m / um,
+        "predicted_bessel_length_um": design.predicted_bessel_length_m / um,
         "gamma_slm_deg": design.gamma_slm_deg,
-        "magnification_to_sample": float(objective_map.demag),
+        "mapping_mode": str(design.mapping_mode),
+        # Preserve the historical field while making the authoritative map
+        # contract explicit in objective_map_* below.
+        "magnification_to_sample": float(legacy_objective_map.demag),
+        "objective_map_demag": float(objective_map.demag),
         "objective_map_source": str(getattr(objective_map, "source", "unknown")),
+        "legacy_objective_map_demag": float(legacy_objective_map.demag),
+        "legacy_objective_map_source": str(getattr(legacy_objective_map, "source", "unknown")),
         "waist_matched_design_magnification_to_sample": float(design.magnification_to_sample),
         "kr_sample_m_inv": design.kr_sample_m_inv,
+        "hardware_target_achieved": bool(
+            str(design.mapping_mode) == "fixed_physical_optics"
+            and abs(float(design.predicted_bessel_length_m) - float(design.target_bessel_length_m))
+            / max(float(design.target_bessel_length_m), EPS) <= 0.03
+        ),
+        "mapping_claim_scope": (
+            "inverse_design_feasibility"
+            if str(design.mapping_mode) == "target_matched_inverse_design"
+            else "fixed_bench_prediction"
+        ),
         "study_kind": study_kind,
         "focused_plane": "surface_in_air" if is_beam_study else "sample_in_medium",
         "beam_medium_n": float(result.get("beam_medium_n", config.material.refractive_index)),
@@ -1062,24 +1187,7 @@ def extract_vortex_safe_metrics(result: Dict[str, Any], config: TwinConfig) -> D
         **flu,
         **mod,
     }
-    # ---- propagation power QA -----------------------------------------------
-    # Derive a single power-drift fraction from BL-ASM bandlimit clipping and
-    # SAS retention.  Either source can reduce the grid power; take the worst.
-    _ret = float(np.nanmin(retained)) if np.any(np.isfinite(retained)) else 1.0
-    _blret = (
-        float(np.nanmin(band_ret))
-        if np.any(np.isfinite(band_ret))
-        else 1.0
-    )
-    _drift = float(max(0.0, 1.0 - min(_ret, _blret)))
-    if not math.isfinite(_drift):
-        _drift = 0.0
-    metrics["propagation_power_drift_fraction"] = _drift
-    metrics["propagation_power_label"] = (
-        "pass" if _drift <= 0.05
-        else "marginal" if _drift <= 0.20
-        else "fail"
-    )
+    metrics.update(_propagation_power_metric_fields(propagation_power_validity_report(volume)))
     return metrics
 
 
@@ -1090,7 +1198,7 @@ def sampling_report(
 ) -> Dict[str, Any]:
     """Return SLM, phase, focal, and ASM sampling QA flags."""
 
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_config(config)
     dx_p = config.slm.pixel_pitch_m * max(1, int(config.grid.device_downsample))
     nyq_lpmm = 1.0 / (2.0 * dx_p) / 1e3
     phase_lpmm = (abs(design.kr_slm_m_inv) / TWOPI + abs(config.slm.carrier_cpm if config.include_blaze else 0.0)) / 1e3
@@ -1154,19 +1262,11 @@ def sampling_report(
             "sas_scaled_grid": bool(abs(float(sas_rep["output_magnification"]) - 1.0) > 0.05),
         })
     if result is not None:
-        power = np.asarray(result["volume"]["total_power"], float)
-        power_drift = float((np.max(power) - np.min(power)) / (np.mean(power) + EPS))
-        if power_drift <= 0.05:
-            power_label = "pass"
-        elif power_drift <= 0.20:
-            power_label = "marginal"
-        else:
-            power_label = "fail"
-        out["propagation_power_drift_fraction"] = power_drift
-        out["propagation_power_label"] = power_label
+        power_report = propagation_power_validity_report(result["volume"])
+        out.update(_propagation_power_metric_fields(power_report))
         out["propagation_power_clipping_note"] = (
-            "Total propagated-power drift; pass<=0.05, marginal<=0.20, fail>0.20. "
-            "SAS clipping is reported separately by sas_retained_power_fraction_*."
+            "Numerical total-power drift across the propagated stack. Quantitative "
+            "metrics require drift<=0.05; intentional upstream filtering is excluded."
         )
         out["output_dx_min_um"] = float(np.nanmin(np.asarray(result["volume"].get("output_dx_m", [dx_f]), float)) / um)
         out["output_dx_max_um"] = float(np.nanmax(np.asarray(result["volume"].get("output_dx_m", [dx_f]), float)) / um)
@@ -1174,8 +1274,7 @@ def sampling_report(
         out["sas_retained_power_fraction_min"] = float(np.nanmin(retained))
         out["sas_retained_power_fraction_mean"] = float(np.nanmean(retained))
     else:
-        out["propagation_power_drift_fraction"] = np.nan
-        out["propagation_power_label"] = "not_evaluated"
+        out.update(_propagation_power_metric_fields(propagation_power_validity_report({})))
         out["propagation_power_clipping_note"] = (
             "No propagated volume was supplied; total-power drift and SAS clipping were not evaluated."
         )
@@ -1270,6 +1369,13 @@ def _case_validity_report(config: TwinConfig, design: BeamDesign, result: Dict[s
     return vbb_regime.enforce_validity(report, getattr(config, "validity_on_violation", "flag"))
 
 
+def _case_propagation_power_validity_report(config: TwinConfig, result: Dict[str, Any]) -> Dict[str, Any]:
+    return enforce_propagation_power_validity(
+        result.get("volume", {}),
+        getattr(config, "validity_on_violation", "flag"),
+    )
+
+
 def _validity_metric_fields(report: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "validity_valid": bool(report.get("valid", False)),
@@ -1307,7 +1413,7 @@ def _run_full_source_to_sample_case(
     """Run one ideal or realistic case and return result plus tidy metrics."""
 
     config = default_config(preset) if config is None else config
-    design = compute_design_from_targets(config.laser, config.target, config.material)
+    design = compute_design_from_config(config)
     generation_method = str(getattr(config, "generation_method", "holographic")).lower().strip()
     axicon_result = None
     if generation_method == "physical":
@@ -1384,6 +1490,7 @@ def _run_full_source_to_sample_case(
     metrics = extract_vortex_safe_metrics(result, config)
     qa = sampling_report(config, design, result)
     validity = _case_validity_report(config, design, result)
+    power_validity = _case_propagation_power_validity_report(config, result)
     metrics.update({
         "study": "single_case",
         "case_id": case_id,
@@ -1397,11 +1504,13 @@ def _run_full_source_to_sample_case(
         "beam_radius_on_slm_mm": config.laser.beam_radius_on_slm_m / mm,
         "hardware_reachable": _hardware_reachable(config, design),
         **qa,
+        **_propagation_power_metric_fields(power_validity),
         **_validity_metric_fields(validity),
     })
     result["metrics"] = metrics
     result["sampling_report"] = qa
     result["validity_report"] = validity
+    result["propagation_power_validity_report"] = power_validity
     return result
 
 
@@ -1434,6 +1543,7 @@ def run_case(
     metrics = extract_vortex_safe_metrics(result, metrics_config)
     qa = sampling_report(metrics_config, design, result)
     validity = _case_validity_report(metrics_config, design, result)
+    power_validity = _case_propagation_power_validity_report(metrics_config, result)
     metrics.update({
         "study": "single_case",
         "case_id": case_id,
@@ -1449,11 +1559,13 @@ def run_case(
         "beam_radius_on_slm_mm": metrics_config.laser.beam_radius_on_slm_m / mm,
         "hardware_reachable": _hardware_reachable(config, design),
         **qa,
+        **_propagation_power_metric_fields(power_validity),
         **_validity_metric_fields(validity),
     })
     result["metrics"] = metrics
     result["sampling_report"] = qa
     result["validity_report"] = validity
+    result["propagation_power_validity_report"] = power_validity
     return result
 
 
@@ -1679,7 +1791,7 @@ def run_sampling_feasibility_envelope(
             for L in [50.0, 100.0, 150.0, 300.0, 500.0, 800.0]:
                 cfg = replace(base, target=replace(base.target, ell=ell, target_core_diameter_m=D * um, target_bessel_length_m=L * um))
                 eval_cfg = vbb_studies.beam_air_config(cfg) if getattr(cfg, "study_kind", "beam_to_surface") == "beam_to_surface" else cfg
-                design = compute_design_from_targets(eval_cfg.laser, eval_cfg.target, eval_cfg.material)
+                design = compute_design_from_config(eval_cfg)
                 rep = sampling_report(eval_cfg, design)
                 validity = vbb_regime.enforce_validity(vbb_regime.sampling_validity(eval_cfg, design), eval_cfg.validity_on_violation)
                 rows.append({
@@ -1694,8 +1806,22 @@ def run_sampling_feasibility_envelope(
                     "vortex_main_ring_radius_um": design.vortex_main_ring_radius_m / um,
                     "vortex_main_ring_diameter_um": design.vortex_main_ring_diameter_m / um,
                     "target_bessel_length_um": L,
+                    "predicted_bessel_length_um": design.predicted_bessel_length_m / um,
                     "gamma_slm_deg": design.gamma_slm_deg,
                     "magnification_to_sample": design.magnification_to_sample,
+                    "mapping_mode": str(design.mapping_mode),
+                    "objective_map_source": str(design.objective_map_source),
+                    "objective_map_demag": float(design.objective_map_demag),
+                    "mapping_claim_scope": (
+                        "inverse_design_feasibility"
+                        if str(design.mapping_mode) == "target_matched_inverse_design"
+                        else "fixed_bench_prediction"
+                    ),
+                    "hardware_target_achieved": bool(
+                        str(design.mapping_mode) == "fixed_physical_optics"
+                        and abs(float(design.predicted_bessel_length_m) - float(design.target_bessel_length_m))
+                        / max(float(design.target_bessel_length_m), EPS) <= 0.03
+                    ),
                     "core_radius_definition": "not_evaluated_sampling_envelope",
                     "core_hwhm_radius_um": np.nan,
                     "core_hwhm_diameter_um": np.nan,
@@ -1722,7 +1848,7 @@ def run_self_checks(preset: str = "fast", output_dir: str | Path = "outputs") ->
     """Run acceptance self-checks and save a compact CSV report."""
 
     cfg = default_config(preset)
-    design = compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
+    design = compute_design_from_config(cfg)
     refs = analytic_references(cfg, design)
     roundtrip = inverse_design_round_trip(cfg)
     energy = energy_conservation_report(wavelength_m=cfg.laser.wavelength_m, n_medium=cfg.material.refractive_index)
@@ -1950,7 +2076,7 @@ def solve_guided_modes(*args: Any, **kwargs: Any) -> None:
 
 
 def config_summary(config: TwinConfig, design: Optional[BeamDesign] = None) -> pd.DataFrame:
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_config(config)
     obj_map = objective_map_from_config(config, design)
     rows = [
         ("laser", "wavelength_nm", config.laser.wavelength_m / nm),
@@ -1959,6 +2085,7 @@ def config_summary(config: TwinConfig, design: Optional[BeamDesign] = None) -> p
         ("laser", "rep_rate_kHz", config.laser.rep_rate_Hz / kHz),
         ("study", "study_kind", config.study_kind),
         ("study", "regime", config.regime),
+        ("study", "mapping_mode", config.mapping_mode),
         ("study", "surface_placement", config.surface_placement),
         ("study", "surface_z_um", None if config.surface_z_m is None else config.surface_z_m / um),
         ("study", "air_scan_half_span_factor", config.air_scan_half_span_factor),
@@ -1982,6 +2109,7 @@ def config_summary(config: TwinConfig, design: Optional[BeamDesign] = None) -> p
         ("design", "magnification_to_sample", design.magnification_to_sample),
         ("design", "objective_map_demag", obj_map.demag),
         ("design", "objective_map_source", obj_map.source),
+        ("design", "predicted_bessel_length_um", design.predicted_bessel_length_m / um),
         ("design", "kr_sample_m_inv", design.kr_sample_m_inv),
         ("energy", "total_transmission", config.energy.total_transmission),
         ("energy", "total_transmission_to_surface_air", config.energy.total_transmission_to_surface_air),
@@ -2018,6 +2146,7 @@ __all__ = [
     "LaserConfig",
     "SLMConfig",
     "ObjectiveConfig",
+    "OpticalMappingMode",
     "RelayConfig",
     "MaterialConfig",
     "EnergyBudget",
@@ -2038,6 +2167,8 @@ __all__ = [
     "get_preset",
     "axial_scan_values",
     "compute_design_from_targets",
+    "compute_design_from_config",
+    "fixed_objective_map_from_config",
     "objective_map_from_design_inputs",
     "objective_map_from_config",
     "headline_length_tags",
@@ -2060,6 +2191,9 @@ __all__ = [
     "build_bessel_gauss_field_ideal",
     "build_sample_field_ideal",
     "propagate_volume",
+    "PROPAGATION_POWER_DRIFT_QUANTITATIVE_MAX",
+    "propagation_power_validity_report",
+    "enforce_propagation_power_validity",
     "interface_aberration_pupil",
     "interface_correction_phase",
     "fit_interface_zernike_terms",

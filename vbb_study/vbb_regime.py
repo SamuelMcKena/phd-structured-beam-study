@@ -5,15 +5,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 from dataclasses import replace
 from typing import Any, Literal, Sequence
+import warnings
 
 import numpy as np
 import pandas as pd
 
 from vbb_study.config import BeamDesign, EPS, TWOPI, TwinConfig, um
-from vbb_study.design import axial_scan_values, compute_design_from_targets
+from vbb_study.design import axial_scan_values, compute_design_from_config
 
 RegimeName = Literal["general", "limits"]
-ViolationAction = Literal["flag", "raise"]
+ViolationAction = Literal["flag", "warn", "raise"]
 
 
 @dataclass(frozen=True)
@@ -100,7 +101,7 @@ def sampling_validity(
 ) -> dict[str, Any]:
     """Return a Nyquist-style validity report for the current regime/case."""
 
-    design = design or compute_design_from_targets(config.laser, config.target, config.material)
+    design = design or compute_design_from_config(config)
     dx = _actual_output_dx_m(config, result)
     radial_period_m = TWOPI / max(abs(float(design.kr_sample_m_inv)), EPS)
     target_zone_m = float(design.target_bessel_length_m)
@@ -146,8 +147,15 @@ def enforce_validity(report: dict[str, Any], on_violation: ViolationAction | Non
         report["validity_action"] = "pass"
         return report
     report["validity_action"] = action
+    message = (
+        f"{report.get('validity_name', 'Sampling validity')} failed: "
+        f"{', '.join(report.get('violations', []))}"
+    )
     if action == "raise":
-        raise ValueError(f"Sampling validity failed: {', '.join(report.get('violations', []))}")
+        raise ValueError(message)
+    if action == "warn":
+        warnings.warn(message, RuntimeWarning, stacklevel=2)
+        return report
     if action != "flag":
         raise ValueError(f"Unsupported validity action: {action!r}")
     return report
@@ -169,7 +177,7 @@ def validity_map(
     for core_um in cores:
         for zone_um in zones:
             cfg = config_for_regime(config, preset, core_um=float(core_um), zone_um=float(zone_um))
-            design = compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
+            design = compute_design_from_config(cfg)
             report = sampling_validity(cfg, design)
             rows.append(
                 {

@@ -68,6 +68,7 @@ class VectorArmConfig:
     slm2: SLMPanelConfig = field(default_factory=lambda: SLMPanelConfig(carrier_sign=-1))
     quantise: bool = True
     apply_fill_factor: bool = True
+    fill_factor_model: str = "coherent_unmodulated_deadspace"
     apply_carrier: bool = True
     iris_radius_frac: float = 0.45
     ideal_components: bool = False
@@ -87,6 +88,12 @@ class VectorArmConfig:
             raise ValueError("VectorArmConfig.sector_duty must be strictly between 0 and 1.")
         if not (0.0 < float(self.iris_radius_frac) <= 1.0):
             raise ValueError("VectorArmConfig.iris_radius_frac must be in (0, 1].")
+        if self.fill_factor_model not in {
+            "throughput_only",
+            "resolved_pixel_aperture",
+            "coherent_unmodulated_deadspace",
+        }:
+            raise ValueError("VectorArmConfig.fill_factor_model is not a supported SLM model.")
 
     @property
     def effective_slm1(self) -> SLMPanelConfig:

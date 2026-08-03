@@ -192,6 +192,7 @@ def _apply_h_slm(
         quantise_phase=bool(cfg.quantise),
         apply_fill_factor=bool(cfg.apply_fill_factor),
         apply_carrier=bool(cfg.apply_carrier),
+        fill_factor_model=cfg.fill_factor_model,
     )
     return out.total, out
 

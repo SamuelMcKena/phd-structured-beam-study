@@ -21,7 +21,7 @@ import pandas as pd
 
 from . import vbb_materials, vbb_style
 from vbb_study.config import BeamDesign, EPS as BT_EPS, TWOPI as BT_TWOPI, TwinConfig, um as BT_UM
-from vbb_study.design import compute_design_from_targets
+from vbb_study.design import compute_design_from_config
 from vbb_study.equations.fields import (
     fft2c,
     gaussian_amplitude,
@@ -521,7 +521,7 @@ def build_lab_realistic_case(
             target_bessel_length_m=twin_config.target.target_bessel_length_m,
         ),
     )
-    design = compute_design_from_targets(cfg.laser, cfg.target, cfg.material)
+    design = compute_design_from_config(cfg)
     ds = max(1, int(cfg.grid.device_downsample))
     nx = int(np.ceil(cfg.slm.resolution_x / ds))
     ny = int(np.ceil(cfg.slm.resolution_y / ds))

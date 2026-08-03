@@ -20,7 +20,7 @@ import numpy as np
 import pandas as pd
 
 from vbb_study.config import TwinConfig, fs as BT_FS, kHz as BT_KHZ, mm as BT_MM, nm as BT_NM, uJ as BT_UJ, um as BT_UM
-from vbb_study.design import compute_design_from_targets as _compute_design_from_targets, default_config as _default_twin_config
+from vbb_study.design import compute_design_from_config as _compute_design_from_config, default_config as _default_twin_config
 from vbb_study.equations.fields import gaussian_amplitude, make_xy_grid
 from vbb_study.equations.scalar_bessel import build_bessel_gauss_field_ideal
 from vbb_study.facade import core as _bt
@@ -518,7 +518,7 @@ def _sample_z_values(config: QuicklookConfig) -> np.ndarray:
 
 def _phase_from_config(twin: TwinConfig) -> dict[str, Any]:
     air = vbb_studies.beam_air_config(twin)
-    design = _compute_design_from_targets(air.laser, air.target, air.material)
+    design = _compute_design_from_config(air)
     field = _bt().build_realistic_slm_field(air, design)
     return {"design": design, "field": field, "air_config": air}
 
@@ -997,7 +997,7 @@ def run_ideal_beam_preview(config: QuicklookConfig) -> QuicklookPreview:
     cfg = resolve_config(config)
     twin = make_twin_config(cfg)
     air = vbb_studies.beam_air_config(twin)
-    design = _compute_design_from_targets(air.laser, air.target, air.material)
+    design = _compute_design_from_config(air)
     grid = make_xy_grid(int(air.grid.ideal_N), float(air.grid.ideal_dx_m))
     field = build_bessel_gauss_field_ideal(grid, design, air.laser, include_vortex=bool(cfg.include_vortex and cfg.vortex_phase_on))
     volume = _bt().propagate_volume(
@@ -1106,7 +1106,7 @@ def run_gaussian_reference_preview(config: QuicklookConfig | None = None) -> Qui
     result = {
         "path": "gaussian_reference",
         "study_kind": "beam_to_surface",
-        "design": _compute_design_from_targets(air.laser, air.target, air.material),
+        "design": _compute_design_from_config(air),
         "focal_grid": grid,
         "volume": volume,
         "first_order_selected_fraction": 1.0,

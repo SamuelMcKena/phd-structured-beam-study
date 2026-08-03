@@ -201,8 +201,8 @@ PHYSICAL_SUMMARY = """\
 rows = []
 for regime in ("general", "limits"):
     cfg = vbb_regime.config_for_regime(base, regime)
-    ideal_cfg = replace(cfg, physical_axicon=replace(cfg.physical_axicon, slm2_stroke_levels=None, slm2_conjugate_mode="full"))
-    lab_cfg = replace(cfg, physical_axicon=replace(cfg.physical_axicon, slm2_stroke_levels=256, slm2_conjugate_mode="full"))
+    ideal_cfg = replace(cfg, physical_axicon=replace(cfg.physical_axicon, slm2_stroke_levels=None, slm2_conjugate_mode="preserve_vortex"))
+    lab_cfg = replace(cfg, physical_axicon=replace(cfg.physical_axicon, slm2_stroke_levels=256, slm2_conjugate_mode="preserve_vortex"))
     for label, run_cfg in [("ideal", ideal_cfg), ("lab", lab_cfg)]:
         result = bt.run_case(run_cfg, preset=PRESET, path="ideal", case_id=f"{regime}_physical_{label}")
         m = result["metrics"]
@@ -331,7 +331,7 @@ def configured_case(method, regime, variant):
     cfg = vbb_regime.config_for_regime(cfg, regime)
     if method == "physical":
         levels = 256 if variant == "lab" else None
-        cfg = replace(cfg, physical_axicon=replace(cfg.physical_axicon, slm2_stroke_levels=levels, slm2_conjugate_mode="full"))
+        cfg = replace(cfg, physical_axicon=replace(cfg.physical_axicon, slm2_stroke_levels=levels, slm2_conjugate_mode="preserve_vortex"))
         path = "ideal"
     else:
         path = "realistic" if variant == "lab" else "ideal"
@@ -631,7 +631,11 @@ for regime in ("general", "limits"):
         pupil_fill_fraction=fill,
         pupil_clipped_fraction=1.0 - fill,
         pupil_fill_ratio=objp.pupil_fill_ratio(cfg.laser.beam_radius_on_slm_m, pupil_radius),
-        fourier_ring_radius_mm=objp.fourier_plane_ring_radius_m(design.kr_slm_m_inv, cfg.objective.f_eff_m) / bt.mm,
+        fourier_ring_radius_mm=objp.fourier_plane_ring_radius_m(
+            design.kr_slm_m_inv,
+            cfg.objective.f_eff_m,
+            cfg.laser.wavelength_m,
+        ) / bt.mm,
     ))
 objective_pupil_geometry = lab_schema.ordered_lab_realism_frame(rows)
 objective_pupil_geometry.to_csv(out_csv / "objective_pupil_geometry_summary.csv", index=False)

@@ -8,7 +8,7 @@ from typing import Any, Literal, Sequence
 import numpy as np
 
 from vbb_study.config import BeamDesign, EPS, PathKind, TwinConfig, um
-from vbb_study.design import compute_design_from_targets
+from vbb_study.design import compute_design_from_config
 from vbb_study.equations.propagation import focus_to_focal_plane, make_bl_asm_propagator
 from vbb_study.facade import core as _bt
 
@@ -57,7 +57,7 @@ def beam_air_config(config: TwinConfig) -> TwinConfig:
 
 def _beam_design(config: TwinConfig) -> tuple[TwinConfig, BeamDesign]:
     air_config = beam_air_config(config)
-    return air_config, compute_design_from_targets(air_config.laser, air_config.target, air_config.material)
+    return air_config, compute_design_from_config(air_config)
 
 
 def resolve_surface_z_m(
@@ -214,7 +214,7 @@ def _surface_field(
     z_surface_m: float | None = None,
     metadata: dict[str, Any] | None = None,
 ) -> SurfaceField:
-    surface_z = resolve_surface_z_m(config, compute_design_from_targets(config.laser, config.target, config.material)) if z_surface_m is None else float(z_surface_m)
+    surface_z = resolve_surface_z_m(config, compute_design_from_config(config)) if z_surface_m is None else float(z_surface_m)
     return SurfaceField(
         Ex=np.asarray(_propagate_component_to_surface(Ex0, grid, config, surface_z), dtype=complex),
         Ey=None if Ey0 is None else np.asarray(_propagate_component_to_surface(Ey0, grid, config, surface_z), dtype=complex),

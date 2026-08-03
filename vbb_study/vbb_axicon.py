@@ -15,7 +15,7 @@ from typing import Any, Literal, Mapping, Protocol
 import numpy as np
 
 from vbb_study.config import BeamDesign, EPS, TWOPI, um
-from vbb_study.design import compute_design_from_targets
+from vbb_study.design import compute_design_from_config
 from vbb_study.equations.fields import make_xy_grid
 from vbb_study.equations.propagation import make_bl_asm_propagator
 from vbb_study.equations.scalar_bessel import build_conical_axicon_field_ideal
@@ -56,7 +56,7 @@ def _design(input_field: Any, config: Any) -> BeamDesign:
     found = _payload_get(input_field, "design")
     if found is not None:
         return found
-    return compute_design_from_targets(config.laser, config.target, config.material)
+    return compute_design_from_config(config)
 
 
 def _sample_grid(input_field: Any, config: Any) -> dict[str, Any]:
@@ -264,6 +264,24 @@ def slm2_conjugate(
     return corrected
 
 
+def validate_slm2_vortex_contract(
+    mode: str,
+    charge: int,
+    *,
+    allow_vortex_removal: bool = False,
+) -> str:
+    """Validate and return the normalised SLM2 mode for a requested charge."""
+
+    mode_key = str(mode).lower().strip()
+    if mode_key == "full" and int(charge) != 0 and not bool(allow_vortex_removal):
+        raise ValueError(
+            "slm2_conjugate_mode='full' removes the intended topological charge "
+            f"ell={int(charge)}. Use 'preserve_vortex', or set allow_vortex_removal=True "
+            "only for an intentional zero-winding diagnostic."
+        )
+    return mode_key
+
+
 class HolographicAxicon:
     """Existing method: axicon phase encoded on the SLM."""
 
@@ -287,7 +305,12 @@ class HolographicAxicon:
 
 
 class PhysicalAxicon:
-    """SLM1 vortex -> SLM2 conjugate flatten -> physical refractive axicon."""
+    """SLM1 vortex -> vortex-safe SLM2 correction -> refractive axicon.
+
+    Full conjugation is available only as an explicitly acknowledged
+    diagnostic when the requested charge is non-zero because it removes the
+    helical phase as well as the unwanted propagation phase.
+    """
 
     def generate(self, input_field: Any, config: Any) -> AxiconResult:
         design = _design(input_field, config)
@@ -295,7 +318,8 @@ class PhysicalAxicon:
         physical = getattr(config, "physical_axicon", None)
         inter_slm_z_m = float(getattr(physical, "inter_slm_z_m", 25.0 * um))
         inter_slm_n = float(getattr(physical, "inter_slm_n", 1.0))
-        mode = getattr(physical, "slm2_conjugate_mode", "full")
+        mode = getattr(physical, "slm2_conjugate_mode", "preserve_vortex")
+        allow_vortex_removal = bool(getattr(physical, "allow_vortex_removal", False))
         stroke_levels = getattr(physical, "slm2_stroke_levels", 256)
         n_axicon_value = getattr(physical, "n_axicon", None)
         n_axicon = float(design.n_axicon if n_axicon_value is None else n_axicon_value)
@@ -306,6 +330,11 @@ class PhysicalAxicon:
         slm2_transmission = float(getattr(physical, "slm2_transmission", 1.0))
         charge_value = getattr(physical, "slm1_vortex_charge", None)
         charge = int(design.ell if charge_value is None else charge_value)
+        mode_key = validate_slm2_vortex_contract(
+            mode,
+            charge,
+            allow_vortex_removal=allow_vortex_removal,
+        )
 
         Ex0, Ey0, Ez0, vector_input = _as_vector_input(input_field, grid, design)
         vortex = np.exp(1j * charge * np.asarray(grid["PHI"], dtype=float))
@@ -335,8 +364,13 @@ class PhysicalAxicon:
         reference = Ex2
         if Ey2 is not None and np.sum(np.abs(Ey2) ** 2) > np.sum(np.abs(reference) ** 2):
             reference = Ey2
-        reference_phase = charge * np.asarray(grid["PHI"], dtype=float) if str(mode).lower().strip() == "preserve_vortex" else None
-        phi_corr, slm2_diag = _slm2_correction(reference, mode=mode, stroke_levels=stroke_levels, reference_phase=reference_phase)
+        reference_phase = charge * np.asarray(grid["PHI"], dtype=float) if mode_key == "preserve_vortex" else None
+        phi_corr, slm2_diag = _slm2_correction(
+            reference,
+            mode=mode_key,
+            stroke_levels=stroke_levels,
+            reference_phase=reference_phase,
+        )
         slm2_factor = np.sqrt(max(slm2_transmission, 0.0)) * np.exp(1j * phi_corr)
         Ex_flat = Ex2 * slm2_factor
         Ey_flat = None if Ey2 is None else Ey2 * slm2_factor
@@ -413,6 +447,13 @@ class PhysicalAxicon:
             "inter_slm_z_m": inter_slm_z_m,
             "inter_slm_n": inter_slm_n,
             "slm2_conjugate_mode": str(slm2_diag["mode"]),
+            "allow_vortex_removal": bool(allow_vortex_removal),
+            "vortex_removed_intentionally": bool(mode_key == "full" and charge != 0),
+            "vortex_preservation_contract": (
+                "preserved" if mode_key == "preserve_vortex"
+                else "not_applicable_ell0" if charge == 0
+                else "explicitly_acknowledged_removal"
+            ),
             "slm2_stroke_levels": slm2_diag["stroke_levels"],
             "slm2_residual_phase_rms_before_rad": slm2_diag["residual_phase_rms_before_rad"],
             "slm2_residual_phase_rms_after_rad": slm2_diag["residual_phase_rms_after_rad"],
@@ -458,4 +499,5 @@ __all__ = [
     "axicon_stage",
     "residual_phase_rms",
     "slm2_conjugate",
+    "validate_slm2_vortex_contract",
 ]
