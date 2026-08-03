@@ -1,0 +1,4 @@
+family,value,route_id,route_family,complex_overlap,normalized_rms_error,normalized_max_error,stokes_rms_error,angle_rms_rad,power_ratio,model_status
+fill_factor,1.0,serial_slm_panel_realistic,serial_dual_slm,0.007927482852761616,1.0057979938130848,1.3465737595839622,1.4033225372107834,0.9108814002238727,0.013469717607853232,optical_prediction
+fill_factor,0.93,serial_slm_panel_realistic,serial_dual_slm,0.0077578473468869315,1.0048106731312791,1.3167734483229683,1.4050772628642199,0.9064012056878651,0.011293343982718586,optical_prediction
+fill_factor,0.85,serial_slm_panel_realistic,serial_dual_slm,0.004629557331568427,1.0029279087516187,1.2547134502075943,1.4086507382727729,0.8923454975543711,0.0066176068586823785,optical_prediction

@@ -1,0 +1,162 @@
+{
+  "arrays": {
+    "Ex": {
+      "dtype": "complex128",
+      "kind": "ndarray",
+      "sha256": "b0b3399e18af763c2e82db6f75dae8a8c116b3f71ebadb3e82cd66af02e24276",
+      "shape": [
+        256,
+        256
+      ]
+    },
+    "Ey": {
+      "dtype": "complex128",
+      "kind": "ndarray",
+      "sha256": "6d820db1057f77a2d3a6c2d006f85d13ebec6b503c17fb57995ad10876a0ab12",
+      "shape": [
+        256,
+        256
+      ]
+    },
+    "Ez": {
+      "dtype": "complex128",
+      "kind": "ndarray",
+      "sha256": "f35dc6ac7d26d79621c29a2797cb1cbc229651d27007ec893a3497955e1ce256",
+      "shape": [
+        256,
+        256
+      ]
+    }
+  },
+  "artifact": "C:\\PhD\\Code\\Publication_Study\\outputs\\stage7_vector_arm\\surface_field_stage7.npz",
+  "config": {
+    "apply_carrier": true,
+    "apply_fill_factor": true,
+    "hwp_retardance_error_rad": {
+      "hex": "0x0.0p+0",
+      "kind": "float"
+    },
+    "ideal_components": true,
+    "iris_radius_frac": {
+      "hex": "0x1.ccccccccccccdp-2",
+      "kind": "float"
+    },
+    "n_pairs": 3,
+    "piston_delta_rad": {
+      "hex": "0x0.0p+0",
+      "kind": "float"
+    },
+    "pulse_duration_s": {
+      "hex": "0x1.24bbe5d62f36ep-42",
+      "kind": "float"
+    },
+    "quantise": true,
+    "qwp_retardance_error_rad": {
+      "hex": "0x0.0p+0",
+      "kind": "float"
+    },
+    "sector_duty": {
+      "hex": "0x1.0000000000000p-1",
+      "kind": "float"
+    },
+    "sector_rotation_rad": {
+      "hex": "0x0.0p+0",
+      "kind": "float"
+    },
+    "slm1": {
+      "carrier_lp_per_mm": {
+        "hex": "0x1.bc28f5c28f5c3p+2",
+        "kind": "float"
+      },
+      "carrier_sign": 1,
+      "fill_factor": {
+        "hex": "0x1.dc28f5c28f5c3p-1",
+        "kind": "float"
+      },
+      "n_x": 1920,
+      "n_y": 1080,
+      "phase_levels": 256,
+      "pitch_m": {
+        "hex": "0x1.0c6f7a0b5ed8dp-17",
+        "kind": "float"
+      }
+    },
+    "slm2": {
+      "carrier_lp_per_mm": {
+        "hex": "0x1.bc28f5c28f5c3p+2",
+        "kind": "float"
+      },
+      "carrier_sign": -1,
+      "fill_factor": {
+        "hex": "0x1.dc28f5c28f5c3p-1",
+        "kind": "float"
+      },
+      "n_x": 1920,
+      "n_y": 1080,
+      "phase_levels": 256,
+      "pitch_m": {
+        "hex": "0x1.0c6f7a0b5ed8dp-17",
+        "kind": "float"
+      }
+    },
+    "waist_m": {
+      "hex": "0x1.0624dd2f1a9fcp-9",
+      "kind": "float"
+    },
+    "wavelength_m": {
+      "hex": "0x1.1438577090721p-20",
+      "kind": "float"
+    }
+  },
+  "git_sha": "574a0c86e0f621bd509e3fd980467c3473742a35",
+  "grid": {
+    "dx_m": "0x1.32e944b5f5d41p-21",
+    "n": 256
+  },
+  "lock_status": "fast_lock_green",
+  "metadata": {
+    "axicon": {
+      "aperture_radius_m": null,
+      "base_angle_deg": {
+        "hex": "0x1.f15bee4d11288p-3",
+        "kind": "float"
+      },
+      "k_r_pre_m_inv": {
+        "hex": "0x1.9464d764c3cf5p+13",
+        "kind": "float"
+      },
+      "k_r_surface_m_inv": {
+        "hex": "0x1.8770555555555p+20",
+        "kind": "float"
+      },
+      "n_axicon": {
+        "hex": "0x1.8000000000000p+0",
+        "kind": "float"
+      },
+      "n_medium": {
+        "hex": "0x1.0000000000000p+0",
+        "kind": "float"
+      },
+      "t_entry_abs": {
+        "hex": "0x1.999999999999ap-1",
+        "kind": "float"
+      },
+      "t_p_abs": {
+        "hex": "0x1.3333bad6410c0p+0",
+        "kind": "float"
+      },
+      "t_s_abs": {
+        "hex": "0x1.33338d9fd9ca3p+0",
+        "kind": "float"
+      }
+    },
+    "in_medium_propagation": "out_of_scope",
+    "lock_status": "caller_must_record",
+    "stage": "stage7_vector_arm_surface_handoff"
+  },
+  "stage": "stage7_vector_arm_surface_handoff",
+  "surface": {
+    "medium_before": "0x1.0000000000000p+0",
+    "z_surface_m": "0x0.0p+0"
+  }
+}

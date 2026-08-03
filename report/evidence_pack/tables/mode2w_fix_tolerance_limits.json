@@ -1,0 +1,102 @@
+[
+  {
+    "parameter": "phase_levels",
+    "label": "phase quantisation",
+    "tested_range": "16 to 1024",
+    "worst_tested_passing_value": "1024",
+    "first_failing_value": "not reached",
+    "minimum_correlation": 0.9930285116887335,
+    "strict_class_status": "visual_hexagonal_field",
+    "units": "levels"
+  },
+  {
+    "parameter": "fill_factor",
+    "label": "fill factor",
+    "tested_range": "0.93 fixed validated hardware-realism setting",
+    "worst_tested_passing_value": "0.93",
+    "first_failing_value": "not reached",
+    "minimum_correlation": "",
+    "strict_class_status": "visual_hexagonal_field at fixed setting",
+    "units": "fraction"
+  },
+  {
+    "parameter": "hv_amplitude_ratio",
+    "label": "H/V imbalance",
+    "tested_range": "0.8 to 1.2",
+    "worst_tested_passing_value": "1.2",
+    "first_failing_value": "not reached",
+    "minimum_correlation": 0.9827331567769217,
+    "strict_class_status": "visual_hexagonal_field",
+    "units": "ratio"
+  },
+  {
+    "parameter": "qwp_angle_error_deg",
+    "label": "QWP angle",
+    "tested_range": "-2 to 2",
+    "worst_tested_passing_value": "-2",
+    "first_failing_value": "not reached",
+    "minimum_correlation": 0.9930576320357246,
+    "strict_class_status": "visual_hexagonal_field",
+    "units": "deg"
+  },
+  {
+    "parameter": "qwp_retardance_error_deg",
+    "label": "QWP retardance",
+    "tested_range": "-5 to 5",
+    "worst_tested_passing_value": "-5",
+    "first_failing_value": "not reached",
+    "minimum_correlation": 0.9930576979435459,
+    "strict_class_status": "visual_hexagonal_field",
+    "units": "deg"
+  },
+  {
+    "parameter": "iris_radius_frac",
+    "label": "iris radius",
+    "tested_range": "0.24 to 0.8",
+    "worst_tested_passing_value": "0.8",
+    "first_failing_value": "not reached",
+    "minimum_correlation": 0.9843685618547207,
+    "strict_class_status": "visual_hexagonal_field",
+    "units": "fraction of carrier"
+  },
+  {
+    "parameter": "iris_decentre_fx_lpmm",
+    "label": "iris decentre",
+    "tested_range": "-1.5 to 1.5",
+    "worst_tested_passing_value": "-1.5",
+    "first_failing_value": "not reached",
+    "minimum_correlation": 0.9868732703179958,
+    "strict_class_status": "visual_hexagonal_field",
+    "units": "lp/mm"
+  },
+  {
+    "parameter": "hv_shift_um",
+    "label": "H/V registration",
+    "tested_range": "0 to 160",
+    "worst_tested_passing_value": "160",
+    "first_failing_value": "not reached",
+    "minimum_correlation": 0.9753420303634176,
+    "strict_class_status": "visual_hexagonal_field",
+    "units": "um"
+  },
+  {
+    "parameter": "axicon_decentre_mm",
+    "label": "axicon decentre",
+    "tested_range": "0 to 1",
+    "worst_tested_passing_value": "0.2",
+    "first_failing_value": "0.5",
+    "minimum_correlation": 0.7409739958612478,
+    "strict_class_status": "triangular_lobed_field, visual_hexagonal_field",
+    "units": "mm"
+  },
+  {
+    "parameter": "z_offset_mm",
+    "label": "z offset",
+    "tested_range": "-20 to 20",
+    "worst_tested_passing_value": "-20",
+    "first_failing_value": "not reached",
+    "minimum_correlation": 0.9790537764385079,
+    "strict_class_status": "visual_hexagonal_field",
+    "units": "mm"
+  }
+]

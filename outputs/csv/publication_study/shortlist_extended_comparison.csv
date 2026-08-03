@@ -1,4 +1,4 @@
-case_id,ell,input_energy_uJ,target_core_diameter_um,target_bessel_length_um,gamma_slm_deg,pulse_energy_at_sample_uJ,bessel_zone_um,peak_fluence_J_cm2,side_to_core_peak_ratio,fluence_to_threshold_ratio
-ell0_core3_L150,0,10.0,3.0,150.0,0.2428511254567136,2.6244,93.12500041321927,31.075854861776286,2.28949091247446,38.701918096872994
-ell3_core3_L150,3,10.0,3.0,150.0,0.2428511254567136,2.6244,78.34160190682017,7.117555083687593,0.867117564348707,8.864214198582914
-ell5_core4_L200,5,20.0,4.0,200.0,0.18213882128508033,5.2488,75.59841357897166,11.147966260682995,0.35683886314391927,13.883694562441248
+case_id,ell,input_energy_uJ,target_core_diameter_um,target_bessel_length_um,gamma_slm_deg,pulse_energy_at_sample_uJ,bessel_zone_um,peak_fluence_J_cm2,side_to_core_peak_ratio,fluence_to_threshold_ratio,mapping_mode,objective_map_source,objective_map_demag,mapping_claim_scope,hardware_target_achieved,phase1r_metadata_reexport
+ell0_core3_L150,0,10.0,3.0,150.0,0.2428511254567136,2.6244,93.12500041321927,31.075854861776286,2.28949091247446,38.701918096872994,target_matched_inverse_design,compute_design_from_targets:w0_sample/beam_radius_on_slm,,inverse_design_feasibility,false,true
+ell3_core3_L150,3,10.0,3.0,150.0,0.2428511254567136,2.6244,78.34160190682017,7.117555083687593,0.867117564348707,8.864214198582914,target_matched_inverse_design,compute_design_from_targets:w0_sample/beam_radius_on_slm,,inverse_design_feasibility,false,true
+ell5_core4_L200,5,20.0,4.0,200.0,0.18213882128508033,5.2488,75.59841357897166,11.147966260682995,0.35683886314391927,13.883694562441248,target_matched_inverse_design,compute_design_from_targets:w0_sample/beam_radius_on_slm,,inverse_design_feasibility,false,true

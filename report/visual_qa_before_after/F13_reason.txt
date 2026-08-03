@@ -1,0 +1,1 @@
+beam occupied ~3% of the +/-5 mm maps; cropped to +/-1.2 mm with sqrt display stretch and zone annotations

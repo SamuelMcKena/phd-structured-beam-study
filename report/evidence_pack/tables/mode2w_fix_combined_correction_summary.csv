@@ -1,0 +1,7 @@
+case_id,case_group,before_corr_to_reference,after_corr_to_reference,before_strict_eligible,after_strict_eligible,strict_class,note
+combined_mild_lab,combined_realism,0.9894433367435767,,True,,visual_hexagonal_field,none
+combined_moderate_lab,combined_realism,0.9489699314635345,,True,,visual_hexagonal_field,none
+combined_bad_lab,combined_realism,0.5822437622926632,,False,,triangular_lobed_field,triangular_dark_core
+A_unknown_axicon_mask_offset_0p5mm,closed_loop_recovery,0.7904398695247509,0.984882106660743,False,False,visual_hexagonal_field,88 measured-image evaluations; search_received_truth=false
+D_unknown_low_order_aberration,closed_loop_recovery,0.9990786291964748,0.9997200908437576,False,True,visual_hexagonal_field,136 measured-image evaluations; search_received_truth=false
+E_combined_unknown_errors,closed_loop_recovery,0.9021271867810837,0.99494277654807,False,False,visual_hexagonal_field,114 measured-image evaluations; search_received_truth=false

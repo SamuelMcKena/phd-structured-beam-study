@@ -1,0 +1,1 @@
+architecture strip was unreadable (~3-4 pt) and clipped; rebuilt as a two-row wrapped vector diagram
