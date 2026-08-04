@@ -1,0 +1,97 @@
+{
+  "stage": "phase2b_visual_diagnostics_and_beam_volume_maps",
+  "outcome": "PHASE2B-A",
+  "allowed_outcomes": [
+    "PHASE2B-A",
+    "PHASE2B-B",
+    "PHASE2B-C"
+  ],
+  "reason": "publication visual diagnostics were generated with native metric provenance, physical SAS focus rendering, and complete mandatory 3D intensity-map coverage",
+  "canonical_case_ids": [
+    "G0",
+    "B0",
+    "V1",
+    "V3",
+    "H1"
+  ],
+  "case_result_ids": [
+    "G0",
+    "B0",
+    "V1",
+    "V3",
+    "H1_REALISTIC",
+    "H1_CONTINUOUS",
+    "H1_AVERAGED"
+  ],
+  "mandatory_3d_case_ids": [
+    "B0",
+    "V1",
+    "V3",
+    "H1_REALISTIC",
+    "H1_CONTINUOUS",
+    "H1_AVERAGED"
+  ],
+  "mandatory_3d_outputs": {
+    "B0": true,
+    "V1": true,
+    "V3": true,
+    "H1_REALISTIC": true,
+    "H1_CONTINUOUS": true,
+    "H1_AVERAGED": true
+  },
+  "mandatory_3d_outputs_present": true,
+  "highn_hex_hero_present": true,
+  "highn_hex_hero_grid_n": 1536,
+  "endpoint_reproduction_check_count": 34,
+  "endpoint_reproduction_pass_count": 34,
+  "endpoint_reproduction_all_pass": true,
+  "upstream_outputs_unchanged": true,
+  "upstream_hashes_before": {
+    "outputs\\validation\\phase2a\\canonical_case_summary.csv": "ddf2c6738e24c1f596e369f94c0dd6bea2fd9352714fcda7887ef280fd130421",
+    "outputs\\validation\\phase2a\\canonical_hardware_manifest.json": "f5400c6ff8d1fdb735903a29b13309f36b7aaa36f6f37e55a5c5a6581615013c",
+    "outputs\\validation\\phase2a\\canonical_power_ledgers.csv": "89dea98ce4b72e6e81b639e7fbd226b45c60246b314db0a3c4ab85879ebf759a",
+    "outputs\\validation\\phase2a\\error_injection_registry.csv": "1ec5f9946930ffa6e7f4bc6bbe98670ff73144cb1a514bb67b416a89a986aee6",
+    "outputs\\validation\\phase2a\\phase2a_claim_registry.csv": "f8b5b23c83a72c92df66ad9fcee0bf273296c451c744df257bc81198cf310704",
+    "outputs\\validation\\phase2a\\phase2a_outcome_report.json": "07ef80340eff46c9d60846428242f9f26d898514ccb0f8f7ffa13fb744fe3ed9",
+    "outputs\\validation\\phase2a\\slm_model_comparison.csv": "ae44bd4a6ded58534932ea9bef44851e1b3c368d8f03078e0311c30eeb3f0e66",
+    "outputs\\figures\\digital_twin\\nathan_mode2y_continuous_vs_averaged\\continuous_vs_averaged_summary.csv": "838fc0cb5554f44768c974ab2beb7b710828c367a01ee7e23660a3063a566514",
+    "outputs\\figures\\digital_twin\\nathan_mode2y_continuous_vs_averaged\\continuous_vs_averaged_summary.json": "6462243b208eaa03636047b59ca5a764d90d706ba380ece903b70ff9868837cb",
+    "outputs\\figures\\digital_twin\\nathan_mode2y_continuous_vs_averaged\\simulation_scope_manifest.json": "554611b37e1f65f943d59d59d8b84876af154e14f629d591848f06c71d2daa63",
+    "outputs\\figures\\digital_twin\\nathan_mode2z_orientation_interpolation\\orientation_interpolation_summary.csv": "923b444f2656149899efb6a273667bcc6ee34285f58e45de7a5508bfff16a498",
+    "outputs\\figures\\digital_twin\\nathan_mode2z_orientation_interpolation\\simulation_scope_manifest.json": "5427ee955ea1c297a6bcd73960dd06cc8e793147271c7f65340e4a80f38577a5",
+    "outputs\\figures\\digital_twin\\nathan_mode2z_orientation_interpolation\\07_highN_confirmation\\mode2z_highn_summary.csv": "32527f5cc9b870d874e74fa5840586dc8eb653bd66b59306c3742b4aa183d867",
+    "outputs\\figures\\digital_twin\\nathan_mode2z_orientation_interpolation\\07_highN_confirmation\\mode2z_highn_audit.json": "dae7dcd297c07f72f1b801a52c51f70c82d44f42b30d334ac25f53155562af48"
+  },
+  "upstream_hashes_after": {
+    "outputs\\validation\\phase2a\\canonical_case_summary.csv": "ddf2c6738e24c1f596e369f94c0dd6bea2fd9352714fcda7887ef280fd130421",
+    "outputs\\validation\\phase2a\\canonical_hardware_manifest.json": "f5400c6ff8d1fdb735903a29b13309f36b7aaa36f6f37e55a5c5a6581615013c",
+    "outputs\\validation\\phase2a\\canonical_power_ledgers.csv": "89dea98ce4b72e6e81b639e7fbd226b45c60246b314db0a3c4ab85879ebf759a",
+    "outputs\\validation\\phase2a\\error_injection_registry.csv": "1ec5f9946930ffa6e7f4bc6bbe98670ff73144cb1a514bb67b416a89a986aee6",
+    "outputs\\validation\\phase2a\\phase2a_claim_registry.csv": "f8b5b23c83a72c92df66ad9fcee0bf273296c451c744df257bc81198cf310704",
+    "outputs\\validation\\phase2a\\phase2a_outcome_report.json": "07ef80340eff46c9d60846428242f9f26d898514ccb0f8f7ffa13fb744fe3ed9",
+    "outputs\\validation\\phase2a\\slm_model_comparison.csv": "ae44bd4a6ded58534932ea9bef44851e1b3c368d8f03078e0311c30eeb3f0e66",
+    "outputs\\figures\\digital_twin\\nathan_mode2y_continuous_vs_averaged\\continuous_vs_averaged_summary.csv": "838fc0cb5554f44768c974ab2beb7b710828c367a01ee7e23660a3063a566514",
+    "outputs\\figures\\digital_twin\\nathan_mode2y_continuous_vs_averaged\\continuous_vs_averaged_summary.json": "6462243b208eaa03636047b59ca5a764d90d706ba380ece903b70ff9868837cb",
+    "outputs\\figures\\digital_twin\\nathan_mode2y_continuous_vs_averaged\\simulation_scope_manifest.json": "554611b37e1f65f943d59d59d8b84876af154e14f629d591848f06c71d2daa63",
+    "outputs\\figures\\digital_twin\\nathan_mode2z_orientation_interpolation\\orientation_interpolation_summary.csv": "923b444f2656149899efb6a273667bcc6ee34285f58e45de7a5508bfff16a498",
+    "outputs\\figures\\digital_twin\\nathan_mode2z_orientation_interpolation\\simulation_scope_manifest.json": "5427ee955ea1c297a6bcd73960dd06cc8e793147271c7f65340e4a80f38577a5",
+    "outputs\\figures\\digital_twin\\nathan_mode2z_orientation_interpolation\\07_highN_confirmation\\mode2z_highn_summary.csv": "32527f5cc9b870d874e74fa5840586dc8eb653bd66b59306c3742b4aa183d867",
+    "outputs\\figures\\digital_twin\\nathan_mode2z_orientation_interpolation\\07_highN_confirmation\\mode2z_highn_audit.json": "dae7dcd297c07f72f1b801a52c51f70c82d44f42b30d334ac25f53155562af48"
+  },
+  "figure_provenance_complete": true,
+  "figure_count": 27,
+  "native_arrays_used_for_metrics": true,
+  "sas_used_for_focus_rendering_only": true,
+  "display_interpolation_used_for_metrics": false,
+  "first_order_efficiency_reapplied": false,
+  "split_arm_architecture_reintroduced": false,
+  "microfabrication_sample_plane_success_claim": false,
+  "continuous_vs_averaged": {
+    "continuous_edge_gradient_relative_improvement": 0.487603349162141,
+    "continuous_transition_width_relative_improvement": 0.3333333333333335,
+    "continuous_ridge_fwhm_relative_improvement": 0.3999999999999997,
+    "continuous_improves_three_predeclared_sharpness_observables": true,
+    "interpretation": "continuous local orientation is visibly and metrically sharper, while the averaged surrogate retains a small useful-energy advantage"
+  },
+  "remaining_limitations": "3D intensity surfaces are normalised z60 morphology views; MODE 2Z-HN sampled width metrics remain resolution-sensitive; absolute camera/fluence claims remain calibration-limited"
+}

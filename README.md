@@ -1,246 +1,119 @@
-# Structured-Beam Simulation Atlas
+# Vortex-Bessel Numerical and Lab-Realistic Study
 
-**Folder:** `Publication_Study/` (name kept for compatibility)
-**Internal name:** VBB Study / Structured-Beam Atlas
+`Publication_Study` is the evidence repository for a structured-beam programme built around a
+PHAROS-class ultrafast laser, dual phase-only SLM routing, Bessel and vortex-Bessel propagation,
+vector focusing, and later experimental calibration. The first report supported by this repository
+is the vortex-Bessel numerical and lab-realistic study. Hexagonal-vector and experimental-validation
+reports remain separate follow-on products.
 
-This workspace is a structured-beam simulation atlas for a PHAROS-class
-Yb:KGW ultrafast laser system.  The repeated theme is **ideal mathematical
-target vs. lab-realistic implementation**: each beam family starts from a
-clean analytic model, then successive stages connect it to hardware routes
-and record the gap explicitly.
+This repository separates analytic targets, nominal fixed-bench predictions, diagnostics, and
+calibration-dependent claims. Passing software tests establishes numerical/software contracts; it
+does not by itself establish experimental validity.
 
-Scalar Bessel-Gauss, vortex Bessel-Gauss, vector Bessel, holographic and
-physical axicon routes, through-sample propagation, hexagonal/polygonal
-beams, discrete N-fold beams, and material-proxy planning studies are all
-first-class branches of this atlas.  They are not side experiments.
+## Canonical Cases
 
-See `docs/00_project_overview.md` for the full scope description.
+| ID | Meaning | Canonical role |
+|---|---|---|
+| `G0` | Charge-zero Gaussian control | Propagation, scale, and focusing control |
+| `B0` | Charge-zero bright-core Bessel beam | Scalar Bessel reference |
+| `V1` | Charge-one vortex Bessel beam | Primary vortex case |
+| `V3` | Charge-three vortex Bessel beam | Higher-charge vortex comparison |
+| `H1` | Continuous vector hexagonal field | Separate hexagonal-vector report branch |
 
----
+G0, B0, V1, and V3 are the scope of the first report. H1 remains in the code and regression suite but
+is not used to turn the vortex report into a hexagonal-beam report.
 
-## What This Project Does
+## Authoritative Physics Stages
 
-- Simulates scalar Bessel, vortex Bessel, vector Bessel, polygonal/hexagonal,
-  and discrete N-fold structured beams.
-- Compares ideal target fields with holographic SLM, physical axicon, and
-  other lab-realistic hardware routes.
-- Propagates each beam through the relevant optical path including objective
-  pupil, first-order filter, and air–sample interface.
-- Exports figures, CSV tables, holograms, captions, and run manifests
-  under `Publication_Study/outputs/`.
-- Maintains documentation for theory, conventions, validation, materials
-  proxies, vector hardware status, and study taxonomy under `docs/`.
+| Stage | Outcome | Report meaning |
+|---|---|---|
+| Phase 1 | `PHASE1-B` | Corrected vortex preservation, wavelength-bearing Fourier geometry, 5% power gate, and explicit mapping modes |
+| Phase 1R | `PHASE1R-B` | Reconciled affected artifacts; recovered converged rows and retained blocked historical diagnostics |
+| Phase 2A | `PHASE2A-B` | Canonical `fixed_physical_optics` hardware binding, five controlled route variants, and unified energy ledger; absolute claims remain calibration-limited |
+| Phase 2B | `PHASE2B-A` | Publication-resolution native diagnostics and transverse intensity surfaces with interpolation used only for display |
+| Phase 2C | `PHASE2C-B` | Independent vector Debye and vector Fresnel benchmark; scalar morphology is bounded, while vortex peak detail and components use the vector reference |
 
-## What It Does Not Do
+Phase 2D adds solver governance and a calibration bridge. It does not alter the accepted Phase 2C
+physics and does not unlock real calibrated dimensions or fluence without laboratory measurements.
 
-- It does not claim every ideal target has a current lab implementation.
-- It does not turn threshold maps into calibrated ablation or material-
-  modification predictions.  Material outputs are planning proxies.
-- It does not import from `reference_kernels/`; those files are provenance
-  snapshots only.
-- It does not use the root-level `docs/` or `outputs/` folders; those are
-  from an earlier project layout.
+## Validated Contracts
 
-See `docs/04_model_limitations.md` for the full list of model limitations.
+- Physical-axicon vortex routing preserves the requested winding by default. Full conjugation that
+  removes a nonzero vortex requires an explicit diagnostic acknowledgement.
+- Report-facing hardware predictions use `fixed_physical_optics`; historical target-matched inverse
+  design must remain labelled as such.
+- Quantitative propagation is blocked when numerical plane-power drift exceeds `0.05`.
+- Selected first-order efficiency appears exactly once in each energy ledger.
+- Scalar FFT remains a fast screening route. Quantitative vortex peak location, longitudinal field,
+  and component claims use the vector Debye reference.
+- Accepted numerical outputs are not silently overwritten.
 
----
+## Supported Numerical Claims
 
-## Usability And Visual QA Layer
+The repository supports analytic/control definitions; fixed-bench ideal, realistic, mild-error and
+degraded route comparisons; topology/winding checks; native ring, dark-core and side-lobe metrics;
+nominal axial behaviour; numerical convergence; SLM/filtering semantics; relative energy ledgers;
+and bounded scalar-versus-vector objective/interface comparisons. The exact claim-to-evidence mapping
+is in `docs/reporting/VORTEX_CLAIM_TO_EVIDENCE.csv`.
 
-The repo now separates three kinds of notebook use:
+## Calibration-Required Claims
 
-1. **Locked stage notebooks** regenerate canonical study outputs and keep QA labels visible.
-2. **Quick-look notebook** (`notebooks/quicklook/00_quick_beam_to_sample_simulator.ipynb`) is the day-to-day adjustable beam-to-sample simulator. Change `CONFIG` inside the notebook to inspect SLM phase masks, XY profiles, XZ propagation maps, through-sample previews, material proxies, and comparison sweeps.
-3. **Publication exports** must use the figure registry/caption gate rather than sweeping old output folders.
+Absolute sample dimensions, absolute focal fluence, hardware-calibrated SLM phase fidelity, measured
+camera/objective scale, measured per-stage transmission, and experimental agreement remain blocked.
+The current material model is linear optical propagation only. Nonlinear response, pulse
+accumulation, thermal response, ablation, and material modification are not predicted.
 
-Every non-quicklook notebook now contains an **Editable Notebook Controls** block near the top. These controls make the intended user-adjustable parameters explicit without silently changing the locked physics path. See `docs/19_visual_usability_and_physics_review.md` for the current visual/physics usability review and `outputs/figures/review/quicklook_visual_contact_sheet.png` for a contact sheet of the current quick-look figures.
+## Repository Map
 
+- `vbb_study/`: active physics and digital-twin source
+- `tests/`: numerical, governance, and non-regression tests
+- `tools/`: runners, validators, and audit utilities
+- `outputs/validation/`: governed machine-readable results and freeze manifests
+- `outputs/figures/`: generated figures; report-selected ignored figures require explicit force-add
+- `calibration/templates/`: editable measurement templates, not laboratory data
+- `docs/reporting/`: report scope, evidence, figure plan, and reproducibility record
+- `archive/` and root-level legacy notebooks/ZIPs: historical or duplicate material, not canonical
 
-## Folder Structure
+See `docs/reporting/REPOSITORY_MAP.md` for the complete audit and
+`docs/reporting/VORTEX_REPORT_EVIDENCE_INDEX.md` for report navigation.
 
-```
-Publication_Study/
-  run_study.py                ← canonical study runner (new)
-  run_publication_study.py    ← compatibility wrapper → run_study.py
-  finalize_outputs.py         ← compatibility wrapper → finalize_publication_outputs.py
-  bessel_twin_core.py         ← scalar physics engine (source of truth)
-  publication_diagnostics.py  ← study-level helpers
+## Environment
 
-  notebooks/                  ← all study notebooks (organised by topic)
-    00_study_overview_and_conventions.ipynb
-    scalar/                   ← scalar Bessel baselines and diagnostics
-    lab_realism/              ← holographic/physical axicon, pupil, interface
-    vector/                   ← vector beam atlas and hardware comparison
-    materials/                ← material proxy, fluence, calibration
-    advanced/                 ← capsule, hexagonal, polygonal, discrete N-fold
-    publication_exports/      ← final paper figures, tables, report
-
-  vbb_study/                  ← active helper package
-    equations/                ← scalar_bessel, propagation, holography, vector_jones, materials
-    setup_study.py            ← path contract, bootstrap, manifest helpers
-    study_taxonomy.py         ← standard label definitions
-    vbb_*.py                  ← study submodules
-
-  docs/                       ← canonical study documentation
-    00_project_overview.md    ← what this project is
-    00_theory.md              ← implemented optical model
-    01_conventions.md         ← metric definitions and units
-    02_validation.md          ← validation record
-    03_materials_application.md ← materials proxy warning
-    04_actual_lab_vector_case1.md ← vector hardware status
-    04_model_limitations.md   ← model limitations (new)
-    05_study_taxonomy.md      ← label definitions
-    06_hardware_routes.md     ← hardware route descriptions (new)
-    08_refactor_plan.md       ← refactor history and plan
-    09_running_the_study.md   ← full run instructions (new)
-
-  tools/                      ← study-specific utilities
-    smoke_test_study.py       ← workspace smoke test
-    inventory_repo.py         ← print workspace inventory
-
-  outputs/                    ← generated artifacts (not source)
-    figures/  csv/  holograms/  manifests/  jupyter_runtime/
-
-  archive/                    ← safely stored old files
-    old_notebooks/            ← notebooks superseded by new structure
-    old_source_copies/        ← stale/duplicate source files
-    backups/                  ← 21 timestamped development snapshots
-
-  reference_kernels/          ← historical provenance snapshots (not imported)
-```
-
----
-
-## Clean Install
+Python `3.13` is the supported interpreter family. Install the report environment with:
 
 ```powershell
-python -m venv .venv
-.\.venv\Scripts\python.exe -m pip install --upgrade pip
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
+C:\PhD\.venv2\Scripts\python.exe -m pip install -r requirements-report.txt
 ```
 
-Or with the existing lab environment:
+Mandatory and optional packages are separated in `requirements-report.txt`. Installed package and
+Python versions are also recorded in the freeze manifest.
+
+## Tests
+
+Focused report checks:
 
 ```powershell
-C:\PhD\.venv2\Scripts\python.exe -m pip install -r requirements.txt
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase1_critical_physics_repairs.py -q
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase1r_reconciliation.py -q
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2a_canonical_lab_realism.py -q
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2b_visual_diagnostics.py -q
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2c_objective_interface.py -q
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_slm2_preserve_vortex.py tests/test_slm2_preserve_vortex_end_to_end.py -q
 ```
 
----
-
-## Quick Smoke Test
+Collection and compilation:
 
 ```powershell
-python Publication_Study\tools\smoke_test_study.py
+C:\PhD\.venv2\Scripts\python.exe -m pytest --collect-only tests -q
+C:\PhD\.venv2\Scripts\python.exe -m compileall -q vbb_study tools tests
+git diff --check
 ```
 
-Checks imports, path contract, canonical docs, and all notebook paths.
-Does not run notebooks.
+Tests verify software and numerical contracts only. They do not replace measurement or calibration.
 
----
+## Report Freeze
 
-## Run Instructions (summary)
-
-Full details: `docs/09_running_the_study.md`
-
-```powershell
-# List notebook order
-python Publication_Study\run_study.py --list
-
-# Preview a run
-python Publication_Study\run_study.py --dry-run
-
-# Run one stage
-python Publication_Study\run_study.py --stage scalar
-python Publication_Study\run_study.py --stage lab_realism
-python Publication_Study\run_study.py --stage vector
-python Publication_Study\run_study.py --stage materials
-python Publication_Study\run_study.py --stage advanced
-
-# Run full study
-python Publication_Study\run_study.py --timeout-s 1800
-
-# Run one notebook
-python Publication_Study\run_study.py --only notebooks\scalar\04_scalar_parameter_sweeps.ipynb
-
-# Run a slice
-python Publication_Study\run_study.py `
-    --start-at notebooks\scalar\02_scalar_ideal_vs_lab_diagnostics.ipynb `
-    --stop-after notebooks\scalar\05_scalar_validation_suite.ipynb
-
-# Clean and re-run
-python Publication_Study\run_study.py --clean-output figures csv --stage scalar
-```
-
----
-
-## Output Locations
-
-All generated files live under `Publication_Study/outputs/`.
-
-| Folder | Contents |
-|---|---|
-| `outputs/figures/` | Plots (PNG, SVG, PDF) |
-| `outputs/csv/` | Summary tables |
-| `outputs/holograms/` | SLM phase pattern exports |
-| `outputs/manifests/` | Run and artifact manifests (JSON) |
-| `outputs/jupyter_runtime/` | Jupyter kernel runtime (auto-generated) |
-
-Scientific outputs are never deleted unless `--clean-output` is passed.
-
----
-
-## Physics and Model Limitations
-
-- `docs/00_theory.md` — implemented optical model.
-- `docs/01_conventions.md` — reported metrics and units.
-- `docs/02_validation.md` — validation record.
-- `docs/03_materials_application.md` — why material/fluence results are proxies.
-- `docs/04_actual_lab_vector_case1.md` — why the current lab does not produce
-  true radial/azimuthal vector beams.
-- `docs/04_model_limitations.md` — scalar paraxial limits, ASM limits, SLM
-  limits, interface-correction status, vector status.
-- `docs/06_hardware_routes.md` — what each hardware route models and what it
-  does not model.
-
----
-
-## How To Add a New Stage
-
-1. Add the notebook to the appropriate `notebooks/<topic>/` subfolder.
-2. Add its relative path (e.g. `"notebooks/scalar/06_new_stage.ipynb"`) to
-   `STAGE_NOTEBOOKS` in `run_study.py`.
-3. Add it to `REQUIRED_NOTEBOOKS` in `vbb_study/setup_study.py` if it is
-   part of the canonical reproducible sequence.
-4. Write outputs under the named `paths["figures"]`, `paths["csv"]`, etc.
-5. Use the taxonomy labels from `vbb_study/study_taxonomy.py`.
-6. Update the relevant doc when the stage changes assumptions or hardware status.
-
----
-
-## Backward Compatibility
-
-Old command-line usage still works:
-
-```powershell
-python Publication_Study\run_publication_study.py --list
-python Publication_Study\run_publication_study.py --dry-run
-python Publication_Study\run_publication_study.py --only notebooks\scalar\04_scalar_parameter_sweeps.ipynb
-```
-
-`run_publication_study.py` is a thin wrapper that delegates to `run_study.py`.
-
-Root-level compatibility shims (`bessel_twin_core.py` and `vbb_study/` at
-`c:\PhD\Code\`) are **not changed**.  Older scripts that do
-`import bessel_twin_core` or `from vbb_study import ...` continue to work.
-
----
-
-## Common Failure Modes
-
-| Symptom | Fix |
-|---|---|
-| `workspace validation failed` | Run `python tools\smoke_test_study.py`; verify notebook paths in `vbb_study/setup_study.py` |
-| `Unknown notebook` in `--only` / `--start-at` | Run `--list`; note paths now include subdirectory prefix |
-| Jupyter runtime permission error | `outputs/jupyter_runtime/` must be writable; runner sets `JUPYTER_RUNTIME_DIR` automatically |
-| Missing Python packages | `pip install -r requirements.txt` |
-| `Cannot find repo root` | Run from inside the repo; the anchor is `Publication_Study/bessel_twin_core.py` |
+The current vortex evidence freeze is under `outputs/validation/report_freeze/`. It records selected
+evidence paths and SHA-256 hashes without copying large artifacts. The standalone export should omit
+temporary directories, duplicate root notebooks, bulk ZIP archives, and files over GitHub's size
+limit.
