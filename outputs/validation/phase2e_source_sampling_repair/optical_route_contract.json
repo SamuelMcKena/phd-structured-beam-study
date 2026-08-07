@@ -1,0 +1,45 @@
+{
+  "route_S_source_scale": {
+    "source_plane": "post-4F/post-aperture axicon-output plane",
+    "sequence": [
+      "SLM field",
+      "first-order Fourier filter",
+      "nominal hard aperture placeholder",
+      "axicon phase",
+      "free-space propagation in air"
+    ],
+    "objective_transform": "none",
+    "z_origin": "axicon output",
+    "permitted_claims": [
+      "source-scale Bessel formation",
+      "source-scale finite-aperture axial structure",
+      "relative morphology"
+    ],
+    "blocked_claims": [
+      "objective-focused sample-plane dimensions",
+      "Debye focal components",
+      "calibrated material-plane fluence"
+    ],
+    "aperture_semantics": "nominal_hard_aperture_placeholder_until_calibrated"
+  },
+  "route_F_objective_sample_scale": {
+    "source_plane": "objective entrance pupil",
+    "sequence": [
+      "objective pupil field",
+      "scalar Fourier or vector Debye transform",
+      "focal/sample plane",
+      "optional vector Fresnel interface",
+      "material propagation"
+    ],
+    "objective_transform": "required",
+    "z_origin": "declared focal or sample interface plane",
+    "permitted_claims": [
+      "focal morphology",
+      "longitudinal-field fraction",
+      "matched sample-plane interface comparison"
+    ],
+    "blocked_claims": [
+      "source-scale free-space Bessel-zone length unless separately modelled"
+    ]
+  }
+}
