@@ -1,0 +1,72 @@
+{
+  "nominal_no_additional_aperture": {
+    "source_plane": "physical_axicon_output_plane",
+    "physical_sequence": [
+      "SLM phase-only modulation",
+      "common 4F selected-order filtering",
+      "carrier removal and reconstructed field",
+      "declared aperture variant before axicon",
+      "physical axicon phase",
+      "band-limited angular-spectrum propagation in air"
+    ],
+    "objective_transform_application_count": 0,
+    "axicon_application_count": 1,
+    "propagation_medium_index": 1.0,
+    "z_origin": "physical_axicon_output_plane",
+    "mapping_mode": "fixed_physical_source_scale",
+    "not_objective_focused": true,
+    "aperture_model": "none_additional; finite Gaussian and SLM/numerical support remain",
+    "aperture_radius_m": null,
+    "aperture_provenance": "nominal source-scale route contract",
+    "aperture_application_count": 0,
+    "report_eligibility": "primary",
+    "calibration_required": false
+  },
+  "soft_aperture_sensitivity": {
+    "source_plane": "physical_axicon_output_plane",
+    "physical_sequence": [
+      "SLM phase-only modulation",
+      "common 4F selected-order filtering",
+      "carrier removal and reconstructed field",
+      "declared aperture variant before axicon",
+      "physical axicon phase",
+      "band-limited angular-spectrum propagation in air"
+    ],
+    "objective_transform_application_count": 0,
+    "axicon_application_count": 1,
+    "propagation_medium_index": 1.0,
+    "z_origin": "physical_axicon_output_plane",
+    "mapping_mode": "fixed_physical_source_scale",
+    "not_objective_focused": true,
+    "aperture_model": "exp[-(r/r_a)^8]",
+    "aperture_radius_m": 0.0018000000000000002,
+    "aperture_provenance": "assumed_soft_truncation_sensitivity",
+    "aperture_application_count": 1,
+    "report_eligibility": "sensitivity_only",
+    "calibration_required": true
+  },
+  "hard_aperture_diagnostic": {
+    "source_plane": "physical_axicon_output_plane",
+    "physical_sequence": [
+      "SLM phase-only modulation",
+      "common 4F selected-order filtering",
+      "carrier removal and reconstructed field",
+      "declared aperture variant before axicon",
+      "physical axicon phase",
+      "band-limited angular-spectrum propagation in air"
+    ],
+    "objective_transform_application_count": 0,
+    "axicon_application_count": 1,
+    "propagation_medium_index": 1.0,
+    "z_origin": "physical_axicon_output_plane",
+    "mapping_mode": "fixed_physical_source_scale",
+    "not_objective_focused": true,
+    "aperture_model": "unit disk hard truncation",
+    "aperture_radius_m": 0.0018000000000000002,
+    "aperture_provenance": "nominal_hard_aperture_placeholder",
+    "aperture_application_count": 1,
+    "report_eligibility": "diagnostic_only",
+    "calibration_required": true,
+    "required_label": "diagnostic hard truncation; not nominal experimental prediction"
+  }
+}

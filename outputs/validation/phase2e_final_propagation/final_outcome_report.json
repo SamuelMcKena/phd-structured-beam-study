@@ -1,0 +1,24 @@
+{
+  "outcome": "PHASE2E-FINAL-A",
+  "report_figures_authorised": true,
+  "selected_production_grid_n": 3072,
+  "selected_z_step_m": 0.00025,
+  "nominal_aperture_route": "nominal_no_additional_aperture",
+  "soft_aperture_role": "assumed_soft_truncation_sensitivity",
+  "hard_aperture_role": "diagnostic_only; calibration_required",
+  "figure_count": 18,
+  "figure_manifest": "outputs/figures/phase2e_final_source_propagation/00_manifest/final_figure_manifest.json",
+  "case_summary": "outputs/validation/phase2e_final_propagation/final_case_summary.csv",
+  "zone_summary": "outputs/validation/phase2e_final_propagation/final_zone_summary.csv",
+  "aperture_comparison": "outputs/validation/phase2e_final_propagation/final_aperture_comparison.csv",
+  "sampling_convergence": "outputs/validation/phase2e_final_propagation/final_sampling_convergence.csv",
+  "claim_registry": "outputs/validation/phase2e_final_propagation/final_claim_impact_registry.csv",
+  "upstream_hash_status": "unchanged",
+  "remaining_calibration_blockers": [
+    "physical stop/aperture presence and radius at the reconstructed-field plane",
+    "SLM phase LUT/stroke",
+    "exact 4F iris centre and radius",
+    "camera scale and z-stage",
+    "beam and axicon centring"
+  ]
+}

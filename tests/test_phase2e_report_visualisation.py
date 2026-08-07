@@ -115,8 +115,8 @@ def test_01_outcome_and_required_families_are_complete() -> None:
 
 def test_02_figure_manifest_has_unique_complete_png_pdf_pairs() -> None:
     figures = _figures()
-    assert len(figures) == 47
-    assert len({row["figure_id"] for row in figures}) == 47
+    assert len(figures) == 62
+    assert len({row["figure_id"] for row in figures}) == 62
     assert {row["figure_id"] for row in figures if row["report_role"] == "hero_figure"} == EXPECTED_HEROES
     for row in figures:
         for key in ("png_path", "pdf_path"):
@@ -255,7 +255,7 @@ def test_09_upstream_hashes_still_match_current_files() -> None:
 def test_10_artifact_manifest_hashes_every_declared_output() -> None:
     manifest = _json(OUT / "00_manifest" / "phase2e_artifact_manifest.json")
     rows = manifest["artifacts"]
-    assert manifest["artifact_count_excluding_manifest"] == len(rows) == 109
+    assert manifest["artifact_count_excluding_manifest"] == len(rows) == 139
     for row in rows:
         path = OUT / row["relative_path"]
         assert path.is_file(), path

@@ -130,15 +130,16 @@ def _json_ready(value: Any) -> Any:
     return value
 
 
-def build_scalar_route_checkpoints(
+def build_scalar_reconstructed_4f_field(
     case_id: str,
     ell: int,
     *,
     grid_n: int,
     window_m: float = 10.0e-3,
     variant: str = "realistic_fixed_bench_route",
-) -> dict[str, Any]:
-    """Instrument the Phase 2A scalar constructor without changing its operations."""
+    retain_intermediate_checkpoints: bool = False,
+) -> tuple[np.ndarray, Mapping[str, Any], dict[str, Any]]:
+    """Return the accepted scalar field immediately after selected-order reconstruction."""
 
     manifest = canonical_hardware_manifest()
     settings = _variant_settings(variant)
@@ -191,6 +192,49 @@ def build_scalar_route_checkpoints(
             float(hardware_value(manifest, "fourier_iris_radius_cpm")),
             float(settings["iris_offset_fraction"]),
         )
+    metadata: dict[str, Any] = {
+        "case_id": case_id,
+        "vortex_charge": int(ell),
+        "variant": variant,
+        "wavelength_m": float(hardware_value(manifest, "wavelength_m")),
+        "window_m": float(window_m),
+        "grid_n": int(grid_n),
+        "dx_m": float(grid["dx"]),
+        "first_order_efficiency": float(first_order_fraction),
+        "source_plane": "post_4f_selected_order_reconstructed_field",
+        "carrier_removal_application_count": 1 if settings["apply_first_order_filter"] else 0,
+        "first_order_filter_application_count": 1 if settings["apply_first_order_filter"] else 0,
+        "objective_transform_application_count": 0,
+        "axicon_application_count": 0,
+    }
+    if retain_intermediate_checkpoints:
+        metadata["_raw_input_checkpoint"] = np.asarray(raw_input, dtype=np.complex128)
+        metadata["_post_slm_checkpoint"] = np.asarray(post_slm, dtype=np.complex128)
+    return np.asarray(post_filter, dtype=np.complex128), grid, metadata
+
+
+def build_scalar_route_checkpoints(
+    case_id: str,
+    ell: int,
+    *,
+    grid_n: int,
+    window_m: float = 10.0e-3,
+    variant: str = "realistic_fixed_bench_route",
+) -> dict[str, Any]:
+    """Instrument the Phase 2A scalar constructor without changing its operations."""
+
+    manifest = canonical_hardware_manifest()
+    settings = _variant_settings(variant)
+    post_filter, grid, reconstructed_meta = build_scalar_reconstructed_4f_field(
+        case_id,
+        ell,
+        grid_n=grid_n,
+        window_m=window_m,
+        variant=variant,
+        retain_intermediate_checkpoints=True,
+    )
+    raw_input = reconstructed_meta.pop("_raw_input_checkpoint")
+    post_slm = reconstructed_meta.pop("_post_slm_checkpoint")
     pupil_radius = float(hardware_value(manifest, "objective_pupil_radius_m"))
     if variant == "analytic_target_control":
         post_pupil = np.asarray(post_filter, dtype=np.complex128)
@@ -216,14 +260,7 @@ def build_scalar_route_checkpoints(
         "post_axicon": np.asarray(post_axicon, dtype=np.complex128),
         "pupil_mask": pupil_mask,
         "metadata": {
-            "case_id": case_id,
-            "vortex_charge": int(ell),
-            "variant": variant,
-            "wavelength_m": float(hardware_value(manifest, "wavelength_m")),
-            "window_m": float(window_m),
-            "grid_n": int(grid_n),
-            "dx_m": float(grid["dx"]),
-            "first_order_efficiency": float(first_order_fraction),
+            **reconstructed_meta,
             "pupil_retained_power_fraction": float(pupil_fraction),
             "pupil_radius_m": pupil_radius,
             "pupil_application_count": pupil_application_count,

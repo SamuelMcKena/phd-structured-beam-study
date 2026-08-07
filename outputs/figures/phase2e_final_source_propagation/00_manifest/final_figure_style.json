@@ -1,0 +1,45 @@
+{
+  "font_family": "DejaVu Sans",
+  "base_font_size": 10.0,
+  "title_font_size": 12.0,
+  "panel_label_font_size": 11.0,
+  "line_width": 1.6,
+  "intensity_colormap": "magma",
+  "difference_colormap": "RdBu_r",
+  "axis_unit": "mm",
+  "detail_halfwidth_m": 0.00025,
+  "snapshot_halfwidth_m": 0.00025,
+  "surface_halfwidth_m": 0.00012,
+  "z_limits_m": [
+    0.0,
+    0.18
+  ],
+  "primary_normalisation": "global_linear",
+  "primary_scaling": "linear",
+  "display_interpolation": "bilinear",
+  "display_interpolation_used_for_metrics": false,
+  "surface_display_upsampling": 2,
+  "surface_elevation_deg": 32.0,
+  "surface_azimuth_deg": -52.0,
+  "surface_intensity_limits": [
+    0.0,
+    1.0
+  ],
+  "output_dpi": 320,
+  "primary_figsize_inches": [
+    16.0,
+    12.0
+  ],
+  "comparison_figsize_inches": [
+    16.0,
+    12.0
+  ],
+  "snapshot_figsize_inches": [
+    15.0,
+    8.0
+  ],
+  "surface_figsize_inches": [
+    12.0,
+    5.6
+  ]
+}

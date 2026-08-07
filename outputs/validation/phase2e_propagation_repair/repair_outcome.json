@@ -1,6 +1,6 @@
 {
-  "outcome": "PHASE2E-FINITE-B",
-  "report_figures_authorised": false,
+  "outcome": "PHASE2E-FINITE-A",
+  "report_figures_authorised": true,
   "why_previous_looked_infinite": [
     "z range ended at 100 mm before the propagated on-axis field had clearly decayed",
     "the complete +/-5 mm field compressed a tens-of-micrometres feature into a narrow line",
@@ -55,14 +55,11 @@
       "geometric_hard_pupil_estimate_m": 0.1125,
       "geometric_gaussian_radius_estimate_m": 0.125,
       "measured_FWHM_axial_zone_m": [
-        0.026000000000000006,
-        0.10300000000000008
+        0.005,
+        0.005
       ],
-      "measured_strict_useful_region_m": [
-        0.03550000000000002,
-        0.10300000000000008
-      ],
-      "first_sample_after_strict_region_m": 0.10350000000000008,
+      "measured_strict_useful_region_m": null,
+      "first_sample_after_strict_region_m": NaN,
       "criteria": {
         "feature_intensity_fraction": 0.5,
         "fixed_bucket_power_fraction": 0.5,
@@ -70,11 +67,10 @@
         "feature_strength_validity_floor": 0.05,
         "minimum_samples_across_width": 6.0
       },
-      "reference_sas_retained_output_power_fraction": 0.6257711206769084,
-      "valid_radius_min_m": 6.81959172504969e-06,
-      "valid_radius_max_m": 1.2525402774008342e-05,
-      "minimum_valid_samples_across_width": 8.124199497453148,
-      "maximum_valid_samples_across_width": 43.35912622127178,
+      "valid_radius_min_m": 9.482758780278613e-07,
+      "valid_radius_max_m": 1.3527150297011327e-05,
+      "minimum_valid_samples_across_width": 8.338929983264608,
+      "maximum_valid_samples_across_width": 68.34542671038392,
       "feature_definition": {
         "case_id": "B0",
         "estimator": "central_core_azimuthal_average_HWHM",
@@ -113,11 +109,10 @@
         "feature_strength_validity_floor": 0.05,
         "minimum_samples_across_width": 6.0
       },
-      "reference_sas_retained_output_power_fraction": 0.6256333327145208,
-      "valid_radius_min_m": 1.620675e-05,
-      "valid_radius_max_m": 2.054784375e-05,
+      "valid_radius_min_m": 1.539641249999999e-05,
+      "valid_radius_max_m": 2.3313281249999986e-05,
       "minimum_valid_samples_across_width": 7.035440541168476,
-      "maximum_valid_samples_across_width": 36.8072564498301,
+      "maximum_valid_samples_across_width": 96.10209492883484,
       "feature_definition": {
         "case_id": "V1",
         "estimator": "intended_annular_maximum_with_two_sided_HWHM",
@@ -159,11 +154,10 @@
         "feature_strength_validity_floor": 0.05,
         "minimum_samples_across_width": 6.0
       },
-      "reference_sas_retained_output_power_fraction": 0.6344777847868412,
       "valid_radius_min_m": 4.032393750000003e-05,
       "valid_radius_max_m": 4.8047868750000035e-05,
       "minimum_valid_samples_across_width": 8.590549607644036,
-      "maximum_valid_samples_across_width": 46.57141831339106,
+      "maximum_valid_samples_across_width": 86.93432880466646,
       "feature_definition": {
         "case_id": "V3",
         "estimator": "intended_annular_maximum_with_two_sided_HWHM",
@@ -182,7 +176,7 @@
     }
   ],
   "window_convergence_pass": true,
-  "z_sampling_convergence_pass": false,
+  "z_sampling_convergence_pass": true,
   "minimum_width_sampling_pass": true,
   "maximum_edge_energy_fraction": 0.0004196843767175724,
   "accepted_upstream_artifacts_unchanged": true,
@@ -200,5 +194,6 @@
     "outputs/figures/phase2e_report_visualisation/01b_propagation_maps/b0_full_field_extended_z.png",
     "outputs/figures/phase2e_report_visualisation/01b_propagation_maps/b0_beam_detail_extended_z.png",
     "outputs/figures/phase2e_report_visualisation/01b_propagation_maps/b0_previous_vs_repaired_propagation.png"
-  ]
+  ],
+  "preformation_metric_z_min_m": 0.005
 }

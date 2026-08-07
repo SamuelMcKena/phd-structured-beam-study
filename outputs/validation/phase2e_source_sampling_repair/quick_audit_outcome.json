@@ -2,12 +2,12 @@
   "outcome": "PHASE2E-SAMPLING-QUICK-AUDIT",
   "report_figures_authorised": false,
   "n_values": [
-    1536,
     2048,
-    2560
+    2560,
+    3072
   ],
-  "n512_sampling_class": "acceptable_for_screening",
-  "n512_samples_per_radial_period": 9.882283473535496,
+  "n512_sampling_class": "quantitative_reference",
+  "n512_samples_per_radial_period": 13.176377964713994,
   "route_contract_written": true,
   "selected_plane_2d_asm_completed": true,
   "axisymmetric_reference_completed": true,

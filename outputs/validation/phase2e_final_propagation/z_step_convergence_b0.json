@@ -1,0 +1,49 @@
+{
+  "status": "passed",
+  "outcome": "PENDING_FIGURE_PACK",
+  "report_figures_authorised": false,
+  "selected_z_step_m": 0.00025,
+  "reference_z_step_m": 0.000125,
+  "representative_range_m": [
+    0.0,
+    0.14
+  ],
+  "thresholds": {
+    "raw_primary_normalised_l2_difference": 0.01,
+    "fixed_bucket_normalised_l2_difference": 0.01,
+    "feature_radius_relative_difference": 0.01,
+    "useful_zone_boundary_shift_m": 0.0005,
+    "dominant_ripple_period_relative_difference": 0.01
+  },
+  "runtime_seconds": 819.0897877999814,
+  "peak_estimated_memory_bytes": 1207984128,
+  "rows": [
+    {
+      "case_id": "B0",
+      "coarse_z_step_m": 0.00025,
+      "fine_z_step_m": 0.000125,
+      "validation_z_min_m": 0.0,
+      "validation_z_max_m": 0.14,
+      "raw_primary_normalised_l2_difference": 1.5684115220518687e-05,
+      "fixed_bucket_normalised_l2_difference": 1.213857687332007e-05,
+      "feature_radius_maximum_relative_difference": 0.00015277464578527248,
+      "useful_zone_maximum_boundary_shift_m": 0.0,
+      "coarse_dominant_ripple_period_m": 0.14025000000000012,
+      "fine_dominant_ripple_period_m": 0.1401250000000001,
+      "dominant_ripple_period_relative_difference": 0.0008920606601249876,
+      "coarse_zones": "{\"case_id\": \"B0\", \"configured_interval_is_measured_zone\": false, \"configured_nominal_interval_m\": [0.02, 0.06], \"measured_FWHM_axial_zone_m\": [0.02, 0.12], \"measured_strict_useful_region_m\": [0.02, 0.12], \"reference_feature_radius_m\": 1.125657972102308e-05}",
+      "fine_zones": "{\"case_id\": \"B0\", \"configured_interval_is_measured_zone\": false, \"configured_nominal_interval_m\": [0.02, 0.06], \"measured_FWHM_axial_zone_m\": [0.02, 0.12], \"measured_strict_useful_region_m\": [0.02, 0.12], \"reference_feature_radius_m\": 1.125657972102308e-05}",
+      "runtime_seconds": 819.0897877999814,
+      "raw_primary_gate_pass": true,
+      "fixed_bucket_gate_pass": true,
+      "feature_radius_gate_pass": true,
+      "zone_boundary_gate_pass": true,
+      "ripple_period_gate_pass": true,
+      "case_gate_pass": true
+    }
+  ],
+  "case_ids": [
+    "B0"
+  ],
+  "complete_case_set": false
+}

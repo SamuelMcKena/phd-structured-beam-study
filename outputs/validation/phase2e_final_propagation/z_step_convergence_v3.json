@@ -1,0 +1,49 @@
+{
+  "status": "passed",
+  "outcome": "PENDING_FIGURE_PACK",
+  "report_figures_authorised": false,
+  "selected_z_step_m": 0.00025,
+  "reference_z_step_m": 0.000125,
+  "representative_range_m": [
+    0.0,
+    0.14
+  ],
+  "thresholds": {
+    "raw_primary_normalised_l2_difference": 0.01,
+    "fixed_bucket_normalised_l2_difference": 0.01,
+    "feature_radius_relative_difference": 0.01,
+    "useful_zone_boundary_shift_m": 0.0005,
+    "dominant_ripple_period_relative_difference": 0.01
+  },
+  "runtime_seconds": 829.5523934999947,
+  "peak_estimated_memory_bytes": 1207984128,
+  "rows": [
+    {
+      "case_id": "V3",
+      "coarse_z_step_m": 0.00025,
+      "fine_z_step_m": 0.000125,
+      "validation_z_min_m": 0.0,
+      "validation_z_max_m": 0.14,
+      "raw_primary_normalised_l2_difference": 0.0006291026971759666,
+      "fixed_bucket_normalised_l2_difference": 2.5395232306616374e-05,
+      "feature_radius_maximum_relative_difference": 6.268393768829929e-06,
+      "useful_zone_maximum_boundary_shift_m": 0.0001250000000000001,
+      "coarse_dominant_ripple_period_m": 0.028050000000000023,
+      "fine_dominant_ripple_period_m": 0.028025000000000022,
+      "dominant_ripple_period_relative_difference": 0.0008920606601249134,
+      "coarse_zones": "{\"case_id\": \"V3\", \"configured_interval_is_measured_zone\": false, \"configured_nominal_interval_m\": [0.02, 0.06], \"measured_FWHM_axial_zone_m\": [0.02025, 0.11950000000000001], \"measured_strict_useful_region_m\": [0.0205, 0.11925000000000001], \"reference_feature_radius_m\": 4.2882156964669534e-05}",
+      "fine_zones": "{\"case_id\": \"V3\", \"configured_interval_is_measured_zone\": false, \"configured_nominal_interval_m\": [0.02, 0.06], \"measured_FWHM_axial_zone_m\": [0.02025, 0.11950000000000001], \"measured_strict_useful_region_m\": [0.020375, 0.11937500000000001], \"reference_feature_radius_m\": 4.288273539273754e-05}",
+      "runtime_seconds": 829.5523934999947,
+      "raw_primary_gate_pass": true,
+      "fixed_bucket_gate_pass": true,
+      "feature_radius_gate_pass": true,
+      "zone_boundary_gate_pass": true,
+      "ripple_period_gate_pass": true,
+      "case_gate_pass": true
+    }
+  ],
+  "case_ids": [
+    "V3"
+  ],
+  "complete_case_set": false
+}
