@@ -8,6 +8,35 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FREEZE = ROOT / "outputs" / "validation" / "report_freeze"
+
+# The v1 freeze is an immutable historical metadata snapshot. Its recorded hashes remain untouched
+# and describe the repository as it stood when v1 was taken. Current governance documents may
+# legitimately evolve in later report freezes -- the v2 governance refresh rewrote the six paths
+# below to record Phase 2E. This test therefore distinguishes authorised governance evolution from
+# unexpected evidence drift: the six declared paths may differ from their v1 hashes, and nothing
+# else may. Physics source, numerical outputs, figures, calibration templates and tests must still
+# match v1 exactly.
+HISTORICAL_GOVERNANCE_ALLOWED_TO_EVOLVE = {
+    "README.md",
+    "docs/reporting/VORTEX_CLAIM_TO_EVIDENCE.csv",
+    "docs/reporting/VORTEX_REPORT_EVIDENCE_INDEX.md",
+    "docs/reporting/VORTEX_FIGURE_AND_TABLE_PLAN.md",
+    "docs/reporting/REPORT_SCOPE_AND_MATURITY.md",
+    "docs/reporting/SOFTWARE_AND_REPRODUCIBILITY.md",
+}
+
+# This module is itself v1 selected evidence, so narrowing the reconciliation below necessarily
+# drifts its own recorded hash. That is a self-reference, not a governance-document change, and it
+# is held separately so HISTORICAL_GOVERNANCE_ALLOWED_TO_EVOLVE stays exactly the six documents the
+# v2 refresh rewrote. Every other test file must still match its v1 hash.
+HISTORICAL_SELF_REFERENTIAL_EVIDENCE = {
+    "tests/test_vortex_report_freeze.py",
+}
+
+HISTORICAL_EVIDENCE_ALLOWED_TO_DRIFT = (
+    HISTORICAL_GOVERNANCE_ALLOWED_TO_EVOLVE | HISTORICAL_SELF_REFERENTIAL_EVIDENCE
+)
+
 CLAIM_COLUMNS = [
     "claim_id",
     "claim_text",
@@ -57,13 +86,67 @@ def test_each_claim_evidence_path_exists() -> None:
                 assert (ROOT / value).is_file(), f"{row['claim_id']}: missing {column} {value}"
 
 
-def test_selected_evidence_hashes_match_disk() -> None:
+def test_every_selected_evidence_path_still_exists() -> None:
     rows = _csv("vortex_report_files.csv")
     assert rows
+    missing = [row["path"] for row in rows if not (ROOT / row["path"]).is_file()]
+    assert missing == [], f"v1 selected evidence has been deleted or moved: {missing}"
+
+
+def test_declared_governance_evolution_set_matches_frozen_evidence() -> None:
+    """The declared sets must name real v1 selected-evidence paths, not stale or misspelt ones."""
+    selected = {row["path"] for row in _csv("vortex_report_files.csv")}
+    unknown = sorted(HISTORICAL_EVIDENCE_ALLOWED_TO_DRIFT - selected)
+    assert unknown == [], f"declared drift-allowed paths are not v1 selected evidence: {unknown}"
+    assert len(HISTORICAL_GOVERNANCE_ALLOWED_TO_EVOLVE) == 6
+    # The self-referential exemption must never be used to excuse a governance document.
+    assert not (HISTORICAL_SELF_REFERENTIAL_EVIDENCE & HISTORICAL_GOVERNANCE_ALLOWED_TO_EVOLVE)
+
+
+def test_selected_evidence_hashes_match_disk_outside_authorised_governance_evolution() -> None:
+    """Reconcile the immutable v1 hashes against the current working tree.
+
+    v1 recorded hashes are never rewritten. Only the six declared governance documents, plus this
+    self-referential test module, are authorised to differ from them; every other selected file
+    must still match v1 byte for byte.
+    """
+    rows = _csv("vortex_report_files.csv")
+    assert rows
+
+    drifted: set[str] = set()
     for row in rows:
         path = ROOT / row["path"]
-        assert path.is_file()
-        assert _sha256(path) == row["sha256"]
+        assert path.is_file(), f"v1 selected evidence is missing: {row['path']}"
+        if _sha256(path) != row["sha256"]:
+            drifted.add(row["path"])
+
+    # Any drift outside the declared sets is a real regression: physics source, numerical outputs,
+    # figures, calibration templates and every other test must still match the historical snapshot.
+    unexpected = sorted(drifted - HISTORICAL_EVIDENCE_ALLOWED_TO_DRIFT)
+    assert unexpected == [], (
+        "unauthorised drift in v1 selected evidence (not an authorised governance document): "
+        f"{unexpected}"
+    )
+
+    # The declared sets are exact, not an upper bound: each named path is expected to have been
+    # rewritten by the v2 governance refresh.
+    no_longer_drifting = sorted(HISTORICAL_EVIDENCE_ALLOWED_TO_DRIFT - drifted)
+    assert no_longer_drifting == [], (
+        "declared drift-allowed paths unexpectedly still match their v1 hashes; update the "
+        f"declared sets if this is intended: {no_longer_drifting}"
+    )
+
+    assert drifted == HISTORICAL_EVIDENCE_ALLOWED_TO_DRIFT
+    # The six authorised governance drifts are exactly the documents the v2 refresh rewrote.
+    assert drifted - HISTORICAL_SELF_REFERENTIAL_EVIDENCE == HISTORICAL_GOVERNANCE_ALLOWED_TO_EVOLVE
+
+
+def test_frozen_v1_hashes_are_never_rewritten_in_place() -> None:
+    """The v1 freeze metadata itself stays internally consistent and untouched."""
+    manifest = json.loads((FREEZE / "vortex_report_manifest.json").read_text(encoding="utf-8"))
+    assert manifest["freeze_name"] == "vortex_report_first"
+    assert _sha256(FREEZE / "vortex_report_files.csv") == manifest["files_index_sha256"]
+    assert _sha256(FREEZE / "vortex_report_claims.csv") == manifest["claims_sha256"]
 
 
 def test_manifest_indexes_match_their_frozen_files() -> None:

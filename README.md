@@ -32,9 +32,32 @@ is not used to turn the vortex report into a hexagonal-beam report.
 | Phase 2A | `PHASE2A-B` | Canonical `fixed_physical_optics` hardware binding, five controlled route variants, and unified energy ledger; absolute claims remain calibration-limited |
 | Phase 2B | `PHASE2B-A` | Publication-resolution native diagnostics and transverse intensity surfaces with interpolation used only for display |
 | Phase 2C | `PHASE2C-B` | Independent vector Debye and vector Fresnel benchmark; scalar morphology is bounded, while vortex peak detail and components use the vector reference |
+| Phase 2E | `PHASE2E-FINAL-A` | Converged governed source-scale scalar B0/V1/V3 propagation, zone metrics, aperture sensitivity and sampling convergence |
 
 Phase 2D adds solver governance and a calibration bridge. It does not alter the accepted Phase 2C
 physics and does not unlock real calibrated dimensions or fluence without laboratory measurements.
+
+Phase 2E is the authoritative source for final quantitative source-scale axial results. Its scope is
+converged governed source-scale scalar B0/V1/V3 propagation. It is **not** objective/sample-scale
+focusing and **not** experimental validation, and it does not alter the accepted Phase 2C focal
+contract. Phase 2B x-z/y-z panels remain accepted visual diagnostics but no longer supply the final
+source-scale quantitative axial result.
+
+## Two Optical Scales
+
+| Scale | Meaning | Authoritative phase |
+|---|---|---|
+| Source-scale | Tens of mm axial propagation; tens of um transverse Bessel/ring scale | Phase 2E |
+| Objective/sample-scale | Debye focal plane; approximately micron transverse scale | Phase 2C |
+
+Numbers from the two scales are not interchangeable.
+
+The final Phase 2E source-scale route is SLM phase-only modulation, common 4F selected-order
+filtering, carrier removal and reconstructed field, no additional real-space aperture, one physical
+axicon, then band-limited angular-spectrum propagation in air. Production uses N=3072 on a 10 mm
+window with dz=0.25 mm over z=0-180 mm. The `nominal_no_additional_aperture` route is the report
+primary; the soft route is an unmeasured sensitivity case and the hard 1.8 mm route is diagnostic
+only.
 
 ## Validated Contracts
 
@@ -52,9 +75,13 @@ physics and does not unlock real calibrated dimensions or fluence without labora
 
 The repository supports analytic/control definitions; fixed-bench ideal, realistic, mild-error and
 degraded route comparisons; topology/winding checks; native ring, dark-core and side-lobe metrics;
-nominal axial behaviour; numerical convergence; SLM/filtering semantics; relative energy ledgers;
-and bounded scalar-versus-vector objective/interface comparisons. The exact claim-to-evidence mapping
-is in `docs/reporting/VORTEX_CLAIM_TO_EVIDENCE.csv`.
+final governed source-scale axial zones and metrics from Phase 2E; numerical convergence;
+SLM/filtering semantics; relative energy ledgers; and bounded scalar-versus-vector
+objective/interface comparisons. The exact claim-to-evidence mapping is in
+`docs/reporting/VORTEX_CLAIM_TO_EVIDENCE.csv`.
+
+The 20-60 mm axial interval that appears in historical Phase 2A configuration is a configured
+reference only. It is not a measured Bessel zone and not the final source-scale axial prediction.
 
 ## Calibration-Required Claims
 
@@ -62,6 +89,15 @@ Absolute sample dimensions, absolute focal fluence, hardware-calibrated SLM phas
 camera/objective scale, measured per-stage transmission, and experimental agreement remain blocked.
 The current material model is linear optical propagation only. Nonlinear response, pulse
 accumulation, thermal response, ablation, and material modification are not predicted.
+
+A route-level `calibration_required = false` flag, such as the one on the Phase 2E
+`nominal_no_additional_aperture` route, means only that no additional aperture calibration is needed
+to define that numerical route. It does not mean experimentally calibrated, absolute physical scale
+verified, bench validated, or fluence calibrated. For the overall nominal fixed-bench prediction
+`experimental_calibration_required = true`, with outstanding blockers including beam radius, SLM
+phase LUT/stroke, exact 4F iris centre and radius, physical stop/aperture presence, axicon centring
+and geometry, camera scale, z-stage calibration, objective/relay calibration where relevant, and
+energy/transmission calibration for fluence.
 
 ## Repository Map
 
@@ -98,6 +134,9 @@ C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase1r_reconciliation.py 
 C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2a_canonical_lab_realism.py -q
 C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2b_visual_diagnostics.py -q
 C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2c_objective_interface.py -q
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2e_source_sampling_repair.py -q
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2e_final_source_propagation.py -q
+C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_vortex_report_freeze_v2.py -q
 C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_slm2_preserve_vortex.py tests/test_slm2_preserve_vortex_end_to_end.py -q
 ```
 
@@ -113,7 +152,15 @@ Tests verify software and numerical contracts only. They do not replace measurem
 
 ## Report Freeze
 
-The current vortex evidence freeze is under `outputs/validation/report_freeze/`. It records selected
-evidence paths and SHA-256 hashes without copying large artifacts. The standalone export should omit
-temporary directories, duplicate root notebooks, bulk ZIP archives, and files over GitHub's size
-limit.
+The current vortex evidence freeze is `vortex_bessel_report_final_v2_governance` under
+`outputs/validation/report_freeze_v2/`. It records selected evidence paths and SHA-256 hashes without
+copying large artifacts, and it includes the final Phase 2E source-scale evidence and figure pack.
+Build it with `tools/build_vortex_report_freeze_v2.py`, which only reads and hashes existing files.
+
+`outputs/validation/report_freeze/` is the immutable `historical_vortex_report_freeze_v1` snapshot of
+the pre-Phase-2E report state. It is retained for provenance and is not the current evidence set. Its
+recorded hashes describe the governance documents as they stood at v1 and therefore no longer match
+the current working copies of those documents.
+
+The standalone export should omit temporary directories, duplicate root notebooks, bulk ZIP archives,
+and files over GitHub's size limit.
