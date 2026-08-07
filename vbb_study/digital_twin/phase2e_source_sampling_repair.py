@@ -272,7 +272,7 @@ def axisymmetric_on_axis_trace(
         if z_m <= 0.0:
             continue
         phase = np.exp(1j * k * r**2 / (2.0 * z_m))
-        field = np.trapz(source * phase * r, r) / z_m
+        field = np.trapezoid(source * phase * r, x=r) / z_m
         values[index] = float(abs(field) ** 2)
     return AxisymmetricTrace(
         z_m=z_values,
