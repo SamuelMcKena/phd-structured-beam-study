@@ -9,7 +9,10 @@ from vbb_study.digital_twin.vortex_visual_atlas_figures import run_visual_atlas_
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Render physically grounded vortex-Bessel visual atlas figures."
+        description=(
+            "Render vortex-Bessel visual atlas figures. Physical-error families are "
+            "subject to the fidelity gates in vortex_error_reference_models."
+        )
     )
     parser.add_argument(
         "--figure-root",
@@ -34,6 +37,18 @@ def _parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _parser().parse_args()
+    if args.family == "alignment" and args.parameter == "axicon_tilt_y_rad":
+        raise SystemExit(
+            "axicon_tilt_y_rad is blocked for report/atlas rendering on the physics-rebuild branch. "
+            "The inherited rotated-thin-element OPD model is superseded as report evidence; "
+            "a rotated-angular-spectrum/direct-diffraction validated backend is required first."
+        )
+    if args.family == "parameter" and args.parameter == "input_beam_angle_x_rad":
+        raise SystemExit(
+            "input_beam_angle_x_rad now has a dedicated research diagnostic because the Fourier "
+            "grating order and fixed 4F iris must be shown explicitly. Run "
+            "tools/render_vortex_input_angle_research.py instead."
+        )
     result = run_visual_atlas_figures(
         figure_root=args.figure_root,
         grid_n=int(args.grid_n),
