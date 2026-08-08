@@ -8,6 +8,7 @@ from vbb_study.digital_twin.vortex_visual_atlas import (
     alignment_registry,
     apply_zernike_waves,
     build_atlas_source,
+    manufacturing_defect_registry,
     parameter_registry,
     zernike_mode,
 )
@@ -50,18 +51,47 @@ def test_nonzero_coma_changes_phase_not_pointwise_amplitude() -> None:
     assert np.allclose(np.abs(source), np.abs(changed), rtol=1e-12, atol=1e-12)
 
 
-def test_nominal_atlas_source_uses_repaired_phase2e_route() -> None:
+def test_nominal_atlas_source_uses_physical_error_route() -> None:
     source, grid, meta = build_atlas_source("V3", grid_n=256)
     assert source.shape == (256, 256)
     assert grid["N"] == 256
-    assert meta["atlas_route"] == "repaired_phase2e_source_scale"
-    assert meta["aperture_model"] == "none"
-    assert meta["historical_objective_pupil_application_count"] == 0
+    assert meta["route_id"] == "phase2e_physical_error_route"
+    assert meta["input_angle_applied_plane"] == "before_SLM1"
+    assert meta["additional_objective_pupil_application_count"] == 0
 
 
-def test_registries_have_nominal_zero_or_one_reference_points() -> None:
-    assert 1.0 in parameter_registry()["beam_radius_scale"]
-    assert 1.0 in parameter_registry()["axicon_angle_scale"]
-    assert "none" in parameter_registry()["aperture_model"]
+def test_physical_parameter_registries_have_nominal_reference_points() -> None:
+    params = parameter_registry()
+    assert 1.0 in params["beam_radius_scale"]
+    assert 1.0 in params["axicon_angle_scale"]
+    assert 0.0 in params["input_beam_angle_x_rad"]
+    assert 0.0 in params["input_beam_decentre_x_m"]
+    assert all(0.0 in values for values in manufacturing_defect_registry().values())
     assert all(0.0 in values for values in aberration_registry().values())
     assert all(0.0 in values for values in alignment_registry().values())
+
+
+def test_input_angle_and_axicon_tilt_are_distinct_physical_errors() -> None:
+    input_tilted, _, input_meta = build_atlas_source(
+        "B0", grid_n=256, input_beam_angle_rad=(1e-3, 0.0)
+    )
+    axicon_tilted, _, axicon_meta = build_atlas_source(
+        "B0", grid_n=256, axicon_tilt_rad=(0.0, 1e-3)
+    )
+    assert input_meta["input_beam_angle_rad"] != (0.0, 0.0)
+    assert axicon_meta["axicon_tilt_rad"] != (0.0, 0.0)
+    assert not np.allclose(input_tilted, axicon_tilted)
+
+
+def test_rounded_tip_is_explicit_manufacturing_model() -> None:
+    sharp, _, sharp_meta = build_atlas_source("B0", grid_n=256)
+    rounded, _, rounded_meta = build_atlas_source(
+        "B0",
+        grid_n=256,
+        axicon_tip_model="hyperboloidal_round",
+        axicon_rounding_parameter_m=5e-6,
+    )
+    assert sharp_meta["axicon_tip_model"] == "sharp"
+    assert rounded_meta["axicon_tip_model"] == "hyperboloidal_round"
+    assert rounded_meta["rounding_parameter_m"] == 5e-6
+    assert not np.allclose(sharp, rounded)
