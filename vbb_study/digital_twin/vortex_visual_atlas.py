@@ -1,28 +1,36 @@
-"""Vortex Bessel visual-atlas sweeps built on the repaired Phase 2E route.
+"""Vortex-Bessel visual atlas built on physically placed perturbations.
 
-The atlas is diagnostic/reporting infrastructure.  It does not modify accepted
-Phase 2A/2B/2C outputs.  Source-scale plots use the repaired no-additional-hard-
-aperture Phase 2E route and explicit, labelled perturbations.
+The report atlas must distinguish two different questions:
+
+1. What happens when a *physical component or input condition* is wrong?
+2. What happens when a generic wavefront contains a named aberration?
+
+Physical misalignments are therefore routed through ``vortex_physical_errors``
+so input angle/radius/decentre occur before the SLM/4F chain and axicon errors
+modify the physical axicon sag.  Zernike sweeps remain useful, but are explicitly
+labelled as wavefront-error sensitivity at the axicon plane rather than as a
+surrogate for a particular misaligned optic.
 """
 
 from __future__ import annotations
 
 import csv
 import json
-import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
 import numpy as np
 
-from vbb_study.digital_twin.phase2a_contracts import canonical_hardware_manifest, hardware_value
-from vbb_study.digital_twin.phase2e_production_repair import build_nominal_source
+from vbb_study.digital_twin.vortex_physical_errors import (
+    DEFAULT_WINDOW_M,
+    PhysicalPerturbation,
+    build_physical_source,
+)
 from vbb_study.equations.propagation import angular_spectrum_propagate_bl
 
 
 EPS = np.finfo(float).tiny
-DEFAULT_WINDOW_M = 10e-3
 DEFAULT_SCREENING_N = 1536
 DEFAULT_REPORT_N = 3072
 DEFAULT_Z_M = (20e-3, 40e-3, 60e-3, 80e-3, 100e-3)
@@ -68,11 +76,8 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 def zernike_mode(name: str, grid: Mapping[str, Any], radius_m: float) -> np.ndarray:
-    """Return an RMS-normalised real Zernike-like mode inside a declared radius.
+    """Return an RMS-normalised real Zernike-like wavefront mode."""
 
-    The convention is explicit and self-contained for visual sensitivity studies;
-    values are normalised numerically to unit RMS over rho<=1.
-    """
     if name not in ZERNIKE_REGISTRY:
         raise ValueError(f"unknown Zernike mode {name!r}")
     x = np.asarray(grid["X"], dtype=float)
@@ -106,8 +111,16 @@ def apply_zernike_waves(
     waves_rms: float,
     radius_m: float,
 ) -> np.ndarray:
+    """Apply a generic wavefront aberration at the axicon plane.
+
+    This is a controlled wavefront-error study.  It must not be labelled as a
+    unique physical model of axicon tilt/decentre or input-beam misalignment.
+    """
+
     mode = zernike_mode(name, grid, radius_m)
-    return np.asarray(field, dtype=np.complex128) * np.exp(1j * 2.0 * np.pi * float(waves_rms) * mode)
+    return np.asarray(field, dtype=np.complex128) * np.exp(
+        1j * 2.0 * np.pi * float(waves_rms) * mode
+    )
 
 
 def build_atlas_source(
@@ -115,75 +128,66 @@ def build_atlas_source(
     *,
     grid_n: int,
     beam_radius_scale: float = 1.0,
+    input_beam_decentre_m: tuple[float, float] = (0.0, 0.0),
+    input_beam_angle_rad: tuple[float, float] = (0.0, 0.0),
+    hologram_decentre_m: tuple[float, float] = (0.0, 0.0),
+    fourier_iris_offset_fraction: float = 0.0,
     axicon_angle_scale: float = 1.0,
     axicon_decentre_m: tuple[float, float] = (0.0, 0.0),
     axicon_tilt_rad: tuple[float, float] = (0.0, 0.0),
+    axicon_tip_model: str = "sharp",
+    axicon_rounding_parameter_m: float = 0.0,
+    axicon_flat_tip_radius_m: float = 0.0,
     zernike_name: str | None = None,
     zernike_waves_rms: float = 0.0,
-    aperture_model: str = "none",
 ) -> tuple[np.ndarray, Mapping[str, Any], dict[str, Any]]:
-    """Create an explicitly perturbed source from the repaired Phase 2E baseline."""
-    source, grid, meta = build_nominal_source(
+    """Build one atlas source with each error inserted at its physical plane."""
+
+    perturbation = PhysicalPerturbation(
+        beam_radius_scale=float(beam_radius_scale),
+        input_beam_decentre_m=tuple(map(float, input_beam_decentre_m)),
+        input_beam_angle_rad=tuple(map(float, input_beam_angle_rad)),
+        hologram_decentre_m=tuple(map(float, hologram_decentre_m)),
+        fourier_iris_offset_fraction=float(fourier_iris_offset_fraction),
+        axicon_base_angle_scale=float(axicon_angle_scale),
+        axicon_decentre_m=tuple(map(float, axicon_decentre_m)),
+        axicon_tilt_rad=tuple(map(float, axicon_tilt_rad)),
+        axicon_tip_model=str(axicon_tip_model),
+        axicon_rounding_parameter_m=float(axicon_rounding_parameter_m),
+        axicon_flat_tip_radius_m=float(axicon_flat_tip_radius_m),
+    )
+    source, grid, meta = build_physical_source(
         case_id,
         grid_n=int(grid_n),
+        perturbation=perturbation,
         window_m=DEFAULT_WINDOW_M,
-        aperture_model=aperture_model,
     )
-    manifest = canonical_hardware_manifest()
-    wavelength = float(meta["wavelength_m"])
-    x = np.asarray(grid["X"], dtype=float)
-    y = np.asarray(grid["Y"], dtype=float)
-
-    # Beam-radius sensitivity is applied as an amplitude reweight relative to the
-    # canonical Gaussian envelope so upstream SLM/4F phase content is retained.
-    canonical_radius = float(hardware_value(manifest, "beam_radius_on_slm_m"))
-    target_radius = canonical_radius * float(beam_radius_scale)
-    r2 = x**2 + y**2
-    canonical_env = np.exp(-r2 / canonical_radius**2)
-    target_env = np.exp(-r2 / target_radius**2)
-    field = source * target_env / np.maximum(canonical_env, 1e-12)
-
-    # Re-map nominal axicon phase to a changed cone angle without re-running the
-    # rest of the optical train.  Remove nominal radial phase, then apply perturbed.
-    n_ax = float(hardware_value(manifest, "axicon_refractive_index"))
-    n_m = float(hardware_value(manifest, "axicon_external_medium_index"))
-    gamma0 = math.radians(float(hardware_value(manifest, "axicon_base_angle_deg")))
-    k0 = 2.0 * math.pi / wavelength
-    kr0 = k0 * (n_ax - n_m) * math.tan(gamma0)
-    gamma = gamma0 * float(axicon_angle_scale)
-    kr = k0 * (n_ax - n_m) * math.tan(gamma)
-    ax, ay = axicon_decentre_m
-    tx, ty = axicon_tilt_rad
-    r0 = np.hypot(x, y)
-    r1 = np.hypot(x - float(ax), y - float(ay))
-    field *= np.exp(+1j * kr0 * r0)
-    field *= np.exp(-1j * kr * r1)
-    field *= np.exp(1j * k0 * (float(tx) * x + float(ty) * y))
 
     if zernike_name is not None and abs(float(zernike_waves_rms)) > 0.0:
-        aberration_radius = 2.0 * canonical_radius
-        field = apply_zernike_waves(
-            field,
+        # Same transverse plane as the axicon transmission; multiplicative thin
+        # phases commute, so applying immediately after the axicon is equivalent
+        # to applying the generic wavefront error immediately before it.
+        radius = 2.0e-3
+        source = apply_zernike_waves(
+            source,
             grid,
             name=zernike_name,
             waves_rms=float(zernike_waves_rms),
-            radius_m=aberration_radius,
+            radius_m=radius,
         )
-
-    metadata = {
-        **meta,
-        "atlas_route": "repaired_phase2e_source_scale",
-        "beam_radius_scale": float(beam_radius_scale),
-        "axicon_angle_scale": float(axicon_angle_scale),
-        "axicon_decentre_x_m": float(ax),
-        "axicon_decentre_y_m": float(ay),
-        "axicon_tilt_x_rad": float(tx),
-        "axicon_tilt_y_rad": float(ty),
-        "zernike_name": zernike_name or "none",
-        "zernike_waves_rms": float(zernike_waves_rms),
-        "radial_wavevector_m_inv_atlas": float(kr),
-    }
-    return np.asarray(field, dtype=np.complex128), grid, metadata
+        meta = {
+            **meta,
+            "generic_wavefront_aberration": zernike_name,
+            "generic_wavefront_waves_rms": float(zernike_waves_rms),
+            "generic_wavefront_application_plane": "axicon_plane",
+        }
+    else:
+        meta = {
+            **meta,
+            "generic_wavefront_aberration": "none",
+            "generic_wavefront_waves_rms": 0.0,
+        }
+    return np.asarray(source, dtype=np.complex128), grid, dict(meta)
 
 
 def propagate_selected_planes(
@@ -226,22 +230,68 @@ def transverse_metrics(intensity: np.ndarray, grid: Mapping[str, Any]) -> dict[s
 
 
 def parameter_registry() -> dict[str, Sequence[Any]]:
+    """Physical input/design parameters, not generic aberrations."""
+
     return {
         "beam_radius_scale": (0.6, 0.8, 1.0, 1.2, 1.4),
         "axicon_angle_scale": (0.75, 0.875, 1.0, 1.125, 1.25),
-        "aperture_model": ("none", "soft", "hard"),
+        "input_beam_angle_x_rad": (-1.0e-3, -0.5e-3, 0.0, 0.5e-3, 1.0e-3),
+        "input_beam_decentre_x_m": (-400e-6, -200e-6, 0.0, 200e-6, 400e-6),
+    }
+
+
+def manufacturing_defect_registry() -> dict[str, Sequence[Any]]:
+    return {
+        "axicon_rounding_parameter_m": (0.0, 2e-6, 5e-6, 10e-6, 20e-6),
+        "axicon_flat_tip_radius_m": (0.0, 10e-6, 25e-6, 50e-6, 100e-6),
     }
 
 
 def aberration_registry() -> dict[str, Sequence[float]]:
-    return {name: (-0.20, -0.10, 0.0, 0.10, 0.20) for name in ZERNIKE_REGISTRY}
+    # Wider diagnostic range than the original plot so morphology is visibly
+    # interpretable.  These remain generic wavefront errors, not misalignment models.
+    return {name: (-0.50, -0.25, 0.0, 0.25, 0.50) for name in ZERNIKE_REGISTRY}
 
 
 def alignment_registry() -> dict[str, Sequence[float]]:
     return {
-        "axicon_decentre_x_m": (-200e-6, -100e-6, 0.0, 100e-6, 200e-6),
-        "axicon_tilt_x_rad": (-0.20e-3, -0.10e-3, 0.0, 0.10e-3, 0.20e-3),
+        "axicon_decentre_x_m": (-400e-6, -200e-6, 0.0, 200e-6, 400e-6),
+        "axicon_tilt_y_rad": tuple(np.deg2rad([-0.5, -0.25, 0.0, 0.25, 0.5])),
+        "hologram_decentre_x_m": (-200e-6, -100e-6, 0.0, 100e-6, 200e-6),
+        "fourier_iris_offset_fraction": (-0.6, -0.3, 0.0, 0.3, 0.6),
     }
+
+
+def _source_kwargs(family: str, parameter: str, value: Any) -> dict[str, Any]:
+    if family == "parameter":
+        if parameter == "input_beam_angle_x_rad":
+            return {"input_beam_angle_rad": (float(value), 0.0)}
+        if parameter == "input_beam_decentre_x_m":
+            return {"input_beam_decentre_m": (float(value), 0.0)}
+        return {parameter: value}
+    if family == "manufacturing":
+        if parameter == "axicon_rounding_parameter_m":
+            return {
+                "axicon_tip_model": "sharp" if float(value) == 0.0 else "hyperboloidal_round",
+                "axicon_rounding_parameter_m": float(value),
+            }
+        if parameter == "axicon_flat_tip_radius_m":
+            return {
+                "axicon_tip_model": "sharp" if float(value) == 0.0 else "flat_blunt",
+                "axicon_flat_tip_radius_m": float(value),
+            }
+    if family == "aberration":
+        return {"zernike_name": parameter, "zernike_waves_rms": float(value)}
+    if family == "alignment":
+        if parameter == "axicon_decentre_x_m":
+            return {"axicon_decentre_m": (float(value), 0.0)}
+        if parameter == "axicon_tilt_y_rad":
+            return {"axicon_tilt_rad": (0.0, float(value))}
+        if parameter == "hologram_decentre_x_m":
+            return {"hologram_decentre_m": (float(value), 0.0)}
+        if parameter == "fourier_iris_offset_fraction":
+            return {"fourier_iris_offset_fraction": float(value)}
+    raise ValueError((family, parameter, value))
 
 
 def run_atlas_screening(
@@ -251,43 +301,60 @@ def run_atlas_screening(
     grid_n: int = DEFAULT_SCREENING_N,
     z_m: float = 60e-3,
 ) -> dict[str, Any]:
-    """Generate numerical sweep tables; report plots are generated separately."""
+    """Generate numerical sweep tables using the physical-error backend."""
+
     rows: list[dict[str, Any]] = []
+    registries = (
+        ("parameter", parameter_registry()),
+        ("manufacturing", manufacturing_defect_registry()),
+        ("aberration", aberration_registry()),
+        ("alignment", alignment_registry()),
+    )
     for case_id in cases:
-        for parameter, values in parameter_registry().items():
-            for value in values:
-                kwargs: dict[str, Any] = {parameter: value}
-                source, grid, meta = build_atlas_source(case_id, grid_n=grid_n, **kwargs)
-                plane = propagate_selected_planes(source, grid, float(meta["wavelength_m"]), (z_m,))[0]
-                rows.append({"family": "parameter", "parameter": parameter, "value": value, "case_id": case_id, "grid_n": grid_n, "z_m": z_m, **transverse_metrics(plane, grid)})
-        for mode, values in aberration_registry().items():
-            for waves in values:
-                source, grid, meta = build_atlas_source(case_id, grid_n=grid_n, zernike_name=mode, zernike_waves_rms=waves)
-                plane = propagate_selected_planes(source, grid, float(meta["wavelength_m"]), (z_m,))[0]
-                rows.append({"family": "aberration", "parameter": mode, "value": waves, "case_id": case_id, "grid_n": grid_n, "z_m": z_m, **transverse_metrics(plane, grid)})
-        for parameter, values in alignment_registry().items():
-            for value in values:
-                kwargs = {}
-                if parameter == "axicon_decentre_x_m":
-                    kwargs["axicon_decentre_m"] = (float(value), 0.0)
-                elif parameter == "axicon_tilt_x_rad":
-                    kwargs["axicon_tilt_rad"] = (float(value), 0.0)
-                source, grid, meta = build_atlas_source(case_id, grid_n=grid_n, **kwargs)
-                plane = propagate_selected_planes(source, grid, float(meta["wavelength_m"]), (z_m,))[0]
-                rows.append({"family": "alignment", "parameter": parameter, "value": value, "case_id": case_id, "grid_n": grid_n, "z_m": z_m, **transverse_metrics(plane, grid)})
+        for family, registry in registries:
+            for parameter, values in registry.items():
+                for value in values:
+                    kwargs = _source_kwargs(family, parameter, value)
+                    source, grid, meta = build_atlas_source(case_id, grid_n=grid_n, **kwargs)
+                    plane = propagate_selected_planes(
+                        source, grid, float(meta["wavelength_m"]), (z_m,)
+                    )[0]
+                    rows.append(
+                        {
+                            "family": family,
+                            "parameter": parameter,
+                            "value": value,
+                            "case_id": case_id,
+                            "grid_n": grid_n,
+                            "z_m": z_m,
+                            "axicon_tilt_model": meta.get("axicon_tilt_model", ""),
+                            "full_vector_snell_fresnel": meta.get("full_vector_snell_fresnel", False),
+                            **transverse_metrics(plane, grid),
+                        }
+                    )
     _write_csv(output_root / "atlas_screening_metrics.csv", rows)
     manifest = {
-        "outcome": "VORTEX-VISUAL-ATLAS-SCREENING",
+        "outcome": "VORTEX-PHYSICAL-VISUAL-ATLAS-SCREENING",
         "report_figures_authorised": False,
         "screening_grid_n": int(grid_n),
         "report_grid_n": DEFAULT_REPORT_N,
-        "route": "repaired Phase 2E source-scale, nominal no additional hard aperture",
+        "route": "physical-plane SLM/4F/axicon source-scale route",
         "cases": list(cases),
         "parameter_registry": {k: list(v) for k, v in parameter_registry().items()},
+        "manufacturing_defect_registry": {
+            k: list(v) for k, v in manufacturing_defect_registry().items()
+        },
         "aberration_registry": {k: list(v) for k, v in aberration_registry().items()},
         "alignment_registry": {k: list(v) for k, v in alignment_registry().items()},
-        "zernike_convention": "numerically unit-RMS real modes inside radius=2*w0; phase=2*pi*waves_rms*Z",
-        "next_step": "select representative sweep points and regenerate report-facing figures at N=3072",
+        "zernike_convention": (
+            "generic unit-RMS wavefront modes at axicon plane; not used as substitutes for physical misalignment"
+        ),
+        "axicon_tilt_fidelity": (
+            "rotated thin-element OPD small-angle model; full vector Snell/Fresnel large-angle model not yet implemented"
+        ),
+        "calibration_required": (
+            "actual axicon tip profile/rounding, clear aperture, beam angle/decentre, and rigid-body alignment"
+        ),
     }
     _write_json(output_root / "atlas_screening_manifest.json", manifest)
     return manifest
