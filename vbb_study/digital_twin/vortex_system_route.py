@@ -117,14 +117,6 @@ def physical_axicon_on_own_plane(
     error: AxiconError,
     surface_height_error_m: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
-    """Axicon transmission in coordinates of the physical axicon plane.
-
-    The ideal conical phase uses the exact normal-incidence Snell cone angle.
-    Rounded/flat-tip defects are added as a difference from the sharp cone via
-    thin-element OPD.  This keeps the exact far-from-apex cone slope while the
-    local manufacturing defect modifies the apex region.
-    """
-
     error.validate()
     X = np.asarray(grid["X"], dtype=float) - float(error.decentre_m[0])
     Y = np.asarray(grid["Y"], dtype=float) - float(error.decentre_m[1])
@@ -283,8 +275,11 @@ def build_system_route(
         lens2_opd_map_m=lens2_opd_map_m,
     )
     X = np.asarray(grid["X"], dtype=float)
+    # Two Fourier transforms in a unity-magnification 4F relay produce an image
+    # inversion.  Thus an input +G carrier appears as -G at the image plane.  In
+    # the selected-order beam frame the nominal carrier is removed with +G.
     selected_order = np.asarray(relay["output"], dtype=np.complex128) * np.exp(
-        -1j * TWOPI * carrier * X
+        +1j * TWOPI * carrier * X
     )
 
     tx, ty = map(float, config.axicon.tilt_rad)
@@ -348,6 +343,7 @@ def build_system_route(
             "slm1": {**slm1_meta, **dict(slm1.metadata)},
             "slm2": {**slm2_meta, **dict(slm2.metadata)},
             "fourf": relay["metadata"],
+            "selected_order_carrier_removal": "plus_G_after_4F_image_inversion",
             "axicon": axicon_meta,
             "axicon_rigid_tilt_rad": (tx, ty),
             "axicon_tilt_status": tilt_status,
