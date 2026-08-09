@@ -1,0 +1,59 @@
+name: vortex-system-errors-ci
+
+on:
+  push:
+    branches: [phase2e-vortex-system-errors]
+  workflow_dispatch:
+
+jobs:
+  physics-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Focused system-error tests
+        run: |
+          python -m pytest \
+            tests/test_vortex_error_reference_models.py \
+            tests/test_vortex_round_tip_reference.py \
+            tests/test_vortex_physical_errors.py \
+            tests/test_vortex_visual_atlas.py \
+            tests/test_vortex_system_errors.py \
+            tests/test_vortex_explicit_system_extensions.py \
+            -q
+      - name: Compile new physics modules
+        run: |
+          python -m compileall -q \
+            vbb_study/digital_twin/vortex_beam_slm_errors.py \
+            vbb_study/digital_twin/vortex_explicit_4f.py \
+            vbb_study/digital_twin/vortex_rotated_plane.py \
+            vbb_study/digital_twin/vortex_system_route.py \
+            vbb_study/digital_twin/vortex_system_error_sweeps.py \
+            vbb_study/digital_twin/vortex_wavefront_errors.py \
+            tools/check_vortex_explicit_4f_parity.py \
+            tools/run_vortex_system_error_suite.py \
+            tools/run_vortex_declared_aberration_suite.py
+      - name: Nominal explicit-4F parity gate
+        run: python tools/check_vortex_explicit_4f_parity.py --grid-n 512 --cases B0 V1 V3
+      - name: Small executable smoke sweep
+        run: |
+          python tools/run_vortex_system_error_suite.py \
+            --cases B0 \
+            --families beam_lateral_decentre_x axicon_round_tip fourf_iris_offset_x \
+            --grid-n 256 \
+            --z-mm 60
+      - name: Upload smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vortex-system-errors-smoke
+          path: |
+            outputs/validation/vortex_system_errors
+            outputs/figures/vortex_system_errors
+          if-no-files-found: warn
