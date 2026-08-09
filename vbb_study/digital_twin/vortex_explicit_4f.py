@@ -1,17 +1,18 @@
-"""Explicit parallel-plane 4F relay for physical error studies.
+"""Explicit 4F relay for physical error studies.
 
 Unlike the historical collapsed ``FFT -> circular mask -> IFFT`` contract, this
-module propagates through two thin lenses and a physical Fourier-plane iris.  It
-therefore supports lens/iris despace, lens decentre, finite lens aperture and
-measured/prescribed lens wavefront error maps.
+module propagates through two physical thin-lens planes and a physical
+Fourier-plane iris.  It supports lens/iris despace, lens decentre, lens rigid
+plane tilt, finite aperture and measured/prescribed lens OPD maps.
 
-The fixed Fourier iris is centred on the *nominal selected diffraction order*,
+The fixed Fourier iris is centred on the nominal selected +1 diffraction order,
 not on the optical axis.  ``FourFError.iris_offset_m`` is an error relative to
-that nominal order centre.
+that fixed nominal centre.
 
-Lens *tilt* is intentionally not approximated here.  Rigid tilt changes the
-orientation of the optical plane and belongs to the rotated-angular-spectrum
-backend in ``vortex_rotated_plane.py``.
+Rigid lens tilt is handled by rotating the angular spectrum onto the actual lens
+plane, applying the thin-lens phase/aperture in local coordinates, and rotating
+back.  This is a scalar/paraxial thin-lens model; strongly tilted thick lenses
+still require surface-by-surface vector refraction for absolute prediction.
 """
 
 from __future__ import annotations
@@ -21,6 +22,7 @@ from typing import Any, Mapping
 
 import numpy as np
 
+from vbb_study.digital_twin.vortex_rotated_plane import lab_to_tilted_plane, tilted_to_lab_plane
 from vbb_study.equations.propagation import angular_spectrum_propagate_bl
 
 
@@ -32,6 +34,7 @@ TWOPI = 2.0 * np.pi
 class LensError:
     focal_length_scale: float = 1.0
     decentre_m: tuple[float, float] = (0.0, 0.0)
+    tilt_rad: tuple[float, float] = (0.0, 0.0)
     clear_radius_m: float | None = None
 
     def validate(self) -> None:
@@ -39,11 +42,13 @@ class LensError:
             raise ValueError("lens focal_length_scale must be positive")
         if self.clear_radius_m is not None and self.clear_radius_m <= 0.0:
             raise ValueError("lens clear radius must be positive")
+        if np.hypot(*map(float, self.tilt_rad)) >= np.deg2rad(10.0):
+            raise ValueError("scalar/paraxial tilted-lens model is not authorised at >=10 deg")
 
 
 @dataclass(frozen=True)
 class FourFError:
-    """Errors of a nominal symmetric 4F relay with fixed object/output planes."""
+    """Errors of a nominal symmetric 4F relay with fixed object/iris/output planes."""
 
     lens1: LensError = LensError()
     lens2: LensError = LensError()
@@ -82,6 +87,8 @@ def thin_lens_transmission(
     clear_radius_m: float | None = None,
     opd_map_m: np.ndarray | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
+    """Ideal paraxial thin lens in its own local plane."""
+
     X = np.asarray(grid["X"], dtype=float) - float(decentre_m[0])
     Y = np.asarray(grid["Y"], dtype=float) - float(decentre_m[1])
     k0 = TWOPI / float(wavelength_m)
@@ -102,7 +109,66 @@ def thin_lens_transmission(
         "decentre_m": tuple(map(float, decentre_m)),
         "clear_radius_m": None if clear_radius_m is None else float(clear_radius_m),
         "opd_map_status": opd_status,
-        "lens_tilt_model": "not_in_parallel_plane_backend",
+    }
+
+
+def _apply_lens_plane(
+    field_lab: np.ndarray,
+    grid: Mapping[str, Any],
+    *,
+    wavelength_m: float,
+    focal_length_m: float,
+    error: LensError,
+    opd_map_m: np.ndarray | None,
+) -> tuple[np.ndarray, dict[str, Any]]:
+    tx, ty = map(float, error.tilt_rad)
+    if tx != 0.0 or ty != 0.0:
+        local_field, to_meta = lab_to_tilted_plane(
+            field_lab,
+            grid,
+            wavelength_m=wavelength_m,
+            tilt_x_rad=tx,
+            tilt_y_rad=ty,
+        )
+    else:
+        local_field = np.asarray(field_lab, dtype=np.complex128)
+        to_meta = {"fidelity": "identity_parallel_plane", "spectral_clipped_fraction": 0.0}
+
+    lens_t, lens_meta = thin_lens_transmission(
+        grid,
+        wavelength_m=wavelength_m,
+        focal_length_m=focal_length_m,
+        decentre_m=error.decentre_m,
+        clear_radius_m=error.clear_radius_m,
+        opd_map_m=opd_map_m,
+    )
+    local_after = local_field * lens_t
+
+    if tx != 0.0 or ty != 0.0:
+        returned, from_meta = tilted_to_lab_plane(
+            local_after,
+            grid,
+            wavelength_m=wavelength_m,
+            tilt_x_rad=tx,
+            tilt_y_rad=ty,
+        )
+        tilt_status = "scalar_rotated_angular_spectrum_thin_lens"
+    else:
+        returned = local_after
+        from_meta = {"fidelity": "identity_parallel_plane", "spectral_clipped_fraction": 0.0}
+        tilt_status = "none"
+
+    return np.asarray(returned, dtype=np.complex128), {
+        **lens_meta,
+        "tilt_rad": (tx, ty),
+        "tilt_status": tilt_status,
+        "lab_to_lens_plane": to_meta,
+        "lens_plane_to_lab": from_meta,
+        "tilt_fidelity": (
+            "scalar_paraxial_rotated_plane"
+            if tilt_status != "none"
+            else "parallel_plane"
+        ),
     }
 
 
@@ -123,8 +189,6 @@ def nominal_order_position_m(
     focal_length_m: float,
     carrier_cpm: float,
 ) -> tuple[float, float]:
-    """Exact paraxial-lens location of the nominal +1 carrier order."""
-
     sx = float(wavelength_m) * float(carrier_cpm)
     if abs(sx) >= 1.0:
         raise ValueError("nominal carrier order is non-propagating")
@@ -166,7 +230,7 @@ def explicit_4f_relay(
     lens1_opd_map_m: np.ndarray | None = None,
     lens2_opd_map_m: np.ndarray | None = None,
 ) -> dict[str, Any]:
-    """Propagate object -> L1 -> physical +1 iris -> L2 -> output plane."""
+    """Propagate object -> L1 -> fixed physical +1 iris -> L2 -> output."""
 
     error.validate(float(nominal_focal_length_m))
     f = float(nominal_focal_length_m)
@@ -177,27 +241,18 @@ def explicit_4f_relay(
 
     f1 = f * float(error.lens1.focal_length_scale)
     f2 = f * float(error.lens2.focal_length_scale)
-    lens1, lens1_meta = thin_lens_transmission(
+    u0 = np.asarray(field_in, dtype=np.complex128)
+    p0 = field_power(u0, grid)
+
+    pre_l1 = _propagate(u0, grid, wavelength_m, d_obj_l1)
+    post_l1, lens1_meta = _apply_lens_plane(
+        pre_l1,
         grid,
         wavelength_m=wavelength_m,
         focal_length_m=f1,
-        decentre_m=error.lens1.decentre_m,
-        clear_radius_m=error.lens1.clear_radius_m,
+        error=error.lens1,
         opd_map_m=lens1_opd_map_m,
     )
-    lens2, lens2_meta = thin_lens_transmission(
-        grid,
-        wavelength_m=wavelength_m,
-        focal_length_m=f2,
-        decentre_m=error.lens2.decentre_m,
-        clear_radius_m=error.lens2.clear_radius_m,
-        opd_map_m=lens2_opd_map_m,
-    )
-
-    u0 = np.asarray(field_in, dtype=np.complex128)
-    p0 = field_power(u0, grid)
-    pre_l1 = _propagate(u0, grid, wavelength_m, d_obj_l1)
-    post_l1 = pre_l1 * lens1
     pre_iris = _propagate(post_l1, grid, wavelength_m, d_l1_iris)
 
     nominal_centre = nominal_order_position_m(
@@ -216,7 +271,14 @@ def explicit_4f_relay(
     selected_fraction = field_power(post_iris, grid) / max(pre_iris_power, EPS)
 
     pre_l2 = _propagate(post_iris, grid, wavelength_m, d_iris_l2)
-    post_l2 = pre_l2 * lens2
+    post_l2, lens2_meta = _apply_lens_plane(
+        pre_l2,
+        grid,
+        wavelength_m=wavelength_m,
+        focal_length_m=f2,
+        error=error.lens2,
+        opd_map_m=lens2_opd_map_m,
+    )
     output = _propagate(post_l2, grid, wavelength_m, d_l2_out)
 
     return {
@@ -230,7 +292,7 @@ def explicit_4f_relay(
         "post_lens2": post_l2,
         "output": output,
         "metadata": {
-            "model": "explicit_parallel_plane_4f_ASM",
+            "model": "explicit_4f_ASM_with_rotated_thin_lens_planes",
             "nominal_focal_length_m": f,
             "nominal_carrier_cpm": float(nominal_carrier_cpm),
             "nominal_selected_order_centre_m": tuple(map(float, nominal_centre)),
@@ -248,6 +310,5 @@ def explicit_4f_relay(
             "iris_selected_power_fraction": float(selected_fraction),
             "input_power": float(p0),
             "output_power": float(field_power(output, grid)),
-            "lens_tilt_status": "requires_rotated_plane_backend",
         },
     }
