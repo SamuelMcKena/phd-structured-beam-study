@@ -1,15 +1,14 @@
 """Predeclared screening sweeps for the physical vortex/Bessel system route.
 
-Values in this module are *sensitivity values*, not measurements of the lab.
-Every output carries that provenance.  Measured/LUT/map-driven families remain
-calibration-blocked until data are supplied.
+Values here are sensitivity values, not measurements of the lab.  Every output
+carries that provenance.  Measured/LUT/map-driven families remain blocked until
+real data are supplied.
 """
 
 from __future__ import annotations
 
 import math
-from dataclasses import replace
-from typing import Any, Callable, Sequence
+from typing import Any, Callable
 
 from vbb_study.digital_twin.vortex_beam_slm_errors import GaussianBeamError, SLMError
 from vbb_study.digital_twin.vortex_explicit_4f import FourFError, LensError
@@ -40,8 +39,6 @@ def _axicon(**kwargs: Any) -> SystemErrorConfig:
 
 
 def system_sweep_registry() -> dict[str, dict[str, Any]]:
-    """Return all currently executable physical relative-sensitivity families."""
-
     return {
         "beam_lateral_decentre_x": {
             "values": (-500e-6, -250e-6, 0.0, 250e-6, 500e-6),
@@ -102,7 +99,7 @@ def system_sweep_registry() -> dict[str, dict[str, Any]]:
         },
         "fourf_iris_offset_x": {
             "values": (-0.6e-3, -0.3e-3, 0.0, 0.3e-3, 0.6e-3),
-            "units": "m",
+            "units": "m relative to nominal +1 order",
             "builder": lambda v: _fourf(FourFError(iris_offset_m=(float(v), 0.0))),
             "fidelity": "physical_parallel_plane_4f",
         },
@@ -127,18 +124,26 @@ def system_sweep_registry() -> dict[str, dict[str, Any]]:
         "fourf_lens1_decentre_x": {
             "values": (-500e-6, -250e-6, 0.0, 250e-6, 500e-6),
             "units": "m",
-            "builder": lambda v: _fourf(
-                FourFError(lens1=LensError(decentre_m=(float(v), 0.0)))
-            ),
+            "builder": lambda v: _fourf(FourFError(lens1=LensError(decentre_m=(float(v), 0.0)))),
             "fidelity": "paraxial_thin_lens_physical_decentre",
         },
         "fourf_lens2_decentre_x": {
             "values": (-500e-6, -250e-6, 0.0, 250e-6, 500e-6),
             "units": "m",
-            "builder": lambda v: _fourf(
-                FourFError(lens2=LensError(decentre_m=(float(v), 0.0)))
-            ),
+            "builder": lambda v: _fourf(FourFError(lens2=LensError(decentre_m=(float(v), 0.0)))),
             "fidelity": "paraxial_thin_lens_physical_decentre",
+        },
+        "fourf_lens1_tilt_y": {
+            "values": tuple(math.radians(v) for v in (-0.5, -0.25, 0.0, 0.25, 0.5)),
+            "units": "rad",
+            "builder": lambda v: _fourf(FourFError(lens1=LensError(tilt_rad=(0.0, float(v))))),
+            "fidelity": "scalar_paraxial_rotated_thin_lens_plane",
+        },
+        "fourf_lens2_tilt_y": {
+            "values": tuple(math.radians(v) for v in (-0.5, -0.25, 0.0, 0.25, 0.5)),
+            "units": "rad",
+            "builder": lambda v: _fourf(FourFError(lens2=LensError(tilt_rad=(0.0, float(v))))),
+            "fidelity": "scalar_paraxial_rotated_thin_lens_plane",
         },
         "axicon_lateral_decentre_x": {
             "values": (-500e-6, -250e-6, 0.0, 250e-6, 500e-6),
@@ -150,7 +155,7 @@ def system_sweep_registry() -> dict[str, dict[str, Any]]:
             "values": tuple(math.radians(v) for v in (-0.5, -0.25, 0.0, 0.25, 0.5)),
             "units": "rad",
             "builder": lambda v: _axicon(tilt_rad=(0.0, float(v))),
-            "fidelity": "scalar_rotated_angular_spectrum; refractive_vector_claims_blocked",
+            "fidelity": "scalar_rotated_angular_spectrum; full refractive-vector claims blocked",
         },
         "axicon_round_tip": {
             "values": (0.0, 2e-6, 5e-6, 10e-6, 20e-6),
@@ -180,7 +185,7 @@ def system_sweep_registry() -> dict[str, dict[str, Any]]:
             "values": (0.99, 0.995, 1.0, 1.005, 1.01),
             "units": "ratio",
             "builder": lambda v: _axicon(refractive_index_scale=float(v)),
-            "fidelity": "exact_normal_incidence_Snell_cone; material_dispersion_calibration_required",
+            "fidelity": "exact_normal_incidence_Snell_cone; dispersion calibration required",
         },
     }
 
@@ -201,11 +206,11 @@ def blocked_or_data_driven_families() -> dict[str, dict[str, Any]]:
         },
         "lens_OPD_maps": {
             "status": "data_required",
-            "required": "measured/manufacturer lens wavefront maps or declared Zernike sensitivity coefficients",
+            "required": "measured/manufacturer lens wavefront maps or declared generic sensitivity coefficients",
         },
-        "rigid_lens_tilt": {
-            "status": "backend_extension_required",
-            "required": "rotated-plane lens propagation using the same spectral rotation backend plus validation",
+        "thick_lens_large_tilt": {
+            "status": "full_surface_refraction_required",
+            "required": "surface-by-surface thick-lens/vector refraction for absolute large-angle prediction",
         },
         "axicon_clear_aperture": {
             "status": "measurement_required",
