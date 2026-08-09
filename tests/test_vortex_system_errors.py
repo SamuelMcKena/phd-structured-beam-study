@@ -104,7 +104,12 @@ def test_explicit_4f_changes_when_lens_is_axially_misplaced() -> None:
         error=FourFError(lens2_axial_shift_m=2e-3),
     )
     assert not np.allclose(nominal["output"], shifted["output"])
-    assert shifted["metadata"]["distances_m"]["iris_to_lens2"] == 0.052
+    assert np.isclose(
+        shifted["metadata"]["distances_m"]["iris_to_lens2"],
+        0.052,
+        rtol=0.0,
+        atol=1e-15,
+    )
 
 
 def test_lens_decentre_is_quadratic_phase_about_shifted_optical_axis() -> None:
