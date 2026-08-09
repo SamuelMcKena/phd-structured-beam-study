@@ -120,9 +120,9 @@ def physical_axicon_on_own_plane(
     """Axicon transmission in coordinates of the physical axicon plane.
 
     The ideal conical phase uses the exact normal-incidence Snell cone angle.
-    Rounded/flat-tip defects are added as a *difference* from the sharp cone via
-    the thin-element OPD.  Thus the far-from-apex cone retains the exact Snell
-    slope while the local manufacturing defect modifies only the apex region.
+    Rounded/flat-tip defects are added as a difference from the sharp cone via
+    thin-element OPD.  This keeps the exact far-from-apex cone slope while the
+    local manufacturing defect modifies the apex region.
     """
 
     error.validate()
@@ -140,7 +140,6 @@ def physical_axicon_on_own_plane(
         external_index=n_ext,
     )
     ideal_phase = -kr_exact * R
-
     sharp_sag = R * math.tan(gamma)
     defect_sag = axicon_sag_m(
         R,
@@ -204,8 +203,6 @@ def build_system_route(
     lens2_opd_map_m: np.ndarray | None = None,
     axicon_surface_height_error_m: np.ndarray | None = None,
 ) -> dict[str, Any]:
-    """Build the complete scalar physical-error source up to the axicon output."""
-
     config.beam.validate()
     config.slm1.validate()
     config.slm2.validate()
@@ -230,11 +227,8 @@ def build_system_route(
     )
     panel = _panel_from_manifest(manifest)
 
-    # SLM1: scalar vortex phase. Pattern geometry is evaluated in the physical
-    # SLM1 coordinate frame and then pixelated on the device lattice.
     x1, y1 = transformed_pattern_coordinates(grid, config.slm1)
-    command1 = float(_ell(case_id)) * np.arctan2(y1, x1)
-    command1 = pixelate(command1, grid, panel)
+    command1 = pixelate(float(_ell(case_id)) * np.arctan2(y1, x1), grid, panel)
     actual1, slm1_meta = actual_slm_phase(
         command1,
         grid,
@@ -255,11 +249,8 @@ def build_system_route(
         fill_factor_model=PHASE2A_CANONICAL_SLM_MODEL,
     )
 
-    # SLM2: carrier grating.  A rotated/scaled/misregistered SLM2 physically
-    # changes the carrier vector rather than merely shifting a final image.
     x2, _ = transformed_pattern_coordinates(grid, config.slm2)
-    command2 = TWOPI * carrier * x2
-    command2 = pixelate(command2, grid, panel)
+    command2 = pixelate(TWOPI * carrier * x2, grid, panel)
     actual2, slm2_meta = actual_slm_phase(
         command2,
         grid,
@@ -286,13 +277,11 @@ def build_system_route(
         wavelength_m=wavelength,
         nominal_focal_length_m=f4f,
         nominal_iris_radius_m=iris_radius,
+        nominal_carrier_cpm=carrier,
         error=config.fourf,
         lens1_opd_map_m=lens1_opd_map_m,
         lens2_opd_map_m=lens2_opd_map_m,
     )
-    # Define the downstream coordinate frame around the nominal +1 order, as in
-    # the accepted collapsed first-order route.  Input pointing/misregistration
-    # remains as residual tilt; only the known nominal carrier is removed.
     X = np.asarray(grid["X"], dtype=float)
     selected_order = np.asarray(relay["output"], dtype=np.complex128) * np.exp(
         -1j * TWOPI * carrier * X
