@@ -16,9 +16,10 @@ Model scope
   surrogate.  Its kernel widths are calibration parameters; non-zero default
   values are never assumed.
 
-The fringing surrogate is inspired by direction-dependent convolution models in
-Lingel, Haist & Osten, Applied Optics 52, 6877-6883 (2013).  It is not claimed
-to reproduce a specific HOLOEYE panel until fitted to measured diffraction data.
+The fringing surrogate follows the modelling *strategy* of Lingel, Haist &
+Osten, Applied Optics 52, 6877-6883 (2013), who model the direction-dependent
+blur of sharp SLM phase edges.  The exact kernel here is not claimed to reproduce
+a specific HOLOEYE panel until fitted to measured diffraction data.
 """
 
 from __future__ import annotations
@@ -28,6 +29,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 
 import numpy as np
+from scipy.ndimage import gaussian_filter
 
 from vbb_study.digital_twin.phase2a_contracts import canonical_hardware_manifest, hardware_value
 from vbb_study.equations.fields import phase_wrap
@@ -70,7 +72,7 @@ class GaussianBeamError:
 class SLMError:
     """One phase-only SLM error model.
 
-    Registration parameters act on the *commanded pattern coordinates*.
+    Registration parameters act on the commanded pattern coordinates.
     ``phase_stroke_scale`` rescales the actual phase swing relative to ideal.
     ``fringing_sigma_*_px`` are phenomenological convolution widths and remain
     zero unless fitted to measured data.
@@ -105,7 +107,6 @@ def _beam_frame(pointing_rad: tuple[float, float]) -> tuple[np.ndarray, np.ndarr
     sy = math.sin(ty)
     sz = math.sqrt(max(0.0, 1.0 - sx * sx - sy * sy))
     s = np.asarray([sx, sy, sz], dtype=float)
-    # e1 is chosen as the projection of lab +x onto the plane normal to s.
     trial = np.asarray([1.0, 0.0, 0.0], dtype=float)
     e1 = trial - float(np.dot(trial, s)) * s
     if np.linalg.norm(e1) < 1e-12:
@@ -127,10 +128,8 @@ def gaussian_input_field(
     """Return an obliquely incident astigmatic/elliptical Gaussian at z=0.
 
     The Gaussian envelope is evaluated in a beam-fixed orthonormal transverse
-    basis, so finite pointing angles correctly project a circular/elliptical beam
-    onto the laboratory SLM plane instead of keeping an artificial circular
-    footprint.  For the mrad errors used in the current study this projection is
-    tiny, but keeping it makes the model valid beyond the infinitesimal limit.
+    basis, so finite pointing angles project the beam onto the laboratory SLM
+    plane instead of imposing an artificial angle-independent circular footprint.
     """
 
     error.validate()
@@ -192,11 +191,7 @@ def quantise_commanded_phase(phase_rad: np.ndarray, levels: int) -> np.ndarray:
 
 
 def phase_from_lut(commanded_phase_rad: np.ndarray, lut_phase_rad: np.ndarray) -> np.ndarray:
-    """Map commanded wrapped phase to a measured grey->phase LUT.
-
-    ``lut_phase_rad`` is expected to contain one measured phase value per grey
-    level.  The ideal wrapped command is converted to the nearest grey index.
-    """
+    """Map a wrapped command to a supplied measured grey->phase LUT."""
 
     lut = np.asarray(lut_phase_rad, dtype=float).ravel()
     if lut.size < 2:
@@ -204,14 +199,6 @@ def phase_from_lut(commanded_phase_rad: np.ndarray, lut_phase_rad: np.ndarray) -
     wrapped = phase_wrap(np.asarray(commanded_phase_rad, dtype=float))
     idx = np.floor(wrapped / TWOPI * lut.size + 0.5).astype(np.int64) % lut.size
     return lut[idx]
-
-
-def _gaussian_transfer(
-    grid: Mapping[str, Any], sigma_x_m: float, sigma_y_m: float
-) -> np.ndarray:
-    FX = np.asarray(grid["FX"], dtype=float)
-    FY = np.asarray(grid["FY"], dtype=float)
-    return np.exp(-2.0 * np.pi**2 * (sigma_x_m**2 * FX**2 + sigma_y_m**2 * FY**2))
 
 
 def apply_fringing_surrogate(
@@ -222,28 +209,33 @@ def apply_fringing_surrogate(
     sigma_x_px: float,
     sigma_y_px: float,
 ) -> np.ndarray:
-    """Direction-dependent convolution surrogate for LC fringing fields.
+    """Direction-dependent convolution surrogate for LC fringing-field blur.
 
-    The convolution is performed on the commanded complex phasor to avoid
-    branch-cut artefacts of directly blurring a wrapped phase map.  The returned
-    phase is the argument of the blurred phasor.  Kernel widths must be calibrated
-    against the actual panel; zero widths return the input exactly.
+    Lingel et al. model fringing as a direction-dependent convolution of the SLM
+    phase response.  Here the wrapped command is first locally unwrapped along
+    both computational axes, convolved with an anisotropic Gaussian kernel, then
+    wrapped again.  This correctly turns a commanded sharp phase edge into a
+    finite-width phase transition, unlike complex-phasor averaging which can
+    leave a 0/pi edge discontinuous.
+
+    The Gaussian kernel is deliberately a *fit surrogate*: its x/y widths must
+    be calibrated from the actual panel (for example from measured grating
+    diffraction efficiencies).  It is not a claimed manufacturer model.
     """
 
     if sigma_x_px == 0.0 and sigma_y_px == 0.0:
         return np.asarray(phase_rad, dtype=float)
-    sx = float(sigma_x_px) * float(pixel_pitch_m)
-    sy = float(sigma_y_px) * float(pixel_pitch_m)
-    transfer = _gaussian_transfer(grid, sx, sy)
-    phasor = np.exp(1j * np.asarray(phase_rad, dtype=float))
-    blurred = np.fft.fftshift(
-        np.fft.ifft2(
-            np.fft.ifftshift(
-                np.fft.fftshift(np.fft.fft2(np.fft.ifftshift(phasor))) * transfer
-            )
-        )
+    dx = float(grid["dx"])
+    sigma_x_samples = float(sigma_x_px) * float(pixel_pitch_m) / dx
+    sigma_y_samples = float(sigma_y_px) * float(pixel_pitch_m) / dx
+    phase = np.asarray(phase_rad, dtype=float)
+    unwrapped = np.unwrap(np.unwrap(phase, axis=1), axis=0)
+    blurred = gaussian_filter(
+        unwrapped,
+        sigma=(sigma_y_samples, sigma_x_samples),
+        mode="nearest",
     )
-    return np.angle(blurred)
+    return phase_wrap(np.asarray(blurred, dtype=float))
 
 
 def actual_slm_phase(
@@ -264,7 +256,6 @@ def actual_slm_phase(
         lut_status = "identity_unmeasured"
     else:
         actual = phase_from_lut(quantised, np.asarray(lut_phase_rad, dtype=float))
-        # Stroke/bias remain useful for controlled sensitivity around a measured LUT.
         actual = actual * float(error.phase_stroke_scale) + float(error.phase_bias_rad)
         lut_status = "measured_or_user_supplied"
 
@@ -293,7 +284,7 @@ def actual_slm_phase(
         "phase_lut_status": lut_status,
         "static_phase_map_status": static_status,
         "fringing_fidelity": (
-            "calibration_required_direction_dependent_convolution_surrogate"
+            "calibration_required_direction_dependent_phase_convolution_surrogate"
             if (error.fringing_sigma_x_px or error.fringing_sigma_y_px)
             else "disabled"
         ),
