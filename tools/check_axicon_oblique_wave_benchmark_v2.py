@@ -62,8 +62,12 @@ def main() -> None:
         wave_anisotropy = abs(wx - wy) / max(0.5 * (wx + wy), EPS)
         ray = route["metadata"].get("independent_snell_ray_reference", {})
         ray_anisotropy = float(ray.get("cone_radius_anisotropy_fraction", 0.0))
-        to_ratio = float(route["metadata"].get("lab_to_tilted", {}).get("spectral_power_ratio", 1.0))
-        from_ratio = float(route["metadata"].get("tilted_to_lab", {}).get("spectral_power_ratio", 1.0))
+        to_meta = route["metadata"].get("lab_to_tilted", {})
+        from_meta = route["metadata"].get("tilted_to_lab", {})
+        to_l2 = float(to_meta.get("spectral_power_ratio", 1.0))
+        from_l2 = float(from_meta.get("spectral_power_ratio", 1.0))
+        to_flux = float(to_meta.get("normal_flux_power_ratio", 1.0))
+        from_flux = float(from_meta.get("normal_flux_power_ratio", 1.0))
         rows.append(
             {
                 "tilt_deg": float(degrees),
@@ -71,12 +75,21 @@ def main() -> None:
                 "yz_mean_width_m": wy,
                 "wave_width_anisotropy_fraction": float(wave_anisotropy),
                 "snell_ray_cone_anisotropy_fraction": ray_anisotropy,
-                "lab_to_tilted_spectral_power_ratio": to_ratio,
-                "tilted_to_lab_spectral_power_ratio": from_ratio,
+                "lab_to_tilted_spectral_l2_ratio": to_l2,
+                "tilted_to_lab_spectral_l2_ratio": from_l2,
+                "lab_to_tilted_normal_flux_ratio": to_flux,
+                "tilted_to_lab_normal_flux_ratio": from_flux,
+                "roundtrip_raw_l2_product": to_l2 * from_l2,
             }
         )
-        if min(to_ratio, from_ratio) < 0.985:
-            hard_failures.append(f"{degrees:g} deg baseband rotated-plane ratio < 0.985")
+        if min(to_flux, from_flux) < 0.985:
+            hard_failures.append(
+                f"{degrees:g} deg carrier-tracked normal-flux ratio < 0.985"
+            )
+        if abs(to_l2 * from_l2 - 1.0) > 0.01:
+            hard_failures.append(
+                f"{degrees:g} deg roundtrip raw-L2 projection product differs from unity by >1%"
+            )
 
     ray_values = np.asarray([row["snell_ray_cone_anisotropy_fraction"] for row in rows])
     wave_values = np.asarray([row["wave_width_anisotropy_fraction"] for row in rows])
@@ -97,11 +110,13 @@ def main() -> None:
         "report_figures_authorised": False,
         "grid_n": int(args.grid_n),
         "angles_deg": [0.0, 5.0, 10.0],
+        "power_invariant": "normal_flux_integral_|A|^2_fnormal",
         "rows": rows,
         "hard_failures": hard_failures,
         "policy": (
             "Passing establishes a non-invariant, carrier-safe scalar thin-axicon oblique response with the same trend as the independent Snell reference. "
-            "It does not replace full refractive-surface/vector validation."
+            "Raw spectral L2 projection is recorded but is not treated as a conserved finite-tilt power. "
+            "This does not replace full refractive-surface/vector validation."
         ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
