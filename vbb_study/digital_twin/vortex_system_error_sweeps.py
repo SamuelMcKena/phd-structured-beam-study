@@ -3,6 +3,11 @@
 Values here are sensitivity values, not measurements of the lab.  Every output
 carries that provenance.  Measured/LUT/map-driven families remain blocked until
 real data are supplied.
+
+The registry deliberately includes x/y counterparts where the carrier or
+hardware breaks rotational symmetry.  A few transformations that are physically
+degenerate are not promoted to independent sweeps (for example translating an
+ideal infinite carrier only adds a global phase).
 """
 
 from __future__ import annotations
@@ -39,11 +44,21 @@ def _axicon(**kwargs: Any) -> SystemErrorConfig:
 
 
 def system_sweep_registry() -> dict[str, dict[str, Any]]:
+    curvature_values = (-4.0, -2.0, math.inf, 2.0, 4.0)
+    lateral_values = (-500e-6, -250e-6, 0.0, 250e-6, 500e-6)
+    small_lateral_values = (-200e-6, -100e-6, 0.0, 100e-6, 200e-6)
+    lens_tilt_values = tuple(math.radians(v) for v in (-0.5, -0.25, 0.0, 0.25, 0.5))
     return {
         "beam_lateral_decentre_x": {
-            "values": (-500e-6, -250e-6, 0.0, 250e-6, 500e-6),
+            "values": lateral_values,
             "units": "m",
             "builder": lambda v: _beam(decentre_m=(float(v), 0.0)),
+            "fidelity": "physical_input_plane",
+        },
+        "beam_lateral_decentre_y": {
+            "values": lateral_values,
+            "units": "m",
+            "builder": lambda v: _beam(decentre_m=(0.0, float(v))),
             "fidelity": "physical_input_plane",
         },
         "beam_radius_scale": {
@@ -61,16 +76,37 @@ def system_sweep_registry() -> dict[str, dict[str, Any]]:
             ),
             "fidelity": "physical_input_plane",
         },
+        "beam_curvature_common": {
+            "values": curvature_values,
+            "units": "m radius of curvature in x and y",
+            "builder": lambda v: _beam(
+                curvature_radius_x_m=float(v),
+                curvature_radius_y_m=float(v),
+            ),
+            "fidelity": "paraxial_Gaussian_wavefront",
+        },
         "beam_curvature_x": {
-            "values": (-4.0, -2.0, math.inf, 2.0, 4.0),
-            "units": "m radius of curvature",
+            "values": curvature_values,
+            "units": "m radius of curvature in x only",
             "builder": lambda v: _beam(curvature_radius_x_m=float(v)),
             "fidelity": "paraxial_Gaussian_wavefront",
         },
+        "beam_curvature_y": {
+            "values": curvature_values,
+            "units": "m radius of curvature in y only",
+            "builder": lambda v: _beam(curvature_radius_y_m=float(v)),
+            "fidelity": "paraxial_Gaussian_wavefront",
+        },
         "slm1_hologram_offset_x": {
-            "values": (-200e-6, -100e-6, 0.0, 100e-6, 200e-6),
+            "values": small_lateral_values,
             "units": "m",
             "builder": lambda v: _slm1(pattern_offset_m=(float(v), 0.0)),
+            "fidelity": "physical_pattern_registration",
+        },
+        "slm1_hologram_offset_y": {
+            "values": small_lateral_values,
+            "units": "m",
+            "builder": lambda v: _slm1(pattern_offset_m=(0.0, float(v))),
             "fidelity": "physical_pattern_registration",
         },
         "slm2_carrier_rotation": {
@@ -79,28 +115,73 @@ def system_sweep_registry() -> dict[str, dict[str, Any]]:
             "builder": lambda v: _slm2(pattern_rotation_rad=float(v)),
             "fidelity": "physical_pattern_registration",
         },
+        "slm2_carrier_scale_x": {
+            "values": (0.98, 0.99, 1.0, 1.01, 1.02),
+            "units": "coordinate scale ratio; effective carrier frequency changes inversely",
+            "builder": lambda v: _slm2(pattern_scale_x=float(v)),
+            "fidelity": "physical_commanded_carrier_frequency_error",
+        },
         "slm_phase_stroke": {
             "values": (0.85, 0.925, 1.0, 1.075, 1.15),
-            "units": "ratio",
+            "units": "ratio applied to both panels",
             "builder": lambda v: SystemErrorConfig(
                 slm1=SLMError(phase_stroke_scale=float(v)),
                 slm2=SLMError(phase_stroke_scale=float(v)),
             ),
             "fidelity": "sensitivity_only_until_LUT_measured",
         },
+        "slm1_phase_stroke": {
+            "values": (0.85, 0.925, 1.0, 1.075, 1.15),
+            "units": "ratio",
+            "builder": lambda v: _slm1(phase_stroke_scale=float(v)),
+            "fidelity": "sensitivity_only_until_LUT_measured",
+        },
+        "slm2_phase_stroke": {
+            "values": (0.85, 0.925, 1.0, 1.075, 1.15),
+            "units": "ratio",
+            "builder": lambda v: _slm2(phase_stroke_scale=float(v)),
+            "fidelity": "sensitivity_only_until_LUT_measured",
+        },
         "slm_fringing_sigma_x": {
             "values": (0.0, 0.25, 0.5, 0.75, 1.0),
-            "units": "pixel sigma",
+            "units": "pixel sigma applied to both panels in x",
             "builder": lambda v: SystemErrorConfig(
                 slm1=SLMError(fringing_sigma_x_px=float(v)),
                 slm2=SLMError(fringing_sigma_x_px=float(v)),
             ),
             "fidelity": "calibration_required_convolution_surrogate",
         },
+        "slm_fringing_sigma_y": {
+            "values": (0.0, 0.25, 0.5, 0.75, 1.0),
+            "units": "pixel sigma applied to both panels in y",
+            "builder": lambda v: SystemErrorConfig(
+                slm1=SLMError(fringing_sigma_y_px=float(v)),
+                slm2=SLMError(fringing_sigma_y_px=float(v)),
+            ),
+            "fidelity": "calibration_required_convolution_surrogate",
+        },
+        "slm1_fringing_sigma_x": {
+            "values": (0.0, 0.25, 0.5, 0.75, 1.0),
+            "units": "pixel sigma",
+            "builder": lambda v: _slm1(fringing_sigma_x_px=float(v)),
+            "fidelity": "calibration_required_convolution_surrogate",
+        },
+        "slm2_fringing_sigma_x": {
+            "values": (0.0, 0.25, 0.5, 0.75, 1.0),
+            "units": "pixel sigma",
+            "builder": lambda v: _slm2(fringing_sigma_x_px=float(v)),
+            "fidelity": "calibration_required_convolution_surrogate",
+        },
         "fourf_iris_offset_x": {
             "values": (-0.6e-3, -0.3e-3, 0.0, 0.3e-3, 0.6e-3),
             "units": "m relative to nominal +1 order",
             "builder": lambda v: _fourf(FourFError(iris_offset_m=(float(v), 0.0))),
+            "fidelity": "physical_parallel_plane_4f",
+        },
+        "fourf_iris_offset_y": {
+            "values": (-0.6e-3, -0.3e-3, 0.0, 0.3e-3, 0.6e-3),
+            "units": "m relative to nominal +1 order",
+            "builder": lambda v: _fourf(FourFError(iris_offset_m=(0.0, float(v)))),
             "fidelity": "physical_parallel_plane_4f",
         },
         "fourf_iris_radius_scale": {
@@ -121,38 +202,86 @@ def system_sweep_registry() -> dict[str, dict[str, Any]]:
             "builder": lambda v: _fourf(FourFError(lens2_axial_shift_m=float(v))),
             "fidelity": "physical_parallel_plane_4f",
         },
+        "fourf_lens1_focal_scale": {
+            "values": (0.98, 0.99, 1.0, 1.01, 1.02),
+            "units": "focal-length ratio",
+            "builder": lambda v: _fourf(FourFError(lens1=LensError(focal_length_scale=float(v)))),
+            "fidelity": "paraxial_thin_lens_focal_error",
+        },
+        "fourf_lens2_focal_scale": {
+            "values": (0.98, 0.99, 1.0, 1.01, 1.02),
+            "units": "focal-length ratio",
+            "builder": lambda v: _fourf(FourFError(lens2=LensError(focal_length_scale=float(v)))),
+            "fidelity": "paraxial_thin_lens_focal_error",
+        },
         "fourf_lens1_decentre_x": {
-            "values": (-500e-6, -250e-6, 0.0, 250e-6, 500e-6),
+            "values": lateral_values,
             "units": "m",
             "builder": lambda v: _fourf(FourFError(lens1=LensError(decentre_m=(float(v), 0.0)))),
             "fidelity": "paraxial_thin_lens_physical_decentre",
         },
+        "fourf_lens1_decentre_y": {
+            "values": lateral_values,
+            "units": "m",
+            "builder": lambda v: _fourf(FourFError(lens1=LensError(decentre_m=(0.0, float(v))))),
+            "fidelity": "paraxial_thin_lens_physical_decentre",
+        },
         "fourf_lens2_decentre_x": {
-            "values": (-500e-6, -250e-6, 0.0, 250e-6, 500e-6),
+            "values": lateral_values,
             "units": "m",
             "builder": lambda v: _fourf(FourFError(lens2=LensError(decentre_m=(float(v), 0.0)))),
             "fidelity": "paraxial_thin_lens_physical_decentre",
         },
+        "fourf_lens2_decentre_y": {
+            "values": lateral_values,
+            "units": "m",
+            "builder": lambda v: _fourf(FourFError(lens2=LensError(decentre_m=(0.0, float(v))))),
+            "fidelity": "paraxial_thin_lens_physical_decentre",
+        },
+        "fourf_lens1_tilt_x": {
+            "values": lens_tilt_values,
+            "units": "rad",
+            "builder": lambda v: _fourf(FourFError(lens1=LensError(tilt_rad=(float(v), 0.0)))),
+            "fidelity": "scalar_paraxial_rotated_thin_lens_plane",
+        },
         "fourf_lens1_tilt_y": {
-            "values": tuple(math.radians(v) for v in (-0.5, -0.25, 0.0, 0.25, 0.5)),
+            "values": lens_tilt_values,
             "units": "rad",
             "builder": lambda v: _fourf(FourFError(lens1=LensError(tilt_rad=(0.0, float(v))))),
             "fidelity": "scalar_paraxial_rotated_thin_lens_plane",
         },
+        "fourf_lens2_tilt_x": {
+            "values": lens_tilt_values,
+            "units": "rad",
+            "builder": lambda v: _fourf(FourFError(lens2=LensError(tilt_rad=(float(v), 0.0)))),
+            "fidelity": "scalar_paraxial_rotated_thin_lens_plane",
+        },
         "fourf_lens2_tilt_y": {
-            "values": tuple(math.radians(v) for v in (-0.5, -0.25, 0.0, 0.25, 0.5)),
+            "values": lens_tilt_values,
             "units": "rad",
             "builder": lambda v: _fourf(FourFError(lens2=LensError(tilt_rad=(0.0, float(v))))),
             "fidelity": "scalar_paraxial_rotated_thin_lens_plane",
         },
         "axicon_lateral_decentre_x": {
-            "values": (-500e-6, -250e-6, 0.0, 250e-6, 500e-6),
+            "values": lateral_values,
             "units": "m",
             "builder": lambda v: _axicon(decentre_m=(float(v), 0.0)),
             "fidelity": "physical_axicon_coordinate_translation",
         },
+        "axicon_lateral_decentre_y": {
+            "values": lateral_values,
+            "units": "m",
+            "builder": lambda v: _axicon(decentre_m=(0.0, float(v))),
+            "fidelity": "physical_axicon_coordinate_translation",
+        },
+        "axicon_rigid_tilt_x": {
+            "values": lens_tilt_values,
+            "units": "rad",
+            "builder": lambda v: _axicon(tilt_rad=(float(v), 0.0)),
+            "fidelity": "scalar_rotated_angular_spectrum; full refractive-vector claims blocked",
+        },
         "axicon_rigid_tilt_y": {
-            "values": tuple(math.radians(v) for v in (-0.5, -0.25, 0.0, 0.25, 0.5)),
+            "values": lens_tilt_values,
             "units": "rad",
             "builder": lambda v: _axicon(tilt_rad=(0.0, float(v))),
             "fidelity": "scalar_rotated_angular_spectrum; full refractive-vector claims blocked",
@@ -204,9 +333,17 @@ def blocked_or_data_driven_families() -> dict[str, dict[str, Any]]:
             "status": "calibration_required",
             "required": "fit directional crosstalk kernel or subpixel Jones model to measured diffraction efficiencies",
         },
+        "slm_incidence_and_polarisation_response": {
+            "status": "calibration_required",
+            "required": "panel-specific phase response versus incidence angle and input polarisation; do not infer from a generic LCOS model",
+        },
         "lens_OPD_maps": {
             "status": "data_required",
             "required": "measured/manufacturer lens wavefront maps or declared generic sensitivity coefficients",
+        },
+        "lens_clear_apertures": {
+            "status": "measurement_required",
+            "required": "actual clear radii and mechanical stops of both 4F lenses",
         },
         "thick_lens_large_tilt": {
             "status": "full_surface_refraction_required",
