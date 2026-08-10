@@ -1,0 +1,103 @@
+name: Axicon physics v2
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'vbb_study/digital_twin/vortex_axicon_tip_reference.py'
+      - 'vbb_study/digital_twin/vortex_following_propagation.py'
+      - 'vbb_study/digital_twin/vortex_rotated_plane_baseband.py'
+      - 'vbb_study/digital_twin/vortex_axicon_oblique_wave.py'
+      - 'tools/run_vortex_axicon_physics_suite.py'
+      - 'tools/check_axicon_tip_benchmark.py'
+      - 'tools/check_axicon_oblique_wave_benchmark_v2.py'
+      - 'tests/test_vortex_axicon_tip_reference.py'
+      - 'tests/test_vortex_rotated_plane_baseband.py'
+      - '.github/workflows/axicon-physics-v2.yml'
+
+concurrency:
+  group: axicon-physics-v2-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+  OMP_NUM_THREADS: '2'
+  OPENBLAS_NUM_THREADS: '2'
+  MKL_NUM_THREADS: '2'
+
+jobs:
+  physics-gates:
+    name: Physics reference gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Focused unit tests
+        run: >-
+          python -m pytest -q
+          tests/test_vortex_rotated_plane_carrier.py
+          tests/test_vortex_axicon_oblique_reference.py
+          tests/test_vortex_rotated_plane_baseband.py
+          tests/test_vortex_axicon_tip_reference.py
+      - name: Independent tip diffraction benchmark
+        run: python tools/check_axicon_tip_benchmark.py --grid-n 1024 --output outputs/validation/axicon_tip_reference_benchmark.json
+      - name: Large-angle oblique wave benchmark
+        run: python tools/check_axicon_oblique_wave_benchmark_v2.py --grid-n 768 --output outputs/validation/axicon_oblique_wave_benchmark_v2.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: axicon-physics-reference-gates
+          path: outputs/validation
+          retention-days: 14
+
+  physical:
+    name: Axicon v2 ${{ matrix.case }} / ${{ matrix.group }}
+    needs: physics-gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      max-parallel: 6
+      matrix:
+        case: [B0, V1, V3]
+        group: [alignment, tilt, tip, material]
+        include:
+          - group: alignment
+            families: axicon_lateral_decentre_x axicon_lateral_decentre_y
+          - group: tilt
+            families: axicon_rigid_tilt_x axicon_rigid_tilt_y
+          - group: tip
+            families: axicon_round_tip_radius axicon_flat_tip_radius
+          - group: material
+            families: axicon_base_angle_scale axicon_index_scale
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Run N1536 axicon physics figures
+        shell: bash
+        run: >-
+          python tools/run_vortex_axicon_physics_suite.py
+          --cases '${{ matrix.case }}'
+          --families ${{ matrix.families }}
+          --grid-n 1536
+          --z-mm 60
+          --output-root 'outputs/validation/axicon_v2/${{ matrix.case }}/${{ matrix.group }}'
+          --figure-root 'outputs/figures/axicon_v2/${{ matrix.case }}/${{ matrix.group }}'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: axicon-v2-${{ matrix.case }}-${{ matrix.group }}
+          path: |
+            outputs/validation/axicon_v2/${{ matrix.case }}/${{ matrix.group }}
+            outputs/figures/axicon_v2/${{ matrix.case }}/${{ matrix.group }}
+          retention-days: 14
