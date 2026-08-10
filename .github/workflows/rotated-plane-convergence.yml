@@ -30,9 +30,13 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Run V1 N1536 actual-field convergence
         run: python tools/check_rotated_plane_actual_fields.py --grid-n 1536 --case V1 --output outputs/validation/rotated_plane_actual_fields.json
+      - name: Run V1 carrier-centred convergence
+        run: python tools/check_rotated_plane_carrier_centering.py --grid-n 1536 --case V1 --output outputs/validation/rotated_plane_carrier_centering.json
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: rotated-plane-actual-fields
-          path: outputs/validation/rotated_plane_actual_fields.json
+          name: rotated-plane-convergence
+          path: |
+            outputs/validation/rotated_plane_actual_fields.json
+            outputs/validation/rotated_plane_carrier_centering.json
           retention-days: 14
