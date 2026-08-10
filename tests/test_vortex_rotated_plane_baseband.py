@@ -56,6 +56,7 @@ def test_baseband_matches_explicit_carrier_where_carrier_is_sampleable() -> None
         rtol=0.0,
         atol=1e-9,
     )
+    assert float(meta_bb["normal_flux_power_ratio"]) > 0.999
 
 
 def test_ten_degree_baseband_roundtrip_does_not_require_sampled_carrier() -> None:
@@ -83,6 +84,15 @@ def test_ten_degree_baseband_roundtrip_does_not_require_sampled_carrier() -> Non
         source_spectral_center_cpm=centre,
         inverse=True,
     )
-    assert float(meta_f["spectral_power_ratio"]) > 0.995
-    assert float(meta_b["spectral_power_ratio"]) > 0.995
+
+    # Raw spectral L2 is a projected-plane quantity at finite tilt.  For a
+    # narrow carrier it changes approximately by sec(theta) forward and
+    # cos(theta) backward; the product returns to unity.  The invariant used for
+    # numerical validation is normal optical flux, not either raw L2 ratio.
+    raw_product = float(meta_f["spectral_power_ratio"]) * float(
+        meta_b["spectral_power_ratio"]
+    )
+    assert abs(raw_product - 1.0) < 2e-3
+    assert float(meta_f["normal_flux_power_ratio"]) > 0.995
+    assert float(meta_b["normal_flux_power_ratio"]) > 0.995
     assert _overlap(field, backward) > 0.999
