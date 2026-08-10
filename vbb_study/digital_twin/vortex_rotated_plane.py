@@ -3,15 +3,22 @@
 The implementation follows the coordinate-rotation idea of Matsushima,
 Schimmel & Wyrowski, JOSA A 20, 1755-1762 (2003): the plane-wave spectrum is
 rotated in Fourier space and resampled on the regular spectral grid of the new
-plane.  The Jacobian ``|fz/fz'|`` is included from invariance of solid angle.
+plane. The Jacobian ``|fz/fz'|`` is included from invariance of solid angle.
 
-A previous research implementation used bilinear spectral interpolation.  That
+The physical 4F route can carry a non-zero diffraction-order carrier. Resampling
+that off-axis spectrum directly on an origin-centred FFT grid creates a strong,
+axis-dependent interpolation artefact. The production path therefore recentres
+each input spectrum about its measured spectral centroid, rotates the absolute
+wavevector coordinates, resamples the baseband envelope, and restores the
+rotated carrier in the destination plane. This is a numerical coordinate change;
+it does not remove or fabricate physical beam steering.
+
+A previous research implementation used bilinear spectral interpolation. That
 was adequate to expose morphology changes but introduced unphysical numerical
-power loss in repeated tilted-plane transforms.  The production research path
-therefore uses cubic-spline interpolation of the real and imaginary spectrum,
-with explicit spectral-power bookkeeping and round-trip validation gates.
+power loss in repeated tilted-plane transforms. Cubic-spline interpolation is
+the default, with explicit spectral-power bookkeeping and validation gates.
 
-This remains a scalar propagating-wave model.  It does not replace vector
+This remains a scalar propagating-wave model. It does not replace vector
 Fresnel/Snell treatment at a strongly tilted refractive interface.
 """
 
@@ -27,6 +34,7 @@ from vbb_study.equations.fields import fft2c, ifft2c
 
 
 EPS = np.finfo(float).tiny
+TWOPI = 2.0 * np.pi
 DEFAULT_INTERPOLATION_ORDER = 3
 
 
@@ -52,10 +60,10 @@ def _spline_uniform_complex(
 ) -> np.ndarray:
     """Spline-resample complex data on a square, uniform spectral grid.
 
-    Real and imaginary components are interpolated independently.  Cubic
+    Real and imaginary components are interpolated independently. Cubic
     interpolation is the default because the old bilinear map was found to
     attenuate smooth spectra significantly during forward/inverse plane
-    rotations.  Samples outside the represented spectrum are set to zero rather
+    rotations. Samples outside the represented spectrum are set to zero rather
     than extrapolated.
     """
 
@@ -100,6 +108,27 @@ def _spline_uniform_complex(
     return np.asarray(real + 1j * imag, dtype=np.complex128)
 
 
+def spectral_centroid_cpm(
+    field: np.ndarray,
+    grid: Mapping[str, Any],
+) -> tuple[float, float]:
+    """Return the intensity-weighted angular-spectrum centroid in cycles/metre."""
+
+    spectrum = fft2c(np.asarray(field, dtype=np.complex128))
+    weight = np.abs(spectrum) ** 2
+    total = float(np.sum(weight))
+    if total <= EPS:
+        return 0.0, 0.0
+    fx = np.asarray(grid["FX"], dtype=float)
+    fy = np.asarray(grid["FY"], dtype=float)
+    if fx.shape != weight.shape or fy.shape != weight.shape:
+        raise ValueError("spectral grid shape does not match field")
+    return (
+        float(np.sum(weight * fx) / total),
+        float(np.sum(weight * fy) / total),
+    )
+
+
 def rotate_angular_spectrum(
     field: np.ndarray,
     grid: Mapping[str, Any],
@@ -109,6 +138,7 @@ def rotate_angular_spectrum(
     tilt_y_rad: float,
     inverse: bool = False,
     interpolation_order: int = DEFAULT_INTERPOLATION_ORDER,
+    spectral_center_cpm: tuple[float, float] | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     """Resample a scalar angular spectrum between lab and tilted planes.
 
@@ -116,15 +146,24 @@ def rotate_angular_spectrum(
     the lab plane onto the tilted plane; ``inverse=True`` performs the inverse
     coordinate rotation.
 
-    ``spectral_power_ratio`` is a numerical diagnostic, not an optical
-    transmission coefficient.  A rigid coordinate transformation should remain
-    close to unity for a sufficiently sampled, fully represented spectrum.
+    For a non-zero tilt the spectrum is first shifted to baseband around either
+    ``spectral_center_cpm`` or, by default, its measured power centroid. The
+    absolute wavevector of that centre is rotated exactly, interpolation is
+    performed only on spectral offsets around the centre, and the destination
+    carrier is restored after the inverse FFT. This avoids interpolation error
+    caused solely by an off-axis carrier while preserving the physical angular
+    spectrum.
+
+    ``spectral_power_ratio`` remains a numerical diagnostic, not an optical
+    transmission coefficient. With a sufficiently represented spectrum it
+    should remain close to unity for a rigid coordinate transformation.
     """
 
+    arr = np.asarray(field, dtype=np.complex128)
     tx = float(tilt_x_rad)
     ty = float(tilt_y_rad)
     if tx == 0.0 and ty == 0.0:
-        return np.asarray(field, dtype=np.complex128).copy(), {
+        return arr.copy(), {
             "tilt_x_rad": 0.0,
             "tilt_y_rad": 0.0,
             "inverse": bool(inverse),
@@ -132,6 +171,9 @@ def rotate_angular_spectrum(
             "spectral_power_ratio": 1.0,
             "interpolation_model": "identity",
             "jacobian_model": "identity",
+            "spectral_center_model": "identity",
+            "source_spectral_center_cpm": None,
+            "destination_spectral_center_cpm": None,
             "fidelity": "exact_identity_parallel_plane",
         }
 
@@ -139,44 +181,88 @@ def rotate_angular_spectrum(
     if inverse:
         R = R.T
 
-    f = np.asarray(grid["FX"], dtype=float)
-    g = np.asarray(grid["FY"], dtype=float)
-    axis = np.asarray(grid.get("fx", np.unique(f[0])), dtype=float)
-    if axis.ndim != 1 or axis.size != f.shape[1]:
-        axis = np.asarray(grid["FX"][0], dtype=float)
+    foff = np.asarray(grid["FX"], dtype=float)
+    goff = np.asarray(grid["FY"], dtype=float)
+    axis = np.asarray(grid.get("fx", foff[0]), dtype=float)
+    if axis.ndim != 1 or axis.size != foff.shape[1]:
+        axis = np.asarray(foff[0], dtype=float)
+
+    if spectral_center_cpm is None:
+        fsx, fsy = spectral_centroid_cpm(arr, grid)
+        center_model = "intensity_weighted_spectral_centroid"
+    else:
+        fsx, fsy = map(float, spectral_center_cpm)
+        center_model = "user_supplied_absolute_spectral_center"
 
     inv_lam = 1.0 / float(wavelength_m)
-    transverse_sq_prime = f * f + g * g
-    propagating_prime = transverse_sq_prime < inv_lam * inv_lam
-    h_prime = np.sqrt(np.maximum(inv_lam * inv_lam - transverse_sq_prime, 0.0))
+    source_center_sq = fsx * fsx + fsy * fsy
+    if source_center_sq >= inv_lam * inv_lam:
+        raise ValueError("spectral centre is non-propagating at the supplied wavelength")
+    fsz = math.sqrt(max(inv_lam * inv_lam - source_center_sq, 0.0))
+    source_center = np.asarray([fsx, fsy, fsz], dtype=float)
 
-    # For every regular spectral sample in the destination frame, rotate its
-    # wavevector into the source frame and interpolate the source spectrum.
-    fx_src = R[0, 0] * f + R[0, 1] * g + R[0, 2] * h_prime
-    fy_src = R[1, 0] * f + R[1, 1] * g + R[1, 2] * h_prime
-    fz_src = R[2, 0] * f + R[2, 1] * g + R[2, 2] * h_prime
-    source_propagating = fz_src > 0.0
+    # R maps destination-frame wavevectors into the source frame. Therefore the
+    # corresponding destination carrier is R.T @ source_center.
+    destination_center = R.T @ source_center
+    fdx = float(destination_center[0])
+    fdy = float(destination_center[1])
 
-    spectrum = fft2c(np.asarray(field, dtype=np.complex128))
+    X = np.asarray(grid["X"], dtype=float)
+    Y = np.asarray(grid["Y"], dtype=float)
+    baseband_field = arr * np.exp(-1j * TWOPI * (fsx * X + fsy * Y))
+    spectrum = fft2c(baseband_field)
+
+    # The regular FFT coordinates now describe offsets around the destination
+    # carrier. Convert them to absolute wavevectors, rotate those into the source
+    # frame, then subtract the source carrier before interpolation of the
+    # baseband source spectrum.
+    fx_destination = fdx + foff
+    fy_destination = fdy + goff
+    transverse_sq_destination = fx_destination * fx_destination + fy_destination * fy_destination
+    propagating_destination = transverse_sq_destination < inv_lam * inv_lam
+    fz_destination = np.sqrt(
+        np.maximum(inv_lam * inv_lam - transverse_sq_destination, 0.0)
+    )
+
+    fx_source = (
+        R[0, 0] * fx_destination
+        + R[0, 1] * fy_destination
+        + R[0, 2] * fz_destination
+    )
+    fy_source = (
+        R[1, 0] * fx_destination
+        + R[1, 1] * fy_destination
+        + R[1, 2] * fz_destination
+    )
+    fz_source = (
+        R[2, 0] * fx_destination
+        + R[2, 1] * fy_destination
+        + R[2, 2] * fz_destination
+    )
+    source_propagating = fz_source > 0.0
+    valid = propagating_destination & source_propagating
+
     sampled = _spline_uniform_complex(
         spectrum,
         axis,
-        fx_src,
-        fy_src,
+        fx_source - fsx,
+        fy_source - fsy,
         order=int(interpolation_order),
     )
-    valid = propagating_prime & source_propagating
 
     # dfx dfy / fz is invariant under rotation of the wavevector sphere.
-    jacobian = np.zeros_like(h_prime)
-    jacobian[valid] = np.abs(fz_src[valid]) / np.maximum(h_prime[valid], EPS)
+    jacobian = np.zeros_like(fz_destination)
+    jacobian[valid] = np.abs(fz_source[valid]) / np.maximum(
+        fz_destination[valid], EPS
+    )
     rotated = np.where(valid, sampled * jacobian, 0.0)
-    output = ifft2c(rotated)
+    envelope = ifft2c(rotated)
+    output = envelope * np.exp(1j * TWOPI * (fdx * X + fdy * Y))
 
     source_power = float(np.sum(np.abs(spectrum) ** 2))
     rotated_power = float(np.sum(np.abs(rotated) ** 2))
     power_ratio = rotated_power / max(source_power, EPS)
-    interpolation_model = f"spline_order_{int(interpolation_order)}"
+    interpolation_model = f"carrier_aware_spline_order_{int(interpolation_order)}"
     return np.asarray(output, dtype=np.complex128), {
         "tilt_x_rad": tx,
         "tilt_y_rad": ty,
@@ -187,6 +273,9 @@ def rotate_angular_spectrum(
         "spectral_power_ratio": float(power_ratio),
         "interpolation_model": interpolation_model,
         "jacobian_model": "abs(fz_source/fz_destination)",
+        "spectral_center_model": center_model,
+        "source_spectral_center_cpm": [float(fsx), float(fsy)],
+        "destination_spectral_center_cpm": [float(fdx), float(fdy)],
         "rotation_matrix": R.tolist(),
         "fidelity": (
             "scalar_rotated_angular_spectrum_propagating_components_"
@@ -203,6 +292,7 @@ def lab_to_tilted_plane(
     tilt_x_rad: float,
     tilt_y_rad: float,
     interpolation_order: int = DEFAULT_INTERPOLATION_ORDER,
+    spectral_center_cpm: tuple[float, float] | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     return rotate_angular_spectrum(
         field,
@@ -212,6 +302,7 @@ def lab_to_tilted_plane(
         tilt_y_rad=tilt_y_rad,
         inverse=False,
         interpolation_order=interpolation_order,
+        spectral_center_cpm=spectral_center_cpm,
     )
 
 
@@ -223,6 +314,7 @@ def tilted_to_lab_plane(
     tilt_x_rad: float,
     tilt_y_rad: float,
     interpolation_order: int = DEFAULT_INTERPOLATION_ORDER,
+    spectral_center_cpm: tuple[float, float] | None = None,
 ) -> tuple[np.ndarray, dict[str, Any]]:
     return rotate_angular_spectrum(
         field,
@@ -232,6 +324,7 @@ def tilted_to_lab_plane(
         tilt_y_rad=tilt_y_rad,
         inverse=True,
         interpolation_order=interpolation_order,
+        spectral_center_cpm=spectral_center_cpm,
     )
 
 
@@ -240,5 +333,6 @@ __all__ = [
     "lab_to_tilted_plane",
     "rotate_angular_spectrum",
     "rotation_matrix",
+    "spectral_centroid_cpm",
     "tilted_to_lab_plane",
 ]
