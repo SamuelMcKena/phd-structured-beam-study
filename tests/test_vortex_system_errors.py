@@ -22,6 +22,10 @@ def _overlap(a: np.ndarray, b: np.ndarray) -> float:
     return float(abs(np.vdot(aa, bb)) / (np.linalg.norm(aa) * np.linalg.norm(bb)))
 
 
+def _power(a: np.ndarray) -> float:
+    return float(np.sum(np.abs(np.asarray(a, dtype=complex)) ** 2))
+
+
 def test_beam_lateral_decentre_is_amplitude_shift_not_pointing_phase() -> None:
     grid = make_xy_grid(256, 10e-3 / 256)
     nominal, _ = gaussian_input_field(
@@ -35,8 +39,6 @@ def test_beam_lateral_decentre_is_amplitude_shift_not_pointing_phase() -> None:
     )
     assert meta["beam_pointing_rad"] == (0.0, 0.0)
     assert not np.allclose(np.abs(nominal), np.abs(shifted))
-    # With zero pointing/curvature both fields are real positive, so decentre has
-    # not been smuggled in as an angular phase ramp.
     assert np.max(np.abs(np.angle(shifted[np.abs(shifted) > 1e-8]))) < 1e-12
 
 
@@ -120,22 +122,35 @@ def test_lens_decentre_is_quadratic_phase_about_shifted_optical_axis() -> None:
 def test_rotated_angular_spectrum_zero_tilt_is_exact_identity() -> None:
     grid = make_xy_grid(128, 10e-3 / 128)
     field = np.exp(-(np.asarray(grid["R"]) / 1e-3) ** 2).astype(complex)
-    tilted, _ = lab_to_tilted_plane(
+    tilted, meta = lab_to_tilted_plane(
         field, grid, wavelength_m=1029e-9, tilt_x_rad=0.0, tilt_y_rad=0.0
     )
     assert np.array_equal(field, tilted)
+    assert meta["spectral_power_ratio"] == 1.0
+    assert meta["interpolation_model"] == "identity"
 
 
-def test_rotated_plane_roundtrip_retains_smooth_field_at_small_tilt() -> None:
+def test_rotated_plane_roundtrip_preserves_smooth_field_and_power_at_half_degree() -> None:
+    """Rigid coordinate rotation must not masquerade as optical absorption."""
+
     grid = make_xy_grid(256, 10e-3 / 256)
     field = np.exp(-(np.asarray(grid["R"]) / 1.5e-3) ** 2).astype(complex)
-    tilted, _ = lab_to_tilted_plane(
-        field, grid, wavelength_m=1029e-9, tilt_x_rad=0.0, tilt_y_rad=2e-3
+    tilt = math.radians(0.5)
+    tilted, to_meta = lab_to_tilted_plane(
+        field, grid, wavelength_m=1029e-9, tilt_x_rad=0.0, tilt_y_rad=tilt
     )
-    returned, _ = tilted_to_lab_plane(
-        tilted, grid, wavelength_m=1029e-9, tilt_x_rad=0.0, tilt_y_rad=2e-3
+    returned, from_meta = tilted_to_lab_plane(
+        tilted, grid, wavelength_m=1029e-9, tilt_x_rad=0.0, tilt_y_rad=tilt
     )
-    assert _overlap(field, returned) > 0.98
+    assert to_meta["interpolation_model"] == "spline_order_3"
+    assert from_meta["interpolation_model"] == "spline_order_3"
+    assert _overlap(field, returned) > 0.999
+    assert np.isclose(
+        _power(returned) / _power(field),
+        1.0,
+        rtol=0.0,
+        atol=3e-3,
+    )
 
 
 def test_axicon_decentre_moves_its_surface_coordinates() -> None:
