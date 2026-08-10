@@ -1,0 +1,2 @@
+Fringing correction trigger marker.
+Run requested: 2026-08-10 zero-sigma nominal correction.
