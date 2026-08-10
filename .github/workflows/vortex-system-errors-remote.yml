@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+
 concurrency:
   group: vortex-system-errors-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -20,8 +24,6 @@ jobs:
     name: Repaired physics gates
     runs-on: ubuntu-latest
     timeout-minutes: 90
-    env:
-      MPLBACKEND: Agg
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -67,7 +69,6 @@ jobs:
     timeout-minutes: 240
     continue-on-error: false
     env:
-      MPLBACKEND: Agg
       OMP_NUM_THREADS: '2'
       OPENBLAS_NUM_THREADS: '2'
       MKL_NUM_THREADS: '2'
@@ -128,7 +129,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 240
     env:
-      MPLBACKEND: Agg
       OMP_NUM_THREADS: '2'
       OPENBLAS_NUM_THREADS: '2'
       MKL_NUM_THREADS: '2'
