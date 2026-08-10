@@ -23,7 +23,7 @@ jobs:
   gates:
     name: Repaired physics gates
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -44,6 +44,7 @@ jobs:
             tests/test_vortex_system_errors.py \
             tests/test_vortex_explicit_system_extensions.py \
             tests/test_vortex_rotated_plane_carrier.py \
+            tests/test_vortex_axicon_oblique_reference.py \
             -q
       - name: Compile repaired modules
         run: |
@@ -53,11 +54,28 @@ jobs:
             vbb_study/digital_twin/vortex_rotated_plane.py \
             vbb_study/digital_twin/vortex_system_route.py \
             vbb_study/digital_twin/vortex_system_error_sweeps.py \
+            vbb_study/digital_twin/vortex_axicon_oblique_reference.py \
             tools/check_vortex_explicit_4f_parity.py \
+            tools/check_axicon_oblique_benchmark.py \
             tools/run_vortex_system_error_suite.py \
             tools/audit_vortex_system_error_signatures.py
       - name: Analytic reference checks
         run: python tools/check_vortex_error_reference_models.py
+      - name: Oblique axicon reference benchmark N1024
+        run: |
+          python tools/check_axicon_oblique_benchmark.py \
+            --case B0 \
+            --grid-n 1024 \
+            --angles-deg 0 1 2 \
+            --output outputs/validation/oblique_axicon_benchmark/benchmark.json
+      - name: Upload oblique axicon benchmark
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: oblique-axicon-reference-benchmark
+          path: outputs/validation/oblique_axicon_benchmark
+          if-no-files-found: warn
+          retention-days: 14
       - name: Explicit 4F parity N512
         run: python tools/check_vortex_explicit_4f_parity.py --grid-n 512 --cases B0 V1 V3
       - name: Explicit 4F parity N1536
