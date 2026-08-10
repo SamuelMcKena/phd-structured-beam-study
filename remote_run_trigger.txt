@@ -1,2 +1,3 @@
 Remote full repaired vortex system-error run trigger marker.
 Run requested: 2026-08-10 repaired 1536 suite.
+Retrigger after fixing PYTHONPATH.
