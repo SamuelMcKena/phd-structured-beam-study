@@ -262,7 +262,7 @@ def rotate_angular_spectrum(
     source_power = float(np.sum(np.abs(spectrum) ** 2))
     rotated_power = float(np.sum(np.abs(rotated) ** 2))
     power_ratio = rotated_power / max(source_power, EPS)
-    interpolation_model = f"carrier_aware_spline_order_{int(interpolation_order)}"
+    interpolation_model = f"spline_order_{int(interpolation_order)}"
     return np.asarray(output, dtype=np.complex128), {
         "tilt_x_rad": tx,
         "tilt_y_rad": ty,
