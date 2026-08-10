@@ -38,6 +38,7 @@ Invoke-Checked {
       vbb_study/digital_twin/vortex_wavefront_errors.py `
       tools/check_vortex_explicit_4f_parity.py `
       tools/run_vortex_system_error_suite.py `
+      tools/audit_vortex_system_error_signatures.py `
       tools/run_vortex_declared_aberration_suite.py
 } "Compile new system-error modules"
 
@@ -65,6 +66,10 @@ Invoke-Checked {
       --grid-n $GridN `
       --z-mm $Zmm
 } "All executable physical system-error sweeps"
+
+Invoke-Checked {
+    python tools/audit_vortex_system_error_signatures.py
+} "System-error numerical/signature audit gate"
 
 Invoke-Checked {
     python tools/run_vortex_declared_aberration_suite.py `
