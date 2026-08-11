@@ -1,12 +1,12 @@
 """Shack-Hartmann -> SLM wavefront-correction bridge.
 
-The sensor is treated as a slope instrument.  Local x/y wavefront slopes are
-integrated in a Southwell-style least-squares system on the lenslet grid.  A
-single piston constraint removes the null mode.  The reconstructed optical path
+The sensor is treated as a slope instrument. Local x/y wavefront slopes are
+integrated in a Southwell-style least-squares system on the lenslet grid. A
+single piston constraint removes the null mode. The reconstructed optical path
 difference (OPD) is then interpolated onto the SLM plane and converted to the
 negative optical phase required for correction.
 
-The correction is intentionally an additive phase term.  It must never be
+The correction is intentionally an additive phase term. It must never be
 implemented by conjugating the complete structured field, because doing so can
 remove a desired vortex phase.
 """
@@ -18,7 +18,7 @@ import math
 from typing import Mapping
 
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import LinearNDInterpolator, RegularGridInterpolator
 from scipy.sparse import coo_matrix, vstack
 from scipy.sparse.linalg import lsqr
 
@@ -68,13 +68,16 @@ def reconstruct_opd_from_slopes(
     """Reconstruct OPD from local slopes by sparse least squares.
 
     ``slope_x`` and ``slope_y`` are dimensionless OPD gradients dW/dx and
-    dW/dy.  A Shack-Hartmann centroid displacement divided by lenslet focal
+    dW/dy. A Shack-Hartmann centroid displacement divided by lenslet focal
     length is the small-angle estimate of these slopes.
 
     For adjacent nodes, the Southwell/trapezoidal equations are
 
         W[i,j+1]-W[i,j] = dx*(sx[i,j+1]+sx[i,j])/2
         W[i+1,j]-W[i,j] = dy*(sy[i+1,j]+sy[i,j])/2.
+
+    ``valid_mask`` may describe a circular/irregular illuminated lenslet pupil.
+    The graph of valid nearest-neighbour lenslets must remain connected.
     """
 
     sx = np.asarray(slope_x, dtype=float)
@@ -127,9 +130,7 @@ def reconstruct_opd_from_slopes(
     A = coo_matrix((data, (rows, cols)), shape=(eq, n_unknown)).tocsr()
     b = np.asarray(rhs, dtype=float)
 
-    # Piston removal: mean(W)=0.  Scaling by sqrt(N) keeps the constraint
-    # numerically comparable to one local equation while avoiding a privileged
-    # reference lenslet.
+    # Mean-piston removal avoids privileging one reference lenslet.
     piston_row = coo_matrix(
         (
             np.full(n_unknown, float(piston_weight) / math.sqrt(n_unknown)),
@@ -139,7 +140,13 @@ def reconstruct_opd_from_slopes(
     ).tocsr()
     A_aug = vstack([A, piston_row], format="csr")
     b_aug = np.concatenate([b, np.asarray([0.0])])
-    solution = lsqr(A_aug, b_aug, atol=float(atol), btol=float(btol), iter_lim=max(1000, 20 * n_unknown))
+    solution = lsqr(
+        A_aug,
+        b_aug,
+        atol=float(atol),
+        btol=float(btol),
+        iter_lim=max(1000, 20 * n_unknown),
+    )
     w = np.asarray(solution[0], dtype=float)
 
     predicted = A @ w
@@ -161,6 +168,7 @@ def reconstruct_opd_from_slopes(
             "lsqr_iterations": int(solution[2]),
             "lsqr_condition_estimate": float(solution[6]),
             "piston_constraint": "mean_OPD_zero",
+            "masked_pupil_supported": True,
         },
     )
 
@@ -200,6 +208,41 @@ def _registered_query_coordinates(
     return xr, yr
 
 
+def _interpolate_reconstructed_opd(
+    reconstruction: ShackHartmannReconstruction,
+    x: np.ndarray,
+    y: np.ndarray,
+    xq: np.ndarray,
+    yq: np.ndarray,
+) -> tuple[np.ndarray, str]:
+    """Interpolate reconstructed OPD without extrapolating beyond measured support."""
+
+    opd = np.asarray(reconstruction.opd_m, dtype=float)
+    valid = np.asarray(reconstruction.valid_mask, dtype=bool) & np.isfinite(opd)
+    if opd.shape != (y.size, x.size) or valid.shape != opd.shape:
+        raise ValueError("reconstruction shape does not match sensor axes")
+
+    if np.all(valid):
+        interp = RegularGridInterpolator(
+            (y, x),
+            opd,
+            method="linear",
+            bounds_error=False,
+            fill_value=np.nan,
+        )
+        points = np.column_stack([yq.ravel(), xq.ravel()])
+        return interp(points).reshape(np.shape(xq)), "regular_grid_linear"
+
+    Y, X = np.meshgrid(y, x, indexing="ij")
+    points = np.column_stack([X[valid], Y[valid]])
+    values = opd[valid]
+    if points.shape[0] < 4:
+        raise ValueError("too few valid reconstructed lenslets for 2-D interpolation")
+    interp = LinearNDInterpolator(points, values, fill_value=np.nan)
+    sampled = interp(np.column_stack([xq.ravel(), yq.ravel()])).reshape(np.shape(xq))
+    return np.asarray(sampled, dtype=float), "masked_linear_triangulation_no_extrapolation"
+
+
 def correction_phase_on_slm(
     reconstruction: ShackHartmannReconstruction,
     sensor_x_m: np.ndarray,
@@ -216,7 +259,13 @@ def correction_phase_on_slm(
     gain: float = 1.0,
     outside_value_rad: float = 0.0,
 ) -> np.ndarray:
-    """Interpolate measured OPD to SLM coordinates and return ``-k*OPD``."""
+    """Interpolate measured OPD to SLM coordinates and return ``-k*OPD``.
+
+    A complete rectangular Shack-Hartmann pupil uses regular-grid linear
+    interpolation. A circular/irregular valid-lenslet pupil uses Delaunay-based
+    linear interpolation over the measured points. No OPD is extrapolated beyond
+    their convex hull; those target pixels receive ``outside_value_rad``.
+    """
 
     if not (0.0 < float(gain) <= 1.0):
         raise ValueError("gain must lie in (0,1]")
@@ -225,19 +274,6 @@ def correction_phase_on_slm(
         raise ValueError("wavelength_m must be positive")
     x, _ = _uniform_axis(sensor_x_m, "sensor_x_m")
     y, _ = _uniform_axis(sensor_y_m, "sensor_y_m")
-    opd = np.asarray(reconstruction.opd_m, dtype=float)
-    if opd.shape != (y.size, x.size):
-        raise ValueError("reconstruction shape does not match sensor axes")
-
-    # Fill invalid lenslets only for interpolation.  Their nearest finite value
-    # is not guessed here; instead we solve a smooth regular-grid interpolation
-    # over the bounding rectangle only if the reconstruction itself is complete.
-    if np.any(~np.isfinite(opd)):
-        raise ValueError(
-            "SLM correction export requires a complete rectangular reconstructed OPD; "
-            "crop/interpolate the physical Shack-Hartmann pupil explicitly first"
-        )
-    interp = RegularGridInterpolator((y, x), opd, method="linear", bounds_error=False, fill_value=np.nan)
     xq, yq = _registered_query_coordinates(
         target_X_m,
         target_Y_m,
@@ -247,8 +283,7 @@ def correction_phase_on_slm(
         offset_x_m=float(offset_x_m),
         offset_y_m=float(offset_y_m),
     )
-    points = np.column_stack([yq.ravel(), xq.ravel()])
-    sampled = interp(points).reshape(np.shape(xq))
+    sampled, _ = _interpolate_reconstructed_opd(reconstruction, x, y, xq, yq)
     phase = -float(gain) * TWOPI * sampled / wavelength
     return np.where(np.isfinite(phase), phase, float(outside_value_rad))
 
