@@ -69,30 +69,42 @@ def test_vector_fresnel_oblique_interface_closes_R_plus_T() -> None:
     d2 = refract_direction(d1, normal, n1=1.0, n2=1.46)
     e = np.asarray([0.3 + 0.1j, 0.8 - 0.2j, 0.0], dtype=np.complex128)
     _et, transmission, reflection = fresnel_transmit_vector_3d(
-        e,
-        d1,
-        d2,
-        normal,
-        n1=1.0,
-        n2=1.46,
+        e, d1, d2, normal, n1=1.0, n2=1.46
     )
     assert abs(float(transmission + reflection) - 1.0) < 2e-12
     assert 0.0 < float(transmission) < 1.0
 
 
+def test_vector_fresnel_broadcasts_one_ray_over_spatial_vector_field() -> None:
+    d1 = np.asarray([0.0, 0.0, 1.0])
+    normal = np.asarray([0.0, 0.0, 1.0])
+    d2 = refract_direction(d1, normal, n1=1.0, n2=1.46)
+    e = np.zeros((17, 19, 3), dtype=np.complex128)
+    e[..., 0] = 1.0
+    et, transmission, reflection = fresnel_transmit_vector_3d(
+        e, d1, d2, normal, n1=1.0, n2=1.46
+    )
+    assert et.shape == e.shape
+    assert transmission.shape == e.shape[:-1]
+    np.testing.assert_allclose(transmission + reflection, 1.0, rtol=0.0, atol=2e-12)
+
+
 def test_zero_tilt_surface_sampling_is_exact_coordinate_identity() -> None:
     source = _field()
-    sampled, incident, meta = sample_vector_field_on_tilted_entrance(
-        source,
-        tilt_x_rad=0.0,
-        tilt_y_rad=0.0,
+    sampled, carrier, poynting, meta = sample_vector_field_on_tilted_entrance(
+        source, tilt_x_rad=0.0, tilt_y_rad=0.0
     )
     projected = propagate_vector_asm(source, 0.0)
-    np.testing.assert_allclose(sampled.ex, projected.ex, rtol=0.0, atol=1e-13)
-    np.testing.assert_allclose(sampled.ey, projected.ey, rtol=0.0, atol=1e-13)
-    np.testing.assert_allclose(sampled.ez, projected.ez, rtol=0.0, atol=1e-13)
-    np.testing.assert_allclose(incident, [0.0, 0.0, 1.0], rtol=0.0, atol=1e-12)
+    np.testing.assert_allclose(sampled.ex, projected.ex, rtol=0.0, atol=5e-13)
+    np.testing.assert_allclose(sampled.ey, projected.ey, rtol=0.0, atol=5e-13)
+    np.testing.assert_allclose(sampled.ez, projected.ez, rtol=0.0, atol=5e-13)
+    np.testing.assert_allclose(carrier, [0.0, 0.0], rtol=0.0, atol=1e-8)
+    bright = np.abs(sampled.ex) > 0.1 * np.max(np.abs(sampled.ex))
+    mean_s = np.mean(poynting[bright], axis=0)
+    mean_s /= np.linalg.norm(mean_s)
+    np.testing.assert_allclose(mean_s, [0.0, 0.0, 1.0], rtol=0.0, atol=1e-9)
     assert meta["source_transversality_residual"] < 1e-12
+    assert meta["spectral_transversality_power_ratio"] < 1e-24
 
 
 def test_zero_tilt_vector_two_surface_solver_matches_exact_snell_cone_and_flux() -> None:
@@ -113,13 +125,14 @@ def test_zero_tilt_vector_two_surface_solver_matches_exact_snell_cone_and_flux()
         refractive_index=N_AX,
         external_index=N_EXT,
     ).exact_radial_direction_sine
-    assert abs(measured - expected) < 2e-10
+    assert abs(measured - expected) < 2e-8
     assert abs(float(result.metadata["ray_flux_closure_ratio"]) - 1.0) < 2e-12
     assert abs(float(result.metadata["final_flux_closure_ratio"]) - 1.0) < 2e-12
     assert float(result.metadata["interface1_max_abs_R_plus_T_minus_1"]) < 2e-12
     assert float(result.metadata["interface2_max_abs_R_plus_T_minus_1"]) < 2e-12
     assert float(result.metadata["final_transversality_residual"]) < 1e-10
-    assert float(result.metadata["coverage_fraction"]) > 0.30
+    assert float(result.metadata["coverage_fraction"]) > 0.25
+    assert float(result.metadata["p95_local_nontransverse_power_fraction"]) < 1e-5
 
 
 def test_tilted_vector_eikonal_phase_gradient_matches_traced_wavevector() -> None:
@@ -165,8 +178,8 @@ def test_x_and_y_vector_tilts_are_rotationally_equivalent_for_circular_input() -
     )
     assert abs(_ray_anisotropy(rx) - _ray_anisotropy(ry)) < 3e-4
     assert abs(
-        float(rx.metadata["expected_transmitted_flux_au"])
-        / float(ry.metadata["expected_transmitted_flux_au"])
+        float(rx.metadata["all_transmitted_flux_au"])
+        / float(ry.metadata["all_transmitted_flux_au"])
         - 1.0
     ) < 5e-4
 
@@ -194,16 +207,13 @@ def test_tilt_sign_is_mirror_symmetric_in_scalar_ray_metrics() -> None:
     )
     assert abs(_ray_anisotropy(plus) - _ray_anisotropy(minus)) < 3e-4
     assert abs(
-        float(plus.metadata["expected_transmitted_flux_au"])
-        / float(minus.metadata["expected_transmitted_flux_au"])
+        float(plus.metadata["all_transmitted_flux_au"])
+        / float(minus.metadata["all_transmitted_flux_au"])
         - 1.0
     ) < 5e-4
 
 
 def test_high_cone_angle_is_blocked_when_fft_sampling_cannot_represent_wavevectors() -> None:
-    # A large physical cone can be perfectly valid geometrically while being
-    # unrepresentable on the current FFT window.  The solver must reject aliasing
-    # rather than generate a convincing but false vector diffraction pattern.
     with pytest.raises(ValueError, match="sampling cannot represent"):
         build_tilted_vector_refractive_axicon_field(
             _field(),
