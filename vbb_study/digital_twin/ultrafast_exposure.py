@@ -98,10 +98,10 @@ def gaussian_spectral_grid(
         raise ValueError("spectral grid reached non-positive optical frequency")
     amplitude = np.exp(-(offsets * offsets) * tau * tau / (8.0 * math.log(2.0)))
     phase = 0.5 * float(pulse.gdd_s2) * offsets**2 + (1.0 / 6.0) * float(pulse.tod_s3) * offsets**3
-    # Discrete energy weights are |amplitude|^2 dOmega.  Normalize so the
+    # Discrete energy weights are |amplitude|^2 dOmega. Normalize so the
     # sampled spectral intensity integrates to unity in the trapezoidal rule.
     intensity = amplitude * amplitude
-    norm = float(np.trapz(intensity, omega))
+    norm = float(np.trapezoid(intensity, omega))
     amplitude = amplitude / math.sqrt(max(norm, EPS))
     wavelength = TWOPI * C0 / omega
     return SpectralPulseGrid(
