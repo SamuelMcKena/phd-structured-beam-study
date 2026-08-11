@@ -6,6 +6,7 @@ on:
     paths:
       - 'vbb_study/digital_twin/vortex_axicon_tip_reference.py'
       - 'vbb_study/digital_twin/vortex_following_propagation.py'
+      - 'vbb_study/digital_twin/vortex_morphology_tracking.py'
       - 'vbb_study/digital_twin/vortex_rotated_plane_baseband.py'
       - 'vbb_study/digital_twin/vortex_axicon_oblique_wave.py'
       - 'vbb_study/digital_twin/vortex_refractive_axicon.py'
