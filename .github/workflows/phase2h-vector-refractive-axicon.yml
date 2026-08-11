@@ -12,6 +12,7 @@ on:
       - 'tests/test_phase2h_calibrated_vector_tilt_route.py'
       - 'tools/check_phase2h_vector_refractive_reference.py'
       - 'tools/render_phase2h_vector_tilt_preview.py'
+      - 'tools/render_phase2h_profile_planes.py'
       - 'docs/phase2h/**'
       - '.github/workflows/phase2h-vector-refractive-axicon.yml'
 
@@ -92,9 +93,9 @@ jobs:
         run: python -m compileall -q vbb_study/digital_twin/bench_calibrated_vector_tilt_route.py
 
   preview-figures:
-    name: Synthetic Phase 2H preview figures
+    name: Synthetic Phase 2H preview and arbitrary-z profiles
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -102,15 +103,32 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
-      - name: Compile preview renderer
-        run: python -m compileall -q tools/render_phase2h_vector_tilt_preview.py
+      - name: Compile preview renderers
+        run: >-
+          python -m compileall -q
+          tools/render_phase2h_vector_tilt_preview.py
+          tools/render_phase2h_profile_planes.py
       - name: Render synthetic Phase 2H preview pack
         run: >-
           python tools/render_phase2h_vector_tilt_preview.py
           --output-dir outputs/validation/phase2h/preview_figures
+      - name: Render true arbitrary-z profile evidence
+        run: >-
+          python tools/render_phase2h_profile_planes.py
+          --output-dir outputs/validation/phase2h/profile_planes
+          --z-mm 0 5 10 20 30 60
+          --tilts-deg 0 5 10
+          --span-mm 1.5
+          --samples 1201
       - name: Upload Phase 2H preview figures
         uses: actions/upload-artifact@v4
         with:
           name: phase2h-vector-tilt-preview-figures
           path: outputs/validation/phase2h/preview_figures
+          if-no-files-found: error
+      - name: Upload Phase 2H arbitrary-z profile evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2h-vector-tilt-profile-planes
+          path: outputs/validation/phase2h/profile_planes
           if-no-files-found: error
