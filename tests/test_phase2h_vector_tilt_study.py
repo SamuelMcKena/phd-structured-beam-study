@@ -5,7 +5,6 @@ import math
 import numpy as np
 import pytest
 
-from vbb_study.calibration.vector_observables import petal_observable
 from vbb_study.digital_twin.vector_refractive_axicon_eikonal import (
     build_tilted_vector_refractive_axicon_field,
 )
@@ -15,6 +14,7 @@ from vbb_study.digital_twin.vector_tilt_study import (
     higher_order_cylindrical_vector_input,
     ideal_linear_analyzer_frames,
     vector_line_intensity,
+    well_sampled_petal_observable,
 )
 from vbb_study.digital_twin.vortex_refractive_axicon import RefractiveAxiconGeometry
 from vbb_study.vector_field import propagate_vector_asm
@@ -44,7 +44,13 @@ def test_generalized_cylindrical_input_has_expected_analyzer_harmonic(
     Xc, Yc, _ = centered_coordinate_maps(field)
     frames = ideal_linear_analyzer_frames(field)
     for frame in frames.values():
-        petals = petal_observable(frame, Xc, Yc)
+        petals = well_sampled_petal_observable(
+            frame,
+            Xc,
+            Yc,
+            pixel_pitch_m=float(field.grid["dx"]),
+            minimum_radius_pixels=12.0,
+        )
         assert petals.petal_count == expected
         assert petals.modulation_fraction > 0.45
 
@@ -86,7 +92,13 @@ def test_zero_tilt_physical_axicon_preserves_cylindrical_analyzer_harmonic(ell: 
     assert abs(metrics.centroid_y_m) < 0.10e-3
     frames = ideal_linear_analyzer_frames(field)
     for frame in frames.values():
-        petals = petal_observable(frame, Xc, Yc)
+        petals = well_sampled_petal_observable(
+            frame,
+            Xc,
+            Yc,
+            pixel_pitch_m=float(field.grid["dx"]),
+            minimum_radius_pixels=12.0,
+        )
         assert petals.petal_count == expected
 
 
