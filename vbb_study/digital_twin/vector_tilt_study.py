@@ -11,13 +11,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from typing import Mapping, Sequence
+from typing import Sequence
 
 import numpy as np
 
 from vbb_study.calibration.vector_observables import (
     LinearAnalyzerCalibration,
+    PetalObservable,
     analyzer_intensity,
+    petal_observable,
 )
 from vbb_study.digital_twin.vortex_profile_evidence import spectral_line_fields
 from vbb_study.equations.fields import make_xy_grid
@@ -193,6 +195,75 @@ def centered_coordinate_maps(field: VectorField) -> tuple[np.ndarray, np.ndarray
     return X - metrics.centroid_x_m, Y - metrics.centroid_y_m, metrics
 
 
+def well_sampled_petal_observable(
+    intensity: np.ndarray,
+    X_m: np.ndarray,
+    Y_m: np.ndarray,
+    *,
+    pixel_pitch_m: float,
+    minimum_radius_pixels: float = 12.0,
+    maximum_radius_fraction: float = 0.45,
+    radial_bins: int = 320,
+) -> PetalObservable:
+    """Measure the dominant angular harmonic on a well-sampled Bessel annulus.
+
+    The generic petal observable normally uses the strongest radial ring.  A
+    refractive axicon can make that first ring only a few pixels in radius even
+    when the overall field satisfies the solver Nyquist gate.  Angular Fourier
+    analysis on such a tiny annulus is under-sampled.  For the Phase-2H study we
+    therefore select the strongest annulus outside ``minimum_radius_pixels``
+    and then call the same calibrated-pixel petal estimator at that radius.
+
+    This is an observable/sampling policy only; it never changes the optical
+    field or the refractive solver.
+    """
+
+    I = np.maximum(np.asarray(intensity, dtype=float), 0.0)
+    X = np.asarray(X_m, dtype=float)
+    Y = np.asarray(Y_m, dtype=float)
+    if I.shape != X.shape or I.shape != Y.shape:
+        raise ValueError("intensity and physical coordinate maps must match")
+    q = float(pixel_pitch_m)
+    if not np.isfinite(q) or q <= 0.0:
+        raise ValueError("pixel_pitch_m must be positive")
+    R = np.hypot(X, Y)
+    rmax = float(np.max(R))
+    lower = float(minimum_radius_pixels) * q
+    upper = float(maximum_radius_fraction) * rmax
+    if upper <= lower:
+        raise ValueError("field support is too small for a well-sampled petal annulus")
+
+    edges = np.linspace(0.0, rmax, int(radial_bins) + 1)
+    index = np.clip(np.digitize(R.ravel(), edges) - 1, 0, int(radial_bins) - 1)
+    sums = np.bincount(index, weights=I.ravel(), minlength=int(radial_bins))
+    counts = np.bincount(index, minlength=int(radial_bins))
+    mean = np.divide(sums, counts, out=np.zeros_like(sums), where=counts > 0)
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    valid = (centres >= lower) & (centres <= upper) & (counts >= 8)
+    if not np.any(valid):
+        raise ValueError("no sufficiently sampled radial annulus is available")
+    candidate_indices = np.flatnonzero(valid)
+    best = int(candidate_indices[int(np.argmax(mean[valid]))])
+    radius = float(centres[best])
+
+    # Increase annulus width slightly if required by the calibrated-pixel count,
+    # but keep the radial band local enough that angular harmonics are not mixed
+    # across many Bessel rings.
+    last_error: Exception | None = None
+    for half_width in (0.18, 0.24, 0.30):
+        try:
+            return petal_observable(
+                I,
+                X,
+                Y,
+                ring_radius_m=radius,
+                ring_half_width_fraction=half_width,
+            )
+        except ValueError as exc:
+            last_error = exc
+    raise ValueError(f"selected petal annulus remains under-sampled: {last_error}")
+
+
 __all__ = [
     "BeamMomentMetrics",
     "beam_moment_metrics",
@@ -200,4 +271,5 @@ __all__ = [
     "higher_order_cylindrical_vector_input",
     "ideal_linear_analyzer_frames",
     "vector_line_intensity",
+    "well_sampled_petal_observable",
 ]
