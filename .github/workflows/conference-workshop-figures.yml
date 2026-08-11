@@ -5,6 +5,7 @@ on:
   pull_request:
     paths:
       - 'tools/build_conference_workshop_figures.py'
+      - 'tools/build_conference_closing_figure.py'
       - '.github/workflows/conference-workshop-figures.yml'
       - 'vbb_study/digital_twin/vortex_following_propagation.py'
       - 'vbb_study/digital_twin/vortex_morphology_tracking.py'
@@ -39,6 +40,10 @@ jobs:
           python tools/build_conference_workshop_figures.py
           --grid-n 1536
           --output-dir outputs/figures/conference_workshop
+      - name: Replace closing graphic with clean loop layout
+        run: >-
+          python tools/build_conference_closing_figure.py
+          --output outputs/figures/conference_workshop/06_simulation_experiment_loop.png
       - name: Verify expected outputs
         shell: bash
         run: |
