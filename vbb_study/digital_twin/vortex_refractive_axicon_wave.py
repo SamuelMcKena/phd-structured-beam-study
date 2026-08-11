@@ -16,10 +16,12 @@ demonstrated.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from typing import Any, Mapping
 
 import numpy as np
 from scipy.interpolate import LinearNDInterpolator
+from scipy.spatial import ConvexHull
 
 from vbb_study.digital_twin.vortex_refractive_axicon import RefractiveAxiconBundle
 from vbb_study.equations.fields import make_xy_grid
@@ -80,6 +82,12 @@ def build_refractive_axicon_reference_field(
     ``use_fresnel_power=True`` requires a polarization-resolved bundle.  With it
     false, interface amplitude loss is intentionally omitted and metadata keeps
     the result blocked for absolute throughput claims.
+
+    ``coverage_fraction`` is intentionally not treated as a fixed target: a
+    circular/elliptical traced aperture cannot fill the corners of a square FFT
+    window.  Instead, the rasterised coverage is checked against the actual
+    convex-hull area of the traced reference-plane rays when that hull lies
+    inside the requested output window.
     """
 
     envelope = np.asarray(entrance_envelope, dtype=np.complex128)
@@ -162,6 +170,28 @@ def build_refractive_axicon_reference_field(
     coverage = np.isfinite(regular.real) & np.isfinite(regular.imag)
     regular = np.where(coverage, regular, 0.0j)
 
+    # Geometric coverage contract.  In 2-D scipy ConvexHull.volume is the hull
+    # area.  Comparing that continuous area with the rasterised finite mask tests
+    # the irregular->regular interpolation without pretending a circular
+    # physical aperture should fill a square FFT window.
+    hull = ConvexHull(points)
+    hull_area = float(hull.volume)
+    half_window = 0.5 * float(window)
+    support_within_window = bool(
+        np.min(points[:, 0]) >= -half_window
+        and np.max(points[:, 0]) <= half_window
+        and np.min(points[:, 1]) >= -half_window
+        and np.max(points[:, 1]) <= half_window
+    )
+    observed_coverage = float(np.mean(coverage))
+    expected_hull_coverage = float(hull_area / (window * window))
+    coverage_relative_error = (
+        abs(observed_coverage - expected_hull_coverage)
+        / max(expected_hull_coverage, EPS)
+        if support_within_window
+        else float("nan")
+    )
+
     # This closure is evaluated in ray coordinates, before interpolation.  It is
     # the exact algebraic normal-flux contract used to construct the geometric
     # amplitude and therefore catches a broken Jacobian/cosine/Fresnel factor.
@@ -199,7 +229,11 @@ def build_refractive_axicon_reference_field(
             "interpolation": "scipy_LinearNDInterpolator_complex_components",
             "output_n": int(n_out),
             "output_window_m": float(window),
-            "coverage_fraction": float(np.mean(coverage)),
+            "coverage_fraction": observed_coverage,
+            "convex_hull_area_m2": hull_area,
+            "expected_hull_coverage_fraction": expected_hull_coverage,
+            "coverage_relative_error_to_hull": float(coverage_relative_error),
+            "reference_support_within_output_window": support_within_window,
             "valid_ray_fraction": float(np.mean(valid)),
             "fresnel_status": fresnel_status,
             "input_flux_au": input_flux,
@@ -247,10 +281,6 @@ def angular_spectrum_second_moments(
         "spectral_rms_minor_cpm": minor,
         "spectral_second_moment_anisotropy_fraction": float(anisotropy),
     }
-
-
-# math is deliberately imported late above only for this diagnostic helper.
-import math
 
 
 __all__ = [
