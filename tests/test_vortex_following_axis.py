@@ -3,9 +3,11 @@ from __future__ import annotations
 import numpy as np
 
 from vbb_study.digital_twin.vortex_following_propagation import (
-    bessel_feature_axis_path_m,
     phase_winding_charge_map,
     transverse_morphology_axis,
+)
+from vbb_study.digital_twin.vortex_morphology_tracking import (
+    track_bessel_feature_axis,
 )
 from vbb_study.equations.fields import make_xy_grid
 
@@ -78,13 +80,16 @@ def test_longitudinal_vortex_tracker_finds_dark_channel_between_bright_lobes() -
         broad_asymmetry = 0.12 * np.exp(-((coordinate - (axis + 120e-6)) / 70e-6) ** 2)
         rows.append(left + right + broad_asymmetry)
     intensity = np.asarray(rows)
-    tracked = bessel_feature_axis_path_m(
+    track = track_bessel_feature_axis(
         intensity,
         coordinate,
         vortex_charge=1,
+        seed_coordinate_m=float(true_axis[0]),
         search_halfwidth_m=120e-6,
     )
-    assert float(np.max(np.abs(tracked - true_axis))) < 4e-6
+    assert float(np.max(np.abs(track.coordinate_m - true_axis))) < 4e-6
+    assert track.detected_fraction > 0.95
+    assert track.maximum_detected_step_m < 5e-6
 
 
 def test_longitudinal_b0_tracker_follows_central_peak() -> None:
@@ -98,10 +103,12 @@ def test_longitudinal_b0_tracker_follows_central_peak() -> None:
             for axis in true_axis
         ]
     )
-    tracked = bessel_feature_axis_path_m(
+    track = track_bessel_feature_axis(
         intensity,
         coordinate,
         vortex_charge=0,
+        seed_coordinate_m=float(true_axis[0]),
         search_halfwidth_m=100e-6,
     )
-    assert float(np.max(np.abs(tracked - true_axis))) < 3e-6
+    assert float(np.max(np.abs(track.coordinate_m - true_axis))) < 3e-6
+    assert track.detected_fraction > 0.95
