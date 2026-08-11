@@ -9,12 +9,14 @@ on:
       - 'vbb_study/digital_twin/vortex_rotated_plane_baseband.py'
       - 'vbb_study/digital_twin/vortex_axicon_oblique_wave.py'
       - 'vbb_study/digital_twin/vortex_refractive_axicon.py'
+      - 'vbb_study/digital_twin/vortex_refractive_axicon_wave.py'
       - 'tools/run_vortex_axicon_physics_suite.py'
       - 'tools/check_axicon_tip_benchmark.py'
       - 'tools/check_axicon_oblique_wave_benchmark_v2.py'
       - 'tests/test_vortex_axicon_tip_reference.py'
       - 'tests/test_vortex_rotated_plane_baseband.py'
       - 'tests/test_vortex_refractive_axicon.py'
+      - 'tests/test_vortex_refractive_axicon_wave.py'
       - '.github/workflows/axicon-physics-v2.yml'
 
 concurrency:
@@ -30,7 +32,7 @@ env:
 
 jobs:
   unit-gates:
-    name: Axicon v2 unit gates
+    name: Axicon v2 geometry/unit gates
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -54,6 +56,21 @@ jobs:
           name: axicon-v2-unit-gates
           path: outputs/validation
           retention-days: 14
+
+  refractive-wave-reference:
+    name: Two-surface refractive eikonal-wave gate
+    needs: unit-gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Refractive eikonal-to-wave tests
+        run: python -m pytest -q tests/test_vortex_refractive_axicon_wave.py
 
   tip-reference:
     name: Independent tip diffraction reference
