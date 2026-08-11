@@ -1,0 +1,81 @@
+name: Phase 2G bench-calibrated digital twin
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'vbb_study/calibration/**'
+      - 'vbb_study/digital_twin/bench_calibrated_route.py'
+      - 'vbb_study/digital_twin/objective_sample_route.py'
+      - 'vbb_study/digital_twin/ultrafast_exposure.py'
+      - 'vbb_study/digital_twin/calibrated_material_response.py'
+      - 'vbb_study/vector_arm_config.py'
+      - 'tests/test_phase2g_bench_calibrated_digital_twin.py'
+      - 'tools/build_phase2g_bench_readiness.py'
+      - '.github/workflows/phase2g-bench-calibrated-digital-twin.yml'
+
+concurrency:
+  group: phase2g-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+  OMP_NUM_THREADS: '2'
+  OPENBLAS_NUM_THREADS: '2'
+  MKL_NUM_THREADS: '2'
+
+jobs:
+  phase2g-unit-and-regression:
+    name: Phase 2G physics / calibration gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Phase 2G focused tests
+        run: python -m pytest -q tests/test_phase2g_bench_calibrated_digital_twin.py
+      - name: Preserve Phase 2D calibration contracts
+        run: python -m pytest -q tests/test_phase2d_calibration_bridge.py
+      - name: Preserve refractive axicon reference gates
+        run: >-
+          python -m pytest -q
+          tests/test_vortex_refractive_axicon.py
+          tests/test_vortex_refractive_axicon_wave.py
+      - name: Compile changed physics modules
+        run: >-
+          python -m compileall -q
+          vbb_study/calibration
+          vbb_study/digital_twin/bench_calibrated_route.py
+          vbb_study/digital_twin/objective_sample_route.py
+          vbb_study/digital_twin/ultrafast_exposure.py
+          vbb_study/digital_twin/calibrated_material_response.py
+          tools/build_phase2g_bench_readiness.py
+      - name: Build calibration readiness evidence
+        run: python tools/build_phase2g_bench_readiness.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase2g-bench-readiness
+          path: |
+            outputs/validation/phase2g/bench_readiness.json
+            calibration/templates/phase2g_bench_calibration_template.json
+          retention-days: 30
+
+  objective-interface-regression:
+    name: Phase 2C objective/interface regression
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Existing Phase 2C vector objective/interface tests
+        run: python -m pytest -q tests/test_phase2c_objective_interface.py
