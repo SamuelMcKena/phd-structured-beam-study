@@ -16,6 +16,9 @@ from vbb_study.calibration.schema import (
 from vbb_study.solver_policy import CLAIM_TYPES
 
 
+SUPPORTED_CALIBRATION_SCHEMA_VERSIONS = frozenset({"1.0", CALIBRATION_SCHEMA_VERSION})
+
+
 @dataclass(frozen=True)
 class CalibrationValidationReport:
     valid_schema: bool
@@ -99,17 +102,74 @@ EXTRA_DEPENDENCIES: dict[str, tuple[CalibrationDependency, ...]] = {
         CalibrationDependency("fourier_filter.plus_one_position_m", "required", "Measured selected-order centre."),
     ),
     "slm_phase_fidelity": (
+        CalibrationDependency("slm.slm1_phase_lut_path", "required", "1029-nm measured SLM1 LUT."),
+        CalibrationDependency("slm.slm2_phase_lut_path", "required", "1029-nm measured SLM2 LUT."),
+        CalibrationDependency("slm.slm1_phase_stroke_rad", "required", "Measured SLM1 optical phase stroke."),
+        CalibrationDependency("slm.slm2_phase_stroke_rad", "required", "Measured SLM2 optical phase stroke."),
+        CalibrationDependency("slm.slm1_panel_orientation_verified", "required", "SLM1 LC/director orientation."),
+        CalibrationDependency("slm.slm2_panel_orientation_verified", "required", "SLM2 LC/director orientation."),
+        CalibrationDependency("slm.calibration_date", "required", "Calibration provenance date."),
+        CalibrationDependency("laser.wavelength_m", "required", "LUT operating wavelength."),
+    ),
+    # Backward-compatible Phase 2D aggregate SLM gate.
+    "slm_phase_fidelity_legacy": (
         CalibrationDependency("slm.phase_lut_path", "required", "Wavelength-specific panel LUT."),
         CalibrationDependency("slm.phase_stroke_rad", "required", "Measured phase stroke."),
         CalibrationDependency("slm.panel_orientation_verified", "required", "LC director orientation."),
         CalibrationDependency("slm.calibration_date", "required", "Calibration provenance date."),
         CalibrationDependency("laser.wavelength_m", "required", "LUT operating wavelength."),
     ),
+    "wavefront_correction": (
+        CalibrationDependency("wavefront_sensor.lenslet_pitch_m", "required", "Shack-Hartmann sampling geometry."),
+        CalibrationDependency("wavefront_sensor.lenslet_focal_length_m", "required", "Converts spot displacement to slope."),
+        CalibrationDependency("wavefront_sensor.reference_centroids_path", "required", "Reference centroid map."),
+        CalibrationDependency("wavefront_sensor.latest_slopes_path", "required", "Measured residual slopes."),
+        CalibrationDependency("wavefront_sensor.slm_registration_rotation_deg", "required", "SH-to-SLM rotation."),
+        CalibrationDependency("wavefront_sensor.slm_registration_scale_x", "required", "SH-to-SLM x scale."),
+        CalibrationDependency("wavefront_sensor.slm_registration_scale_y", "required", "SH-to-SLM y scale."),
+        CalibrationDependency("wavefront_sensor.slm_registration_offset_x_m", "required", "SH-to-SLM x offset."),
+        CalibrationDependency("wavefront_sensor.slm_registration_offset_y_m", "required", "SH-to-SLM y offset."),
+        CalibrationDependency("wavefront_sensor.correction_map_path", "required", "Frozen correction applied before structured phase."),
+    ),
     "bessel_zone_length": (
         CalibrationDependency("laser.beam_radius_on_slm_m", "required", "Measured input radius."),
         CalibrationDependency("axicon.base_angle_deg", "required", "Measured axicon angle."),
         CalibrationDependency("axicon.refractive_index", "required", "Index at operating wavelength."),
         CalibrationDependency("axicon.clear_aperture_m", "required", "Clipping bound."),
+    ),
+    "refractive_axicon_tilt": (
+        CalibrationDependency("axicon.base_angle_deg", "required", "Physical base angle using declared convention."),
+        CalibrationDependency("axicon.clear_radius_m", "required", "Finite refractive surface radius."),
+        CalibrationDependency("axicon.centre_thickness_m", "required", "Second surface location."),
+        CalibrationDependency("axicon.refractive_index", "required", "Material index at 1029 nm."),
+        CalibrationDependency("axicon.angle_convention", "required", "Prevents apex/base-angle ambiguity."),
+        CalibrationDependency("axicon.flat_face_upstream_verified", "required", "Defines surface order."),
+    ),
+    "objective_sample_vector_field": (
+        CalibrationDependency("objective.numerical_aperture", "required", "Richards-Wolf angular support."),
+        CalibrationDependency("objective.focal_length_m", "required", "Objective geometry."),
+        CalibrationDependency("objective.effective_pupil_radius_m", "required", "Entrance-pupil radius."),
+        CalibrationDependency("objective.entrance_pupil_mapping_magnification", "required", "Maps source field to objective pupil."),
+        CalibrationDependency("material.refractive_index", "required", "Vector Fresnel and in-material propagation."),
+        CalibrationDependency("material.surface_orientation_verified", "required", "Planar-interface normal."),
+    ),
+    "spatiotemporal_field": (
+        CalibrationDependency("laser.pulse_duration_s", "required", "Pulse temporal scale."),
+        CalibrationDependency("temporal.spectrum_path", "required", "Measured spectral amplitude."),
+        CalibrationDependency("temporal.gdd_s2", "required", "Measured/characterised second-order spectral phase."),
+        CalibrationDependency("temporal.measurement_method", "required", "Temporal calibration provenance."),
+    ),
+    "experimental_agreement": (
+        CalibrationDependency("camera.object_plane_scale_m_per_pixel", "required", "Physical camera scale."),
+        CalibrationDependency("camera.rotation_deg", "required", "Lab/camera coordinate registration."),
+        CalibrationDependency("camera.background_frame_path", "required", "Background subtraction."),
+        CalibrationDependency("experimental_comparison.evidence_path", "required", "Measured G0/B0/V1/V3 evidence."),
+        CalibrationDependency("experimental_comparison.performed", "required", "Comparison was actually executed."),
+        CalibrationDependency("experimental_comparison.acceptance_passed", "required", "Predeclared comparison gate passed."),
+    ),
+    "material_response": (
+        CalibrationDependency("material.response_dataset_path", "required", "Measured processing response dataset."),
+        CalibrationDependency("material.response_model_path", "required", "Frozen fitted response model with validation."),
     ),
 }
 
@@ -154,9 +214,12 @@ def _raw_at(data: Mapping[str, Any], path: str) -> Any:
 
 def _dependency_satisfied(bundle: CalibrationBundle, path: str) -> tuple[bool, str]:
     value = value_at(bundle, path)
-    if path == "material.coating_state":
+    if path.endswith("coating_state"):
         return value not in (None, "", "unknown"), source_at(bundle, path)
-    if path.endswith("_verified"):
+    if path.endswith("_verified") or path in {
+        "experimental_comparison.performed",
+        "experimental_comparison.acceptance_passed",
+    }:
         return value is True, source_at(bundle, path)
     if value in (None, ""):
         return False, source_at(bundle, path)
@@ -208,9 +271,9 @@ def validate_calibration_bundle(bundle: CalibrationBundle) -> CalibrationValidat
     unit_errors: list[str] = []
     impossible: list[str] = []
 
-    if bundle.schema_version != CALIBRATION_SCHEMA_VERSION:
+    if bundle.schema_version not in SUPPORTED_CALIBRATION_SCHEMA_VERSIONS:
         errors.append(
-            f"unsupported schema_version {bundle.schema_version!r}; expected {CALIBRATION_SCHEMA_VERSION!r}"
+            f"unsupported schema_version {bundle.schema_version!r}; supported={sorted(SUPPORTED_CALIBRATION_SCHEMA_VERSIONS)!r}"
         )
     absent_sections = sorted(_REQUIRED_SECTIONS - set(data))
     errors.extend(f"missing required section: {section}" for section in absent_sections)
@@ -284,6 +347,11 @@ def validate_calibration_bundle(bundle: CalibrationBundle) -> CalibrationValidat
         message = "slm.pixel_pitch_m must be positive SI metres"
         impossible.append(message)
         errors.append(message)
+    period = _raw_at(data, "slm.carrier_period_px")
+    if period is not None and not np.isclose(float(period), 20.0, rtol=0.0, atol=1e-12):
+        message = f"physical bench carrier period must be 20 px, got {period!r}"
+        impossible.append(message)
+        errors.append(message)
 
     if data.get("data_classification") == "laboratory_measurement":
         if not data.get("operator"):
@@ -331,4 +399,10 @@ def calibration_dependency_rows(bundle: CalibrationBundle) -> list[dict[str, Any
     return rows
 
 
+# The original solver-policy claim set remains unchanged; Phase 2G additions are
+# extra calibration gates rather than new solver-policy claims.
 assert set(CLAIM_TYPES) == set(CLAIM_DEPENDENCIES)
+
+
+# Local import avoided above to keep validation import-time lightweight.
+import numpy as np
