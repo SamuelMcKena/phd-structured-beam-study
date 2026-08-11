@@ -47,6 +47,9 @@ jobs:
           test -s outputs/figures/conference_workshop/03_realistic_error_scope.png
           test -s outputs/figures/conference_workshop/04_v1_axicon_decentre.png
           test -s outputs/figures/conference_workshop/05_v1_rounded_tip.png
+          test -s outputs/figures/conference_workshop/06_simulation_experiment_loop.png
+          test -s outputs/figures/conference_workshop/04_v1_axicon_decentre_metrics.json
+          test -s outputs/figures/conference_workshop/05_v1_rounded_tip_metrics.json
           test -s outputs/figures/conference_workshop/presentation_figure_manifest.json
       - uses: actions/upload-artifact@v4
         if: always()
