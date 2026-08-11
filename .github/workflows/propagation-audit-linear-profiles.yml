@@ -10,6 +10,7 @@ on:
       - 'vbb_study/digital_twin/vortex_fixed_plane_bl_propagation.py'
       - 'vbb_study/digital_twin/phase2b_visual_cases.py'
       - 'tools/audit_phase2b_propagation.py'
+      - 'tools/check_phase2b_longitudinal_continuity.py'
       - 'tools/check_system_error_propagation_reference.py'
       - 'tools/run_vortex_system_error_evidence_v5.py'
       - 'tools/run_vortex_declared_aberration_suite.py'
@@ -57,6 +58,7 @@ jobs:
           vbb_study/digital_twin/vortex_profile_evidence.py
           vbb_study/digital_twin/vortex_fixed_plane_bl_propagation.py
           tools/audit_phase2b_propagation.py
+          tools/check_phase2b_longitudinal_continuity.py
           tools/check_system_error_propagation_reference.py
           tools/run_vortex_system_error_evidence_v5.py
           tools/run_vortex_declared_aberration_suite.py
@@ -84,6 +86,30 @@ jobs:
         with:
           name: phase2b-propagation-audit-N512
           path: outputs/validation/propagation_audit/phase2b_N512.json
+          retention-days: 14
+
+  phase2b-fine-z:
+    name: Phase2B fine-z longitudinal continuity audit
+    needs: phase2b-audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Resolve each worst coarse-z interval at 0.25 mm spacing
+        run: >-
+          python tools/check_phase2b_longitudinal_continuity.py
+          --grid-n 512
+          --output outputs/validation/propagation_audit/phase2b_fine_z_continuity.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase2b-fine-z-continuity-audit
+          path: outputs/validation/propagation_audit/phase2b_fine_z_continuity.json
           retention-days: 14
 
   phase2b-vector-production-audit:
@@ -229,7 +255,7 @@ jobs:
 
   system-full:
     name: N1536 ${{ matrix.case }} / ${{ matrix.group.name }} evidence
-    needs: [system-smoke, phase2b-vector-production-audit, system-reference-audit-n512]
+    needs: [system-smoke, phase2b-vector-production-audit, system-reference-audit-n512, phase2b-fine-z]
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     strategy:
