@@ -6,6 +6,7 @@ on:
     paths:
       - 'vbb_study/calibration/**'
       - 'vbb_study/digital_twin/bench_calibrated_route.py'
+      - 'vbb_study/digital_twin/bench_calibrated_vector_route.py'
       - 'vbb_study/digital_twin/objective_sample_route.py'
       - 'vbb_study/digital_twin/objective_pupil_mapping.py'
       - 'vbb_study/digital_twin/ultrafast_exposure.py'
@@ -17,6 +18,7 @@ on:
       - 'tests/test_phase2g_objective_pupil_mapping.py'
       - 'tests/test_phase2g_vector_observables.py'
       - 'tests/test_phase2g_shack_hartmann_masked.py'
+      - 'tests/test_phase2g_calibrated_vector_route.py'
       - 'tools/build_phase2g_bench_readiness.py'
       - '.github/workflows/phase2g-bench-calibrated-digital-twin.yml'
 
@@ -50,6 +52,7 @@ jobs:
           tests/test_phase2g_objective_pupil_mapping.py
           tests/test_phase2g_vector_observables.py
           tests/test_phase2g_shack_hartmann_masked.py
+          tests/test_phase2g_calibrated_vector_route.py
       - name: Preserve clean-checkout Phase 2D numerical/calibration contracts
         run: >-
           python -m pytest -q tests/test_phase2d_calibration_bridge.py
@@ -75,6 +78,7 @@ jobs:
           python -m compileall -q
           vbb_study/calibration
           vbb_study/digital_twin/bench_calibrated_route.py
+          vbb_study/digital_twin/bench_calibrated_vector_route.py
           vbb_study/digital_twin/objective_sample_route.py
           vbb_study/digital_twin/objective_pupil_mapping.py
           vbb_study/digital_twin/ultrafast_exposure.py
