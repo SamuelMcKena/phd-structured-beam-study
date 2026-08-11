@@ -90,10 +90,17 @@ def _ray_second_moment_anisotropy(bundle) -> float:
     return (major - minor) / (0.5 * (major + minor))
 
 
-def test_refractive_reference_field_closes_ray_flux_and_covers_plane() -> None:
+def test_refractive_reference_field_closes_flux_and_matches_ray_hull() -> None:
     _, reference = _setup(5.0)
-    assert abs(float(reference.metadata["ray_flux_closure_ratio"]) - 1.0) < 1e-10
-    assert float(reference.metadata["coverage_fraction"]) > 0.75
+    meta = reference.metadata
+    assert abs(float(meta["ray_flux_closure_ratio"]) - 1.0) < 1e-10
+    assert bool(meta["reference_support_within_output_window"])
+    # The physical support is approximately circular/elliptical, so its area
+    # should not be forced to fill an arbitrary fraction of a square FFT grid.
+    # Instead the pixel mask must reproduce the continuous convex hull of the
+    # traced rays to within finite-grid rasterisation error.
+    assert float(meta["expected_hull_coverage_fraction"]) > 0.5
+    assert float(meta["coverage_relative_error_to_hull"]) < 0.03
     assert np.all(np.isfinite(reference.field))
 
 
