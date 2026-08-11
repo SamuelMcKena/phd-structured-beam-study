@@ -54,6 +54,20 @@ def _field(n: int = 128, window_m: float = 3.0e-3, *, circular: bool = False) ->
     )
 
 
+def _plane_wave_field(n: int = 128, window_m: float = 3.0e-3) -> VectorField:
+    grid = make_xy_grid(n, window_m / n)
+    ex = np.full((n, n), 1.0 / np.sqrt(2.0), dtype=np.complex128)
+    ey = 1j * ex
+    return VectorField(
+        ex=ex,
+        ey=ey,
+        ez=np.zeros_like(ex),
+        grid=grid,
+        wavelength_m=WAVELENGTH,
+        medium_index=N_EXT,
+    )
+
+
 def _ray_anisotropy(result) -> float:
     valid = np.asarray(result.geometry_bundle.valid, dtype=bool)
     rays = np.asarray(result.outgoing_direction_lab, dtype=float)[valid]
@@ -107,14 +121,17 @@ def test_zero_tilt_surface_sampling_is_exact_coordinate_identity() -> None:
     assert meta["spectral_transversality_power_ratio"] < 1e-24
 
 
-def test_zero_tilt_vector_two_surface_solver_matches_exact_snell_cone_and_flux() -> None:
+def test_zero_tilt_vector_two_surface_solver_matches_exact_plane_wave_snell_cone_and_flux() -> None:
+    # Exact normal-incidence Snell-cone geometry is a plane-wave statement.  A
+    # finite Gaussian has a small but real local Poynting divergence and should
+    # not be forced to reproduce the plane-wave ray angle point-by-point.
     result = build_tilted_vector_refractive_axicon_field(
-        _field(circular=True),
+        _plane_wave_field(),
         geometry=_geometry(),
         tilt_x_rad=0.0,
         tilt_y_rad=0.0,
         reference_gap_m=0.20e-3,
-        output_n=128,
+        output_n=256,
         output_window_m=3.0e-3,
     )
     valid = np.asarray(result.geometry_bundle.valid, dtype=bool)
@@ -125,14 +142,14 @@ def test_zero_tilt_vector_two_surface_solver_matches_exact_snell_cone_and_flux()
         refractive_index=N_AX,
         external_index=N_EXT,
     ).exact_radial_direction_sine
-    assert abs(measured - expected) < 2e-8
+    assert abs(measured - expected) < 2e-11
     assert abs(float(result.metadata["ray_flux_closure_ratio"]) - 1.0) < 2e-12
     assert abs(float(result.metadata["final_flux_closure_ratio"]) - 1.0) < 2e-12
     assert float(result.metadata["interface1_max_abs_R_plus_T_minus_1"]) < 2e-12
     assert float(result.metadata["interface2_max_abs_R_plus_T_minus_1"]) < 2e-12
     assert float(result.metadata["final_transversality_residual"]) < 1e-10
     assert float(result.metadata["coverage_fraction"]) > 0.25
-    assert float(result.metadata["p95_local_nontransverse_power_fraction"]) < 1e-5
+    assert abs(float(result.metadata["interpolation_flux_power_correction_ratio"]) - 1.0) < 0.10
 
 
 def test_tilted_vector_eikonal_phase_gradient_matches_traced_wavevector() -> None:
@@ -142,7 +159,7 @@ def test_tilted_vector_eikonal_phase_gradient_matches_traced_wavevector() -> Non
         tilt_x_rad=0.0,
         tilt_y_rad=math.radians(5.0),
         reference_gap_m=0.20e-3,
-        output_n=128,
+        output_n=256,
         output_window_m=3.0e-3,
     )
     check = lab_reference_eikonal_direction_consistency(
@@ -164,7 +181,7 @@ def test_x_and_y_vector_tilts_are_rotationally_equivalent_for_circular_input() -
         tilt_x_rad=angle,
         tilt_y_rad=0.0,
         reference_gap_m=0.20e-3,
-        output_n=128,
+        output_n=256,
         output_window_m=3.0e-3,
     )
     ry = build_tilted_vector_refractive_axicon_field(
@@ -173,7 +190,7 @@ def test_x_and_y_vector_tilts_are_rotationally_equivalent_for_circular_input() -
         tilt_x_rad=0.0,
         tilt_y_rad=angle,
         reference_gap_m=0.20e-3,
-        output_n=128,
+        output_n=256,
         output_window_m=3.0e-3,
     )
     assert abs(_ray_anisotropy(rx) - _ray_anisotropy(ry)) < 3e-4
@@ -193,7 +210,7 @@ def test_tilt_sign_is_mirror_symmetric_in_scalar_ray_metrics() -> None:
         tilt_x_rad=0.0,
         tilt_y_rad=angle,
         reference_gap_m=0.20e-3,
-        output_n=128,
+        output_n=256,
         output_window_m=3.0e-3,
     )
     minus = build_tilted_vector_refractive_axicon_field(
@@ -202,7 +219,7 @@ def test_tilt_sign_is_mirror_symmetric_in_scalar_ray_metrics() -> None:
         tilt_x_rad=0.0,
         tilt_y_rad=-angle,
         reference_gap_m=0.20e-3,
-        output_n=128,
+        output_n=256,
         output_window_m=3.0e-3,
     )
     assert abs(_ray_anisotropy(plus) - _ray_anisotropy(minus)) < 3e-4
