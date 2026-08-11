@@ -5,8 +5,10 @@ on:
   pull_request:
     paths:
       - 'vbb_study/digital_twin/vector_refractive_axicon.py'
-      - 'vbb_study/digital_twin/bench_calibrated_vector_route.py'
+      - 'vbb_study/digital_twin/vector_refractive_axicon_eikonal.py'
+      - 'vbb_study/digital_twin/bench_calibrated_vector_tilt_route.py'
       - 'tests/test_phase2h_vector_refractive_axicon.py'
+      - 'tests/test_phase2h_vector_refractive_reference.py'
       - 'tests/test_phase2h_calibrated_vector_tilt_route.py'
       - 'docs/phase2h/**'
       - '.github/workflows/phase2h-vector-refractive-axicon.yml'
@@ -24,7 +26,7 @@ env:
 
 jobs:
   vector-surface-physics:
-    name: Vector two-surface Snell/Fresnel/Poynting gates
+    name: Vector two-surface Snell/Fresnel/eikonal gates
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -34,15 +36,21 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
-      - name: New Phase 2H vector surface tests
-        run: python -m pytest -q tests/test_phase2h_vector_refractive_axicon.py
+      - name: New Phase 2H common-eikonal vector surface tests
+        run: >-
+          python -m pytest -q
+          tests/test_phase2h_vector_refractive_axicon.py
+          tests/test_phase2h_vector_refractive_reference.py
       - name: Preserve scalar two-surface refractive reference
         run: >-
           python -m pytest -q
           tests/test_vortex_refractive_axicon.py
           tests/test_vortex_refractive_axicon_wave.py
-      - name: Compile vector refractive solver
-        run: python -m compileall -q vbb_study/digital_twin/vector_refractive_axicon.py
+      - name: Compile vector refractive solvers
+        run: >-
+          python -m compileall -q
+          vbb_study/digital_twin/vector_refractive_axicon.py
+          vbb_study/digital_twin/vector_refractive_axicon_eikonal.py
 
   vector-route-regression:
     name: Existing calibrated vector / objective regressions
