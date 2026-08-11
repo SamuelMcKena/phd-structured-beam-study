@@ -1,26 +1,22 @@
 """Build clean presentation-only figures from the validated vortex system model.
 
-These figures are intentionally *not* diagnostic plots.  They are compact,
-consistent, 16:9-friendly visualisations for the first-year PhD workshop talk.
-All numerical fields are regenerated from the validated physical-system route;
-no raster crops of old diagnostic figures are used.
+The outputs are deliberately styled for a short conference/workshop talk rather
+than for a paper: large panels, minimal text, common physical axes and no debug
+metadata.  Every optical field is regenerated from the validated complex-field
+model; old diagnostic PNGs are not cropped or reused.
 
-Presentation outputs
---------------------
+Outputs
+-------
 01_simulation_pipeline.png
-    V1 computational route: input -> SLM1 -> SLM2/4F -> axicon -> propagated field.
 02_ideal_beam_family.png
-    B0/V1/V3 transverse and longitudinal fields with common physical axes.
 03_realistic_error_scope.png
-    Compact diagram of the controlled error families represented by the model.
 04_v1_axicon_decentre.png
-    V1 lateral axicon decentre at -500/0/+500 um, centred on the topological core.
 05_v1_rounded_tip.png
-    V1 sharp/200/800 um hyperbolic tip-radius sensitivity, resolution checked.
+06_simulation_experiment_loop.png
 
-The rigid-tilt surrogate is deliberately absent because it is rejected by the
-axicon-physics-v2 validation suite.  Lab-specific refractive tilt remains a
-separate reference problem until the real axicon geometry is supplied.
+Rigid axicon tilt is deliberately absent because the thin tilted-phase surrogate
+is rejected by the parent validation branch.  The explicit refractive solver is
+kept as a validated reference until the real physical axicon geometry is known.
 """
 
 from __future__ import annotations
@@ -69,9 +65,9 @@ def _ell(case_id: str) -> int:
     return {"B0": 0, "V1": 1, "V3": 3}[case_id]
 
 
-def _normalise(intensity: np.ndarray) -> np.ndarray:
-    values = np.maximum(np.asarray(intensity, dtype=float), 0.0)
-    return values / max(float(np.max(values)), EPS)
+def _normalise(values: np.ndarray) -> np.ndarray:
+    arr = np.maximum(np.asarray(values, dtype=float), 0.0)
+    return arr / max(float(np.max(arr)), EPS)
 
 
 def _save(fig: plt.Figure, path: Path) -> None:
@@ -82,17 +78,18 @@ def _save(fig: plt.Figure, path: Path) -> None:
 
 def _propagate_xy(route: Mapping[str, Any], z_m: float = XY_Z_M) -> np.ndarray:
     grid = dict(route["grid"])
-    wavelength = float(route["metadata"]["wavelength_m"])
-    field = angular_spectrum_propagate_bl(
-        route["post_axicon"],
-        grid,
-        wavelength,
-        float(z_m),
-        n_medium=1.0,
-        bandlimit=True,
-        include_evanescent=True,
+    return np.asarray(
+        angular_spectrum_propagate_bl(
+            np.asarray(route["post_axicon"]),
+            grid,
+            float(route["metadata"]["wavelength_m"]),
+            float(z_m),
+            n_medium=1.0,
+            bandlimit=True,
+            include_evanescent=True,
+        ),
+        dtype=np.complex128,
     )
-    return np.asarray(field, dtype=np.complex128)
 
 
 def _crop_about(
@@ -119,7 +116,7 @@ def _crop_about(
 
 
 def _axisymmetric_xz(route: Mapping[str, Any]) -> np.ndarray:
-    following = build_beam_following_propagation(
+    result = build_beam_following_propagation(
         grid=dict(route["grid"]),
         wavelength_m=float(route["metadata"]["wavelength_m"]),
         z_values_m=Z_VALUES_M,
@@ -129,7 +126,7 @@ def _axisymmetric_xz(route: Mapping[str, Any]) -> np.ndarray:
         y_axis_m=0.0,
         source_label="conference-axisymmetric",
     )
-    return np.asarray(following.xz_intensity, dtype=float)
+    return np.asarray(result.xz_intensity, dtype=float)
 
 
 def _tracked_xz_for_x_decentre(
@@ -137,7 +134,7 @@ def _tracked_xz_for_x_decentre(
     *,
     case_id: str,
     seed_x_m: float,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, float]:
     grid = dict(route["grid"])
     wavelength = float(route["metadata"]["wavelength_m"])
     fixed = build_dense_spectral_propagation(
@@ -170,7 +167,11 @@ def _tracked_xz_for_x_decentre(
         y_axis_m=0.0,
         source_label=f"conference-following-{case_id}-{seed_x_m:g}",
     )
-    return np.asarray(following.xz_intensity, dtype=float), np.asarray(track.coordinate_m)
+    return (
+        np.asarray(following.xz_intensity, dtype=float),
+        np.asarray(track.coordinate_m, dtype=float),
+        float(track.detected_fraction),
+    )
 
 
 def _draw_intensity(
@@ -194,26 +195,24 @@ def _draw_intensity(
         interpolation="nearest",
     )
     if title:
-        ax.set_title(title, fontsize=13, pad=8)
+        ax.set_title(title, fontsize=14, pad=8)
     if xlabel:
         ax.set_xlabel(xlabel, fontsize=10)
     else:
-        ax.set_xticklabels([])
+        ax.tick_params(labelbottom=False)
     if ylabel:
         ax.set_ylabel(ylabel, fontsize=10)
     else:
-        ax.set_yticklabels([])
+        ax.tick_params(labelleft=False)
     ax.tick_params(labelsize=8, length=3)
 
 
 def build_simulation_pipeline(output_dir: Path, grid_n: int) -> Path:
-    """Presentation schematic populated with fields from the actual route."""
+    """Actual V1 numerical route shown as a compact optical-train graphic."""
 
     route = build_system_route("V1", grid_n=int(grid_n))
     grid = dict(route["grid"])
     x = np.asarray(grid["x"], dtype=float)
-    X = np.asarray(grid["X"], dtype=float)
-    Y = np.asarray(grid["Y"], dtype=float)
 
     input_i = np.abs(route["input_beam"]) ** 2
     slm1_phase = np.angle(
@@ -223,14 +222,14 @@ def build_simulation_pipeline(output_dir: Path, grid_n: int) -> Path:
         np.asarray(route["post_slm2"]) * np.conj(np.asarray(route["post_slm1"]))
     )
     fourier_i = np.abs(route["fourier_plane_before_iris"]) ** 2
+    axicon_phase = np.angle(
+        np.asarray(route["post_axicon_local"])
+        * np.conj(np.asarray(route["field_on_axicon_plane"]))
+    )
     output_field = _propagate_xy(route)
     output_i = np.abs(output_field) ** 2
 
-    # The first four panels show the full optical aperture / Fourier plane.  The
-    # final panel is a deliberately tighter physical ROI around the generated
-    # vortex-Bessel structure.
-    full_half = 2.35e-3
-    full_mask = np.flatnonzero(np.abs(x) <= full_half)
+    full_mask = np.flatnonzero(np.abs(x) <= 2.35e-3)
     full_extent_mm = [
         x[full_mask[0]] * 1e3,
         x[full_mask[-1]] * 1e3,
@@ -252,16 +251,23 @@ def build_simulation_pipeline(output_dir: Path, grid_n: int) -> Path:
         halfwidth_m=190e-6,
     )
 
-    fig = plt.figure(figsize=(14.2, 3.4))
-    gs = fig.add_gridspec(1, 5, left=0.035, right=0.985, bottom=0.18, top=0.82, wspace=0.32)
-    axes = [fig.add_subplot(gs[0, i]) for i in range(5)]
+    fig = plt.figure(figsize=(15.8, 3.25))
+    gs = fig.add_gridspec(
+        1, 6, left=0.025, right=0.99, bottom=0.14, top=0.82, wspace=0.34
+    )
+    axes = [fig.add_subplot(gs[0, i]) for i in range(6)]
 
-    arrays = [input_i, slm1_phase, slm2_phase, fourier_i]
-    titles = ["Input beam", "SLM 1\nvortex phase", "SLM 2\ncarrier", "4F Fourier\nfiltering"]
-    cmaps = ["inferno", "twilight", "twilight", "inferno"]
-    for ax, values, title, cmap in zip(axes[:4], arrays, titles, cmaps):
+    panels = [
+        (input_i, "Input beam", "inferno", False),
+        (slm1_phase, "SLM 1\nmodulation", "twilight", True),
+        (slm2_phase, "SLM 2\nmodulation + carrier", "twilight", True),
+        (fourier_i, "4F spatial\nfiltering", "inferno", False),
+        (axicon_phase, "Axicon\nphase", "twilight", True),
+    ]
+    for index, (values, title, cmap, is_phase) in enumerate(panels):
+        ax = axes[index]
         sub = np.asarray(values)[np.ix_(full_mask, full_mask)]
-        if "phase" in title.lower() or "carrier" in title.lower():
+        if is_phase:
             ax.imshow(
                 sub,
                 origin="lower",
@@ -281,45 +287,38 @@ def build_simulation_pipeline(output_dir: Path, grid_n: int) -> Path:
                 vmax=1,
                 interpolation="nearest",
             )
-        ax.set_title(title, fontsize=12, pad=7)
-        ax.set_xlabel("x (mm)", fontsize=8)
-        if ax is axes[0]:
-            ax.set_ylabel("y (mm)", fontsize=8)
+        ax.set_title(title, fontsize=11.5, pad=6)
+        ax.set_xlabel("x (mm)", fontsize=7.5)
+        if index == 0:
+            ax.set_ylabel("y (mm)", fontsize=7.5)
         else:
-            ax.set_yticklabels([])
-        ax.tick_params(labelsize=7, length=2)
+            ax.tick_params(labelleft=False)
+        ax.tick_params(labelsize=6.5, length=2)
 
     _draw_intensity(
-        axes[4],
+        axes[5],
         output_crop,
         extent=output_extent,
         xlabel="x (µm)",
         ylabel=None,
-        title="Propagated\nvortex-Bessel field",
+        title="Predicted field\nat 60 mm",
     )
 
     for left, right in zip(axes[:-1], axes[1:]):
-        box_l = left.get_position()
-        box_r = right.get_position()
-        arrow = FancyArrowPatch(
-            (box_l.x1 + 0.006, 0.50),
-            (box_r.x0 - 0.006, 0.50),
-            transform=fig.transFigure,
-            arrowstyle="-|>",
-            mutation_scale=12,
-            linewidth=1.1,
-            color="0.3",
+        bl = left.get_position()
+        br = right.get_position()
+        fig.add_artist(
+            FancyArrowPatch(
+                (bl.x1 + 0.004, 0.49),
+                (br.x0 - 0.004, 0.49),
+                transform=fig.transFigure,
+                arrowstyle="-|>",
+                mutation_scale=11,
+                linewidth=1.0,
+                color="0.3",
+            )
         )
-        fig.add_artist(arrow)
 
-    fig.text(
-        0.5,
-        0.06,
-        "Numerical route mirrors the experimental optical train",
-        ha="center",
-        fontsize=11,
-        color="0.25",
-    )
     path = output_dir / "01_simulation_pipeline.png"
     _save(fig, path)
     return path
@@ -328,7 +327,7 @@ def build_simulation_pipeline(output_dir: Path, grid_n: int) -> Path:
 def build_ideal_family(output_dir: Path, grid_n: int) -> Path:
     cases = ("B0", "V1", "V3")
     labels = ("B0   (ℓ = 0)", "V1   (ℓ = 1)", "V3   (ℓ = 3)")
-    fig, axes = plt.subplots(2, 3, figsize=(10.8, 6.0), constrained_layout=True)
+    fig, axes = plt.subplots(2, 3, figsize=(10.8, 6.05), constrained_layout=True)
 
     for col, (case_id, label) in enumerate(zip(cases, labels)):
         route = build_system_route(case_id, grid_n=int(grid_n))
@@ -341,13 +340,12 @@ def build_ideal_family(output_dir: Path, grid_n: int) -> Path:
             seed_y_m=0.0,
             search_radius_m=0.8e-3,
         )
-        halfwidth = 250e-6
         crop, extent = _crop_about(
             np.abs(field_xy) ** 2,
             dict(route["grid"]),
             centre_x_m=axis.x_m,
             centre_y_m=axis.y_m,
-            halfwidth_m=halfwidth,
+            halfwidth_m=250e-6,
         )
         _draw_intensity(
             axes[0, col],
@@ -357,6 +355,8 @@ def build_ideal_family(output_dir: Path, grid_n: int) -> Path:
             ylabel="y (µm)" if col == 0 else None,
             title=label,
         )
+        axes[0, col].axhline(0, color="white", alpha=0.24, linewidth=0.5)
+        axes[0, col].axvline(0, color="white", alpha=0.24, linewidth=0.5)
 
         xz = _axisymmetric_xz(route)
         _draw_intensity(
@@ -372,77 +372,73 @@ def build_ideal_family(output_dir: Path, grid_n: int) -> Path:
             ylabel="x (µm)" if col == 0 else None,
             aspect="auto",
         )
-        axes[0, col].axhline(0, color="white", alpha=0.25, linewidth=0.5)
-        axes[0, col].axvline(0, color="white", alpha=0.25, linewidth=0.5)
 
-    fig.text(0.5, 0.995, "Ideal simulated beam family", ha="center", va="top", fontsize=16)
-    fig.text(
-        0.99,
-        0.01,
-        "Normalised intensity • identical physical axes",
-        ha="right",
-        va="bottom",
-        fontsize=8,
-        color="0.35",
-    )
     path = output_dir / "02_ideal_beam_family.png"
     _save(fig, path)
     return path
 
 
 def build_error_scope(output_dir: Path) -> Path:
-    fig, ax = plt.subplots(figsize=(13.3, 4.0))
+    """Minimal physical-error map for the bridge from ideal to real system."""
+
+    fig, ax = plt.subplots(figsize=(13.4, 3.25))
     ax.set_xlim(0, 1)
     ax.set_ylim(0, 1)
     ax.axis("off")
 
     blocks = [
-        (0.03, "Input beam", "size • offset\nellipticity"),
-        (0.22, "SLM 1 + SLM 2", "phase response • registration\npixel/fill-factor effects"),
-        (0.46, "4F filtering", "iris position/size\nlens alignment"),
-        (0.68, "Axicon", "lateral decentre • tip shape\nangle / refractive index"),
-        (0.88, "Output", "transverse structure\npropagation signature"),
+        (0.02, 0.14, "Input beam", "size • offset\nellipticity"),
+        (0.20, 0.20, "SLM 1 + SLM 2", "phase response • registration\npixel / fill-factor effects"),
+        (0.44, 0.15, "4F filtering", "iris position / size\nlens alignment"),
+        (0.63, 0.18, "Axicon", "lateral decentre • tip shape\nangle / refractive index"),
+        (0.85, 0.13, "Predicted output", "x–y / x–z structure\ntrajectory • symmetry"),
     ]
-    widths = [0.14, 0.18, 0.15, 0.16, 0.10]
-    for (x0, title, body), width in zip(blocks, widths):
-        patch = FancyBboxPatch(
-            (x0, 0.32),
-            width,
-            0.38,
-            boxstyle="round,pad=0.012,rounding_size=0.015",
-            linewidth=1.25,
-            edgecolor="0.2",
-            facecolor="0.97",
+    for x0, width, title, body in blocks:
+        ax.add_patch(
+            FancyBboxPatch(
+                (x0, 0.33),
+                width,
+                0.40,
+                boxstyle="round,pad=0.010,rounding_size=0.015",
+                linewidth=1.15,
+                edgecolor="0.22",
+                facecolor="0.975",
+            )
         )
-        ax.add_patch(patch)
-        ax.text(x0 + width / 2, 0.59, title, ha="center", va="center", fontsize=12, weight="bold")
-        ax.text(x0 + width / 2, 0.43, body, ha="center", va="center", fontsize=9, color="0.25")
+        ax.text(
+            x0 + width / 2,
+            0.59,
+            title,
+            ha="center",
+            va="center",
+            fontsize=10.8,
+            weight="bold",
+        )
+        ax.text(
+            x0 + width / 2,
+            0.44,
+            body,
+            ha="center",
+            va="center",
+            fontsize=8.3,
+            color="0.28",
+        )
 
-    for i in range(len(blocks) - 1):
-        x_start = blocks[i][0] + widths[i] + 0.008
-        x_end = blocks[i + 1][0] - 0.008
+    for (x0, width, _, _), (xn, _, _, _) in zip(blocks[:-1], blocks[1:]):
         ax.annotate(
             "",
-            xy=(x_end, 0.51),
-            xytext=(x_start, 0.51),
-            arrowprops=dict(arrowstyle="-|>", lw=1.25, color="0.35"),
+            xy=(xn - 0.007, 0.53),
+            xytext=(x0 + width + 0.007, 0.53),
+            arrowprops=dict(arrowstyle="-|>", lw=1.15, color="0.35"),
         )
 
     ax.text(
         0.5,
-        0.84,
-        "Moving from an ideal beam model towards the real optical system",
+        0.13,
+        "change one physical parameter  →  predict the observable signature",
         ha="center",
-        fontsize=15,
-        weight="bold",
-    )
-    ax.text(
-        0.5,
-        0.12,
-        "Change one physical parameter → predict the observable signature",
-        ha="center",
-        fontsize=11,
-        color="0.25",
+        fontsize=10.5,
+        color="0.28",
     )
     path = output_dir / "03_realistic_error_scope.png"
     _save(fig, path)
@@ -452,14 +448,16 @@ def build_error_scope(output_dir: Path) -> Path:
 def build_v1_decentre(output_dir: Path, grid_n: int) -> Path:
     values = (-500e-6, 0.0, 500e-6)
     labels = ("−500 µm", "Aligned", "+500 µm")
-    fig, axes = plt.subplots(2, 3, figsize=(10.8, 6.0), constrained_layout=True)
+    fig, axes = plt.subplots(2, 3, figsize=(10.8, 6.05), constrained_layout=True)
     rows: list[dict[str, float]] = []
 
     for col, (value, label) in enumerate(zip(values, labels)):
         route = build_system_route(
             "V1",
             grid_n=int(grid_n),
-            config=SystemErrorConfig(axicon=AxiconError(decentre_m=(float(value), 0.0))),
+            config=SystemErrorConfig(
+                axicon=AxiconError(decentre_m=(float(value), 0.0))
+            ),
         )
         field_xy = _propagate_xy(route)
         axis = transverse_morphology_axis(
@@ -487,7 +485,7 @@ def build_v1_decentre(output_dir: Path, grid_n: int) -> Path:
         axes[0, col].axhline(0, color="white", alpha=0.30, linewidth=0.55)
         axes[0, col].axvline(0, color="white", alpha=0.30, linewidth=0.55)
 
-        xz, track = _tracked_xz_for_x_decentre(
+        xz, track, detection = _tracked_xz_for_x_decentre(
             route,
             case_id="V1",
             seed_x_m=float(value),
@@ -512,19 +510,10 @@ def build_v1_decentre(output_dir: Path, grid_n: int) -> Path:
                 "xy_topological_axis_y_m": float(axis.y_m),
                 "mean_longitudinal_axis_x_m": float(np.mean(track)),
                 "longitudinal_axis_span_m": float(np.ptp(track)),
+                "tracking_detection_fraction": float(detection),
             }
         )
 
-    fig.text(0.5, 0.995, "V1 sensitivity to lateral axicon decentre", ha="center", va="top", fontsize=16)
-    fig.text(
-        0.99,
-        0.01,
-        "Normalised intensity • morphology shown in the vortex-core frame",
-        ha="right",
-        va="bottom",
-        fontsize=8,
-        color="0.35",
-    )
     path = output_dir / "04_v1_axicon_decentre.png"
     _save(fig, path)
     (output_dir / "04_v1_axicon_decentre_metrics.json").write_text(
@@ -536,28 +525,34 @@ def build_v1_decentre(output_dir: Path, grid_n: int) -> Path:
 def build_v1_rounded_tip(output_dir: Path, grid_n: int) -> Path:
     manifest = canonical_hardware_manifest()
     gamma = math.radians(float(hardware_value(manifest, "axicon_base_angle_deg")))
-    radii = (0.0, 200e-6, 800e-6)
-    labels = ("Ideal sharp tip", "200 µm rounding", "800 µm rounding")
-    fig, axes = plt.subplots(2, 3, figsize=(10.8, 6.0), constrained_layout=True)
+    radii = (0.0, 400e-6, 800e-6)
+    labels = ("Ideal sharp tip", "400 µm rounding", "800 µm rounding")
+    fig, axes = plt.subplots(2, 3, figsize=(10.8, 6.05), constrained_layout=True)
     rows: list[dict[str, float | bool]] = []
 
     for col, (radius, label) in enumerate(zip(radii, labels)):
-        if radius == 0.0:
-            error = AxiconError(tip_model="sharp")
-        else:
-            error = AxiconError(
+        error = (
+            AxiconError(tip_model="sharp")
+            if radius == 0.0
+            else AxiconError(
                 tip_model="hyperboloidal_round",
                 rounding_parameter_m=float(radius) * math.tan(gamma),
             )
+        )
         route = build_system_route(
             "V1",
             grid_n=int(grid_n),
             config=SystemErrorConfig(axicon=error),
         )
-        resolution = tip_resolution(radius, float(route["grid"]["dx"]), minimum_pixels=12.0)
+        resolution = tip_resolution(
+            radius,
+            float(route["grid"]["dx"]),
+            minimum_pixels=12.0,
+        )
         if radius != 0.0 and not resolution.resolved:
             raise RuntimeError(
-                f"rounded-tip presentation case {radius:g} m is only {resolution.radius_pixels:.2f} pixels"
+                f"rounded-tip presentation case {radius:g} m is only "
+                f"{resolution.radius_pixels:.2f} pixels"
             )
 
         field_xy = _propagate_xy(route)
@@ -608,21 +603,95 @@ def build_v1_rounded_tip(output_dir: Path, grid_n: int) -> Path:
             }
         )
 
-    fig.text(0.5, 0.995, "Effect of a non-ideal rounded axicon tip", ha="center", va="top", fontsize=16)
-    fig.text(
-        0.99,
-        0.01,
-        "Normalised intensity • rounded-tip values are resolved sensitivity cases, not measured hardware defects",
-        ha="right",
-        va="bottom",
-        fontsize=8,
-        color="0.35",
-    )
     path = output_dir / "05_v1_rounded_tip.png"
     _save(fig, path)
     (output_dir / "05_v1_rounded_tip_metrics.json").write_text(
         json.dumps(rows, indent=2), encoding="utf-8"
     )
+    return path
+
+
+def build_simulation_experiment_loop(output_dir: Path) -> Path:
+    """Simple closing graphic for the handover from simulation to experiment."""
+
+    fig, ax = plt.subplots(figsize=(11.8, 4.2))
+    ax.set_xlim(0, 1)
+    ax.set_ylim(0, 1)
+    ax.axis("off")
+
+    boxes = {
+        "simulation": (0.06, 0.42, 0.27, 0.34),
+        "experiment": (0.67, 0.42, 0.27, 0.34),
+        "calibration": (0.365, 0.08, 0.27, 0.25),
+    }
+    content = {
+        "simulation": ("Simulation", "predict beam structure\nand error signatures"),
+        "experiment": ("Experiment", "measure the real beam\nand system response"),
+        "calibration": ("Calibration / validation", "use measured parameters\nto update the model"),
+    }
+    for key, (x0, y0, width, height) in boxes.items():
+        ax.add_patch(
+            FancyBboxPatch(
+                (x0, y0),
+                width,
+                height,
+                boxstyle="round,pad=0.015,rounding_size=0.02",
+                linewidth=1.3,
+                edgecolor="0.22",
+                facecolor="0.975",
+            )
+        )
+        title, body = content[key]
+        ax.text(
+            x0 + width / 2,
+            y0 + 0.68 * height,
+            title,
+            ha="center",
+            va="center",
+            fontsize=15,
+            weight="bold",
+        )
+        ax.text(
+            x0 + width / 2,
+            y0 + 0.37 * height,
+            body,
+            ha="center",
+            va="center",
+            fontsize=10,
+            color="0.28",
+        )
+
+    ax.annotate(
+        "predict what to look for",
+        xy=(0.66, 0.59),
+        xytext=(0.34, 0.59),
+        ha="center",
+        va="bottom",
+        fontsize=9.5,
+        color="0.28",
+        arrowprops=dict(arrowstyle="-|>", lw=1.4, color="0.3"),
+    )
+    ax.annotate(
+        "measured system parameters",
+        xy=(0.61, 0.29),
+        xytext=(0.76, 0.41),
+        ha="center",
+        fontsize=9.0,
+        color="0.28",
+        arrowprops=dict(arrowstyle="-|>", lw=1.3, color="0.3"),
+    )
+    ax.annotate(
+        "refine / compare",
+        xy=(0.28, 0.41),
+        xytext=(0.40, 0.27),
+        ha="center",
+        fontsize=9.0,
+        color="0.28",
+        arrowprops=dict(arrowstyle="-|>", lw=1.3, color="0.3"),
+    )
+
+    path = output_dir / "06_simulation_experiment_loop.png"
+    _save(fig, path)
     return path
 
 
@@ -644,6 +713,7 @@ def main() -> None:
         build_error_scope(output),
         build_v1_decentre(output, int(args.grid_n)),
         build_v1_rounded_tip(output, int(args.grid_n)),
+        build_simulation_experiment_loop(output),
     ]
     manifest = {
         "outcome": "CONFERENCE-WORKSHOP-PRESENTATION-FIGURES",
@@ -654,10 +724,11 @@ def main() -> None:
         "report_figures_authorised": False,
         "rigid_axicon_tilt_included": False,
         "notes": [
-            "All intensity panels are regenerated from complex fields, not raster crops.",
+            "All optical intensity panels are regenerated from complex fields, not raster crops.",
             "V1 decentre transverse ROI is centred on the phase singularity and x-z follows the tracked vortex core.",
             "Rounded-tip nonzero radii must pass the 12-native-pixel resolution gate.",
-            "The rounded-tip magnitudes are controlled sensitivity cases until physical profilometry is supplied.",
+            "Rounded-tip magnitudes are controlled sensitivity cases until physical profilometry is supplied.",
+            "Data figures intentionally omit global captions because the slide deck provides the title/context.",
         ],
     }
     (output / "presentation_figure_manifest.json").write_text(
