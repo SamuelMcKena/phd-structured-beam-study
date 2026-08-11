@@ -66,7 +66,6 @@ def test_physical_carrier_is_exactly_20_pixels() -> None:
     grid = slm_device_grid(panel)
     x = np.asarray(grid["x"], dtype=float)
     phase = physical_carrier_phase(x, panel=panel)
-    # 20-pixel separation is one 2*pi blaze period.
     assert phase[20] - phase[0] == pytest.approx(TWOPI, rel=0.0, abs=1e-12)
 
 
@@ -83,7 +82,7 @@ def test_measured_lut_round_trip_and_full_stroke_gate() -> None:
         grey_levels=grey,
         phase_rad=1.8 * math.pi * grey / 255.0,
     )
-    with pytest.raises(ValueError, match="below 2\*pi"):
+    with pytest.raises(ValueError, match=r"below 2\*pi"):
         calibrated_phase_to_grey(desired, bad)
 
 
@@ -198,6 +197,26 @@ def test_objective_sample_vector_route_energy_and_longitudinal_field() -> None:
     assert np.all(np.isfinite(result.field_in_sample.intensity))
 
 
+def test_absorbing_sample_depth_is_explicitly_blocked() -> None:
+    n = 64
+    x = np.linspace(-2e-3, 2e-3, n)
+    pupil = np.ones((n, n), dtype=complex)
+    with pytest.raises(ValueError, match="absorbing-media depth propagation"):
+        focus_pupil_field_into_sample(
+            pupil,
+            {"x": x, "dx": float(x[1] - x[0])},
+            config=ObjectiveSampleConfig(
+                wavelength_m=1029e-9,
+                numerical_aperture=0.45,
+                objective_focal_length_m=4e-3,
+                objective_pupil_radius_m=1.8e-3,
+                sample_refractive_index=1.45 + 1e-5j,
+                sample_depth_m=1e-6,
+                fft_pad_factor=1,
+            ),
+        )
+
+
 def test_ultrafast_gaussian_relations() -> None:
     pulse = GaussianPulse(
         central_wavelength_m=1029e-9,
@@ -207,7 +226,7 @@ def test_ultrafast_gaussian_relations() -> None:
     )
     spectrum = gaussian_spectral_grid(pulse, n_omega=41)
     spectral_intensity = spectrum.field_amplitude_weight**2
-    assert np.trapz(spectral_intensity, spectrum.omega_rad_s) == pytest.approx(1.0, rel=1e-6)
+    assert np.trapezoid(spectral_intensity, spectrum.omega_rad_s) == pytest.approx(1.0, rel=1e-6)
     expected_tbw = 2.0 * math.log(2.0) / math.pi
     assert pulse.transform_limited_frequency_fwhm_Hz * pulse.intensity_fwhm_s == pytest.approx(expected_tbw)
     I = gaussian_peak_intensity_from_fluence_W_cm2(1.0, pulse.intensity_fwhm_s)
