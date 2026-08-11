@@ -112,7 +112,7 @@ jobs:
           retention-days: 14
 
   system-reference-audit:
-    name: All-family system-error padded-reference audit
+    name: All-family system-error padded-reference audit N256
     needs: unit-gates
     runs-on: ubuntu-24.04
     timeout-minutes: 120
@@ -133,13 +133,39 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: system-error-all-family-propagation-audit
+          name: system-error-all-family-propagation-audit-N256
           path: outputs/validation/propagation_audit/system_error_all_families_N256.json
+          retention-days: 14
+
+  system-reference-audit-n512:
+    name: All-family system-error padded-reference audit N512
+    needs: system-reference-audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Repeat all families at twice the transverse sampling
+        run: >-
+          python tools/check_system_error_propagation_reference.py
+          --grid-n 512
+          --cases B0 V1 V3
+          --z-mm 60 140
+          --output outputs/validation/propagation_audit/system_error_all_families_N512.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: system-error-all-family-propagation-audit-N512
+          path: outputs/validation/propagation_audit/system_error_all_families_N512.json
           retention-days: 14
 
   system-smoke:
     name: V5 system 2D/profile/propagation smoke
-    needs: [unit-gates, phase2b-audit, system-reference-audit]
+    needs: [unit-gates, phase2b-audit, system-reference-audit-n512]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
     steps:
@@ -203,7 +229,7 @@ jobs:
 
   system-full:
     name: N1536 ${{ matrix.case }} / ${{ matrix.group.name }} evidence
-    needs: [system-smoke, phase2b-vector-production-audit, system-reference-audit]
+    needs: [system-smoke, phase2b-vector-production-audit, system-reference-audit-n512]
     runs-on: ubuntu-24.04
     timeout-minutes: 240
     strategy:
