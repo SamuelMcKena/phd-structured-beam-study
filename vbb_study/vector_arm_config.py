@@ -1,7 +1,7 @@
 """Configuration for the collinear dual-SLM vector-arm model.
 
 This module is intentionally a leaf: it owns only data shapes and rig literals
-for the vector arm.  Behavioural modules are responsible for pulling the
+for the vector arm. Behavioural modules are responsible for pulling the
 physical axicon, relay, and objective mappings from the existing study config.
 """
 
@@ -12,14 +12,20 @@ from dataclasses import dataclass, field
 
 @dataclass(frozen=True)
 class SLMPanelConfig:
-    """HOLOEYE LCOS-NIR-like phase-only panel settings for one arm panel."""
+    """HOLOEYE PLUTO-2.1-like phase-only panel settings for one arm panel.
+
+    The physical-bench carrier is canonically a 20-pixel blaze period on the
+    8 um panel.  Therefore ``carrier_lp_per_mm = 6.25``.  Older vector-route
+    defaults used 6.94 lp/mm; that value was a route-local legacy setting and
+    is not the physical-bench binding.
+    """
 
     n_x: int = 1920
     n_y: int = 1080
     pitch_m: float = 8e-6
     phase_levels: int = 256
     fill_factor: float = 0.93
-    carrier_lp_per_mm: float = 6.94
+    carrier_lp_per_mm: float = 6.25
     carrier_sign: int = +1
 
     def __post_init__(self) -> None:
@@ -31,6 +37,8 @@ class SLMPanelConfig:
             raise ValueError("SLMPanelConfig.phase_levels must be at least 2.")
         if not (0.0 <= float(self.fill_factor) <= 1.0):
             raise ValueError("SLMPanelConfig.fill_factor must be in [0, 1].")
+        if float(self.carrier_lp_per_mm) <= 0.0:
+            raise ValueError("SLMPanelConfig.carrier_lp_per_mm must be positive.")
         if int(self.carrier_sign) not in {-1, +1}:
             raise ValueError("SLMPanelConfig.carrier_sign must be -1 or +1.")
 
@@ -51,6 +59,18 @@ class SLMPanelConfig:
         """Configured carrier in line-pairs per metre, including sign."""
 
         return int(self.carrier_sign) * float(self.carrier_lp_per_mm) * 1e3
+
+    @property
+    def carrier_period_m(self) -> float:
+        """Physical blaze period in metres."""
+
+        return 1.0 / abs(self.carrier_lp_per_m)
+
+    @property
+    def carrier_period_px(self) -> float:
+        """Physical blaze period in SLM pixels."""
+
+        return self.carrier_period_m / float(self.pitch_m)
 
 
 @dataclass(frozen=True)
