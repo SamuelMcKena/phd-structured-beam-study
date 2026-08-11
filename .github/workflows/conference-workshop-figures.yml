@@ -1,0 +1,56 @@
+name: Conference workshop figures
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'tools/build_conference_workshop_figures.py'
+      - '.github/workflows/conference-workshop-figures.yml'
+      - 'vbb_study/digital_twin/vortex_following_propagation.py'
+      - 'vbb_study/digital_twin/vortex_morphology_tracking.py'
+      - 'vbb_study/digital_twin/vortex_system_route.py'
+      - 'vbb_study/digital_twin/vortex_axicon_tip_reference.py'
+
+concurrency:
+  group: conference-workshop-figures-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+  OMP_NUM_THREADS: '2'
+  OPENBLAS_NUM_THREADS: '2'
+  MKL_NUM_THREADS: '2'
+
+jobs:
+  build:
+    name: Build clean N1536 presentation figures
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Presentation figure builder
+        run: >-
+          python tools/build_conference_workshop_figures.py
+          --grid-n 1536
+          --output-dir outputs/figures/conference_workshop
+      - name: Verify expected outputs
+        shell: bash
+        run: |
+          test -s outputs/figures/conference_workshop/01_simulation_pipeline.png
+          test -s outputs/figures/conference_workshop/02_ideal_beam_family.png
+          test -s outputs/figures/conference_workshop/03_realistic_error_scope.png
+          test -s outputs/figures/conference_workshop/04_v1_axicon_decentre.png
+          test -s outputs/figures/conference_workshop/05_v1_rounded_tip.png
+          test -s outputs/figures/conference_workshop/presentation_figure_manifest.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: conference-workshop-presentation-figures
+          path: outputs/figures/conference_workshop
+          retention-days: 30
