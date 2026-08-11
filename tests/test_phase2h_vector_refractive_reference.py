@@ -77,17 +77,21 @@ def test_rotated_plane_common_eikonal_recovers_analytic_plane_wave_direction() -
 
     A laboratory +z plane wave sampled on a rigidly tilted entrance surface has an
     exact constant local wavevector R^T zhat.  Phase 2H represents the large tilted
-    carrier analytically and reconstructs only the baseband/common eikonal.  This
-    test measures that reconstruction error *before* Snell refraction so later
-    geometry comparisons do not misattribute it to the two-surface ray solver.
+    carrier analytically and reconstructs only the baseband/common eikonal.  The
+    finite FFT square is not itself a physical optic: rotating an infinite plane
+    wave on a finite periodic window produces boundary interpolation artefacts.
+    Therefore this benchmark is evaluated on the declared physical axicon pupil,
+    with a 10% radial guard band.  Downstream rays outside that pupil are never used.
     """
 
     source = _plane_wave()
+    geometry = _geometry()
+    physical_pupil = np.asarray(source.grid["R"], dtype=float) <= 0.90 * geometry.clear_radius_m
     for tilt_deg in (0.0, 5.0, 10.0):
         estimate, exact_local = _plane_wave_entrance_eikonal(
             source, math.radians(tilt_deg)
         )
-        valid = np.asarray(estimate.valid_mask, dtype=bool)
+        valid = np.asarray(estimate.valid_mask, dtype=bool) & physical_pupil
         error = np.linalg.norm(
             np.asarray(estimate.direction_local, dtype=float) - exact_local,
             axis=-1,
