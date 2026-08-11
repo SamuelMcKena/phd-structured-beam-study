@@ -45,7 +45,7 @@ def canonical_calibration_template() -> dict[str, Any]:
     """Return an editable bundle; nulls are deliberate and never auto-filled.
 
     Version 1.1 keeps the original Phase 2D keys but adds the calibration state
-    required by the Phase 2G bench-calibrated digital twin.  The physical bench
+    required by the Phase 2G bench-calibrated digital twin. The physical bench
     carrier is fixed at 20 pixels on the 8 um SLM, i.e. 6.25 lp/mm.
     """
 
@@ -97,6 +97,27 @@ def canonical_calibration_template() -> dict[str, Any]:
             "slm2_static_phase_map_path": None,
             "slm1_fringe_calibration_path": None,
             "slm2_fringe_calibration_path": None,
+        },
+        "polarization": {
+            "input_linear_angle_deg": measurement(None, None, "calibration_required", "deg"),
+            "input_degree_linear_polarization": measurement(None, None, "calibration_required", "1"),
+            "input_relative_phase_rad": measurement(None, None, "calibration_required", "rad"),
+            "slm_director_axis_deg": measurement(None, None, "calibration_required", "deg"),
+            "analyzer_0_actual_deg": measurement(None, None, "calibration_required", "deg"),
+            "analyzer_45_actual_deg": measurement(None, None, "calibration_required", "deg"),
+            "analyzer_90_actual_deg": measurement(None, None, "calibration_required", "deg"),
+            "analyzer_135_actual_deg": measurement(None, None, "calibration_required", "deg"),
+            "analyzer_extinction_ratio": measurement(None, None, "calibration_required", "1"),
+            "analyzer_transmission": measurement(None, None, "calibration_required", "1"),
+            "linear_analyzer_evidence_path": None,
+            "full_stokes_qwp_present": None,
+            "full_stokes_qwp_retardance_rad": measurement(None, None, "calibration_required", "rad"),
+            "full_stokes_qwp_fast_axis_deg": measurement(None, None, "calibration_required", "deg"),
+            "segmented_vector_hwp_retardance_rad": measurement(None, None, "calibration_required", "rad"),
+            "segmented_vector_hwp_fast_axis_deg": measurement(None, None, "calibration_required", "deg"),
+            "segmented_vector_qwp_retardance_rad": measurement(None, None, "calibration_required", "rad"),
+            "segmented_vector_qwp_fast_axis_deg": measurement(None, None, "calibration_required", "deg"),
+            "segmented_vector_optics_evidence_path": None,
         },
         "wavefront_sensor": {
             "make": None,
@@ -193,6 +214,8 @@ def canonical_calibration_template() -> dict[str, Any]:
             "acceptance_passed": False,
             "case_ids": [],
             "z_positions_m": [],
+            "vector_analyzer_evidence_path": None,
+            "vector_case_ids": [],
         },
     }
 
