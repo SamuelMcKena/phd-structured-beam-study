@@ -1,0 +1,67 @@
+name: Phase 2H vector refractive axicon tilt
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'vbb_study/digital_twin/vector_refractive_axicon.py'
+      - 'vbb_study/digital_twin/bench_calibrated_vector_route.py'
+      - 'tests/test_phase2h_vector_refractive_axicon.py'
+      - 'tests/test_phase2h_calibrated_vector_tilt_route.py'
+      - 'docs/phase2h/**'
+      - '.github/workflows/phase2h-vector-refractive-axicon.yml'
+
+concurrency:
+  group: phase2h-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+  OMP_NUM_THREADS: '2'
+  OPENBLAS_NUM_THREADS: '2'
+  MKL_NUM_THREADS: '2'
+
+jobs:
+  vector-surface-physics:
+    name: Vector two-surface Snell/Fresnel/Poynting gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: New Phase 2H vector surface tests
+        run: python -m pytest -q tests/test_phase2h_vector_refractive_axicon.py
+      - name: Preserve scalar two-surface refractive reference
+        run: >-
+          python -m pytest -q
+          tests/test_vortex_refractive_axicon.py
+          tests/test_vortex_refractive_axicon_wave.py
+      - name: Compile vector refractive solver
+        run: python -m compileall -q vbb_study/digital_twin/vector_refractive_axicon.py
+
+  vector-route-regression:
+    name: Existing calibrated vector / objective regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Preserve Phase 2G vector calibration observables
+        run: >-
+          python -m pytest -q
+          tests/test_phase2g_vector_observables.py
+          tests/test_phase2g_calibrated_vector_route.py
+      - name: Preserve objective/interface vector numerics
+        run: >-
+          python -m pytest -q tests/test_phase2c_objective_interface.py
+          -k 'not figure_manifest_reuses_phase2b_and_keeps_metrics_native
+          and not h1_3d_outputs_are_pure_fixed_plane_intensity_surfaces'
