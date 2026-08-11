@@ -68,7 +68,7 @@ def test_zero_tilt_two_surface_bundle_matches_exact_snell_cone() -> None:
         refractive_index=N_AX,
         external_index=N_EXT,
     )
-    assert abs(measured - math.sin(reference.beta_rad)) < 2e-10
+    assert abs(measured - reference.exact_radial_direction_sine) < 2e-10
     assert abs(bundle.reference_normal_lab[0]) < 1e-10
     assert abs(bundle.reference_normal_lab[1]) < 1e-10
     assert bundle.reference_normal_lab[2] > 0.999999999
