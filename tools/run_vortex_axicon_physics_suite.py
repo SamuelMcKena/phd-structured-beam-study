@@ -21,9 +21,12 @@ from vbb_study.digital_twin.vortex_axicon_oblique_wave import (
 )
 from vbb_study.digital_twin.vortex_axicon_tip_reference import tip_resolution
 from vbb_study.digital_twin.vortex_following_propagation import (
-    bessel_feature_axis_path_m,
     build_beam_following_propagation,
     transverse_morphology_axis,
+)
+from vbb_study.digital_twin.vortex_morphology_tracking import (
+    LongitudinalAxisTrack,
+    track_bessel_feature_axis,
 )
 from vbb_study.digital_twin.vortex_system_route import (
     AxiconError,
@@ -252,6 +255,126 @@ def _transverse_seed(family: str, value: float) -> tuple[float, float]:
     return 0.0, 0.0
 
 
+def _constant_track(value_m: float, count: int, method: str) -> LongitudinalAxisTrack:
+    values = np.full(int(count), float(value_m), dtype=float)
+    return LongitudinalAxisTrack(
+        coordinate_m=values,
+        detected_mask=np.ones(int(count), dtype=bool),
+        method=str(method),
+        seed_coordinate_m=float(value_m),
+        detected_fraction=1.0,
+        maximum_detected_step_m=0.0,
+    )
+
+
+def _tracked_paths(
+    *,
+    family: str,
+    value: float,
+    vortex_charge: int,
+    fixed: Any,
+    fixed_coordinate: np.ndarray,
+    grid: dict[str, Any],
+    wavelength_m: float,
+    z: np.ndarray,
+    scalar_field: np.ndarray,
+) -> tuple[LongitudinalAxisTrack, LongitudinalAxisTrack]:
+    """Find x(z), y(z) without allowing the orthogonal slice to miss the beam.
+
+    For a lateral x translation, the primary x path is extracted from the wide
+    laboratory x-z map.  A provisional direct spectral propagation then samples
+    y through that x path, allowing the y core to be determined on the actual
+    beam rather than on the empty lab x=0 plane.  The y-decentre case is the
+    rotational analogue.  Symmetric tip/material families retain the exact
+    symmetry-axis zero path.
+    """
+
+    seed_x, seed_y = _transverse_seed(family, value)
+    if family == "axicon_lateral_decentre_x":
+        x_track = track_bessel_feature_axis(
+            fixed.xz_intensity,
+            fixed_coordinate,
+            vortex_charge=vortex_charge,
+            seed_coordinate_m=seed_x,
+            search_halfwidth_m=0.24e-3,
+            maximum_step_m=55e-6,
+        )
+        provisional_offsets = np.linspace(-0.45e-3, 0.45e-3, 321)
+        provisional = build_beam_following_propagation(
+            grid=grid,
+            wavelength_m=wavelength_m,
+            z_values_m=z,
+            transverse_offsets_m=provisional_offsets,
+            scalar_field=scalar_field,
+            x_axis_m=x_track.coordinate_m,
+            y_axis_m=seed_y,
+            source_label=f"orthogonal-y-track:{family}={value}",
+        )
+        y_relative = track_bessel_feature_axis(
+            provisional.yz_intensity,
+            provisional_offsets,
+            vortex_charge=vortex_charge,
+            seed_coordinate_m=0.0,
+            search_halfwidth_m=0.20e-3,
+            maximum_step_m=55e-6,
+        )
+        y_track = LongitudinalAxisTrack(
+            coordinate_m=seed_y + y_relative.coordinate_m,
+            detected_mask=y_relative.detected_mask,
+            method="orthogonal_through_primary_x_core__" + y_relative.method,
+            seed_coordinate_m=seed_y,
+            detected_fraction=y_relative.detected_fraction,
+            maximum_detected_step_m=y_relative.maximum_detected_step_m,
+        )
+        return x_track, y_track
+
+    if family == "axicon_lateral_decentre_y":
+        y_track = track_bessel_feature_axis(
+            fixed.yz_intensity,
+            fixed_coordinate,
+            vortex_charge=vortex_charge,
+            seed_coordinate_m=seed_y,
+            search_halfwidth_m=0.24e-3,
+            maximum_step_m=55e-6,
+        )
+        provisional_offsets = np.linspace(-0.45e-3, 0.45e-3, 321)
+        provisional = build_beam_following_propagation(
+            grid=grid,
+            wavelength_m=wavelength_m,
+            z_values_m=z,
+            transverse_offsets_m=provisional_offsets,
+            scalar_field=scalar_field,
+            x_axis_m=seed_x,
+            y_axis_m=y_track.coordinate_m,
+            source_label=f"orthogonal-x-track:{family}={value}",
+        )
+        x_relative = track_bessel_feature_axis(
+            provisional.xz_intensity,
+            provisional_offsets,
+            vortex_charge=vortex_charge,
+            seed_coordinate_m=0.0,
+            search_halfwidth_m=0.20e-3,
+            maximum_step_m=55e-6,
+        )
+        x_track = LongitudinalAxisTrack(
+            coordinate_m=seed_x + x_relative.coordinate_m,
+            detected_mask=x_relative.detected_mask,
+            method="orthogonal_through_primary_y_core__" + x_relative.method,
+            seed_coordinate_m=seed_x,
+            detected_fraction=x_relative.detected_fraction,
+            maximum_detected_step_m=x_relative.maximum_detected_step_m,
+        )
+        return x_track, y_track
+
+    # Tip, base-angle and index sweeps are axisymmetric by construction in this
+    # branch.  Using exactly zero is preferable to letting numerical centroid or
+    # lobe asymmetry invent a steering signal that the model does not contain.
+    return (
+        _constant_track(0.0, z.size, "declared_axisymmetry_x_zero"),
+        _constant_track(0.0, z.size, "declared_axisymmetry_y_zero"),
+    )
+
+
 def run_family(
     family: str,
     *,
@@ -274,7 +397,7 @@ def run_family(
     z = np.arange(5e-3, 140e-3 + 2e-3, 2e-3)
     fixed_coordinate = np.linspace(-1.2e-3, 1.2e-3, 481)
     morphology_offset = np.linspace(-220e-6, 220e-6, 401)
-    xy_halfwidth = 220e-6
+    xy_halfwidth = 190e-6 if ell <= 1 else 250e-6
 
     records: list[dict[str, Any]] = []
     for value in values:
@@ -320,33 +443,25 @@ def run_family(
             scalar_field=route["post_axicon"],
             source_label=f"fixed:{case_id}:{family}={value}",
         )
-        axis = spec.get("axis")
-        if axis == "x":
-            x_path = bessel_feature_axis_path_m(
-                fixed.xz_intensity,
-                fixed_coordinate,
-                vortex_charge=ell,
-            )
-            y_path = np.zeros_like(x_path)
-        elif axis == "y":
-            y_path = bessel_feature_axis_path_m(
-                fixed.yz_intensity,
-                fixed_coordinate,
-                vortex_charge=ell,
-            )
-            x_path = np.zeros_like(y_path)
-        else:
-            x_path = np.zeros(z.size, dtype=float)
-            y_path = np.zeros(z.size, dtype=float)
-
+        x_track, y_track = _tracked_paths(
+            family=family,
+            value=value,
+            vortex_charge=ell,
+            fixed=fixed,
+            fixed_coordinate=fixed_coordinate,
+            grid=grid,
+            wavelength_m=wavelength,
+            z=z,
+            scalar_field=route["post_axicon"],
+        )
         following = build_beam_following_propagation(
             grid=grid,
             wavelength_m=wavelength,
             z_values_m=z,
             transverse_offsets_m=morphology_offset,
             scalar_field=route["post_axicon"],
-            x_axis_m=x_path,
-            y_axis_m=y_path,
+            x_axis_m=x_track.coordinate_m,
+            y_axis_m=y_track.coordinate_m,
             source_label=f"following:{case_id}:{family}={value}",
         )
         fx, spectrum_crop = _spectral_crop(route["post_axicon"], grid)
@@ -359,8 +474,8 @@ def run_family(
                 "xy_metrics": xy_metrics,
                 "morphology_axis": morphology_axis,
                 "following": following,
-                "x_path": x_path,
-                "y_path": y_path,
+                "x_track": x_track,
+                "y_track": y_track,
                 "fx": fx,
                 "spectrum": spectrum_crop,
                 "resolution": resolution,
@@ -381,6 +496,8 @@ def run_family(
         ray = meta.get("independent_snell_ray_reference", {})
         resolution = rec["resolution"]
         morphology_axis = rec["morphology_axis"]
+        x_track = rec["x_track"]
+        y_track = rec["y_track"]
         rows.append(
             {
                 "case_id": case_id,
@@ -395,31 +512,23 @@ def run_family(
                 "morphology_axis_x_m": float(morphology_axis.x_m),
                 "morphology_axis_y_m": float(morphology_axis.y_m),
                 "morphology_axis_method": morphology_axis.method,
-                "detected_topological_charge": int(
-                    morphology_axis.detected_topological_charge
-                ),
-                "selected_singularity_count": int(
-                    morphology_axis.selected_singularity_count
-                ),
-                "morphology_axis_distance_from_seed_m": float(
-                    morphology_axis.distance_from_seed_m
-                ),
-                "energy_centroid_minus_axis_x_m": float(
-                    rec["xy_metrics"]["centroid_x_m"] - morphology_axis.x_m
-                ),
-                "energy_centroid_minus_axis_y_m": float(
-                    rec["xy_metrics"]["centroid_y_m"] - morphology_axis.y_m
-                ),
-                "peak_ratio_to_nominal": float(
-                    rec["xy_metrics"]["peak_au"] / max(peak0, EPS)
-                ),
-                "power_ratio_to_nominal": float(
-                    rec["xy_metrics"]["power_au"] / max(power0, EPS)
-                ),
-                "tracked_x_axis_mean_m": float(np.mean(rec["x_path"])),
-                "tracked_y_axis_mean_m": float(np.mean(rec["y_path"])),
-                "tracked_x_axis_span_m": float(np.ptp(rec["x_path"])),
-                "tracked_y_axis_span_m": float(np.ptp(rec["y_path"])),
+                "detected_topological_charge": int(morphology_axis.detected_topological_charge),
+                "selected_singularity_count": int(morphology_axis.selected_singularity_count),
+                "morphology_axis_distance_from_seed_m": float(morphology_axis.distance_from_seed_m),
+                "energy_centroid_minus_axis_x_m": float(rec["xy_metrics"]["centroid_x_m"] - morphology_axis.x_m),
+                "energy_centroid_minus_axis_y_m": float(rec["xy_metrics"]["centroid_y_m"] - morphology_axis.y_m),
+                "tracked_x_axis_mean_m": float(np.mean(x_track.coordinate_m)),
+                "tracked_y_axis_mean_m": float(np.mean(y_track.coordinate_m)),
+                "tracked_x_axis_span_m": float(np.ptp(x_track.coordinate_m)),
+                "tracked_y_axis_span_m": float(np.ptp(y_track.coordinate_m)),
+                "tracked_x_axis_method": x_track.method,
+                "tracked_y_axis_method": y_track.method,
+                "tracked_x_detected_fraction": float(x_track.detected_fraction),
+                "tracked_y_detected_fraction": float(y_track.detected_fraction),
+                "tracked_x_max_detected_step_m": float(x_track.maximum_detected_step_m),
+                "tracked_y_max_detected_step_m": float(y_track.maximum_detected_step_m),
+                "peak_ratio_to_nominal": float(rec["xy_metrics"]["peak_au"] / max(peak0, EPS)),
+                "power_ratio_to_nominal": float(rec["xy_metrics"]["power_au"] / max(power0, EPS)),
                 "xz_following_mean_width_m": mx["mean_width_m"],
                 "yz_following_mean_width_m": my["mean_width_m"],
                 "xz_following_active_length_m": mx["active_length_m"],
@@ -428,19 +537,11 @@ def run_family(
                     abs(mx["mean_width_m"] - my["mean_width_m"])
                     / max(0.5 * (mx["mean_width_m"] + my["mean_width_m"]), EPS)
                 ),
-                "snell_ray_cone_anisotropy_fraction": float(
-                    ray.get("cone_radius_anisotropy_fraction", float("nan"))
-                ),
-                "lab_to_tilted_spectral_power_ratio": float(
-                    to_meta.get("spectral_power_ratio", 1.0)
-                ),
-                "tilted_to_lab_spectral_power_ratio": float(
-                    from_meta.get("spectral_power_ratio", 1.0)
-                ),
+                "snell_ray_cone_anisotropy_fraction": float(ray.get("cone_radius_anisotropy_fraction", float("nan"))),
+                "lab_to_tilted_spectral_power_ratio": float(to_meta.get("spectral_power_ratio", 1.0)),
+                "tilted_to_lab_spectral_power_ratio": float(from_meta.get("spectral_power_ratio", 1.0)),
                 "tip_radius_pixels": (
-                    float(resolution.radius_pixels)
-                    if resolution is not None
-                    else float("nan")
+                    float(resolution.radius_pixels) if resolution is not None else float("nan")
                 ),
             }
         )
@@ -606,8 +707,10 @@ def main() -> None:
         "grid_n": int(args.grid_n),
         "diagnostic_contract": (
             "post-axicon angular spectrum + topological/central-peak centred xy + "
-            "Bessel-feature-following xz/yz; morphology panels individually normalised; "
-            "energy centroid, absolute peak/power and steering retained separately in CSV"
+            "continuity-tracked Bessel/vortex xz/yz; orthogonal slice is sampled through "
+            "the primary translated core rather than fixed lab zero; morphology panels "
+            "individually normalised; energy centroid, absolute peak/power and steering "
+            "retained separately in CSV"
         ),
         "tip_resolution_policy": "nonzero local tip radius >= 12 native 2-D pixels",
         "tilt_policy": (
