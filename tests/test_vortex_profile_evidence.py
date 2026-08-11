@@ -16,17 +16,43 @@ def test_spectral_line_fields_match_native_centre_lines() -> None:
     Y = np.asarray(grid["Y"], dtype=float)
     field = np.exp(-(X * X + Y * Y) / (0.23e-3**2)) * np.exp(1j * 3.0e3 * X)
     x = np.asarray(grid["x"], dtype=float)
+    mid = int(grid["N"]) // 2
+    # make_xy_grid is deliberately half-pixel centred for even N, so the native
+    # centre row/column lies at +dx/2 rather than physical zero.  Compare the
+    # Fourier-series sampler with that exact native physical coordinate.
+    native_centre = float(x[mid])
     fx, fy = spectral_line_fields(
         field,
         grid,
         x_coordinates_m=x,
         y_coordinates_m=x,
+        fixed_x_m=native_centre,
+        fixed_y_m=native_centre,
+    )
+    assert np.max(np.abs(fx - field[mid, :])) < 1e-11
+    assert np.max(np.abs(fy - field[:, mid])) < 1e-11
+
+
+def test_physical_zero_profile_is_subpixel_not_native_centre_alias() -> None:
+    grid = make_xy_grid(128, 8e-6)
+    X = np.asarray(grid["X"], dtype=float)
+    Y = np.asarray(grid["Y"], dtype=float)
+    field = np.exp(-(X * X + Y * Y) / (0.20e-3**2))
+    x = np.asarray(grid["x"], dtype=float)
+    zero_x, zero_y = spectral_line_fields(
+        field,
+        grid,
+        x_coordinates_m=np.asarray([0.0]),
+        y_coordinates_m=np.asarray([0.0]),
         fixed_x_m=0.0,
         fixed_y_m=0.0,
     )
+    # For an even half-pixel grid the physical origin is not a native pixel, so
+    # the direct spectral evaluation should not be silently replaced by either
+    # adjacent sample.
     mid = int(grid["N"]) // 2
-    assert np.max(np.abs(fx - field[mid, :])) < 1e-11
-    assert np.max(np.abs(fy - field[:, mid])) < 1e-11
+    assert not np.isclose(abs(zero_x[0]) ** 2, abs(field[mid, mid]) ** 2, rtol=0.0, atol=1e-12)
+    assert np.isclose(abs(zero_x[0]) ** 2, abs(zero_y[0]) ** 2, rtol=1e-12, atol=1e-12)
 
 
 def test_vortex_profile_axis_is_topological_not_energy_centroid() -> None:
