@@ -111,7 +111,6 @@ EXTRA_DEPENDENCIES: dict[str, tuple[CalibrationDependency, ...]] = {
         CalibrationDependency("slm.calibration_date", "required", "Calibration provenance date."),
         CalibrationDependency("laser.wavelength_m", "required", "LUT operating wavelength."),
     ),
-    # Backward-compatible Phase 2D aggregate SLM gate.
     "slm_phase_fidelity_legacy": (
         CalibrationDependency("slm.phase_lut_path", "required", "Wavelength-specific panel LUT."),
         CalibrationDependency("slm.phase_stroke_rad", "required", "Measured phase stroke."),
@@ -153,6 +152,46 @@ EXTRA_DEPENDENCIES: dict[str, tuple[CalibrationDependency, ...]] = {
         CalibrationDependency("material.refractive_index", "required", "Vector Fresnel and in-material propagation."),
         CalibrationDependency("material.surface_orientation_verified", "required", "Planar-interface normal."),
     ),
+    "vector_analyzer_spots": (
+        CalibrationDependency("camera.object_plane_scale_m_per_pixel", "required", "Physical scale for ring/petal radius."),
+        CalibrationDependency("camera.rotation_deg", "required", "Camera-to-lab orientation for petal angle."),
+        CalibrationDependency("polarization.analyzer_0_actual_deg", "required", "Measured 0-degree analyzer axis."),
+        CalibrationDependency("polarization.analyzer_45_actual_deg", "required", "Measured 45-degree analyzer axis."),
+        CalibrationDependency("polarization.analyzer_90_actual_deg", "required", "Measured 90-degree analyzer axis."),
+        CalibrationDependency("polarization.analyzer_135_actual_deg", "required", "Measured 135-degree analyzer axis."),
+        CalibrationDependency("polarization.analyzer_extinction_ratio", "required", "Finite analyzer leakage."),
+        CalibrationDependency("polarization.analyzer_transmission", "required", "Analyzer throughput."),
+        CalibrationDependency("polarization.linear_analyzer_evidence_path", "required", "0/45/90/135-degree calibration evidence."),
+        CalibrationDependency("experimental_comparison.vector_analyzer_evidence_path", "required", "Measured vector analyzer frames."),
+    ),
+    "vector_case1_hardware": (
+        CalibrationDependency("laser.beam_radius_on_slm_m", "required", "Physical input Gaussian on the SLMs."),
+        CalibrationDependency("slm.slm1_phase_lut_path", "required", "Measured phase response for the shaped channel."),
+        CalibrationDependency("slm.slm1_phase_stroke_rad", "required", "Measured optical phase stroke."),
+        CalibrationDependency("polarization.input_linear_angle_deg", "required", "Measured input H/V amplitude split."),
+        CalibrationDependency("polarization.input_degree_linear_polarization", "required", "Input polarization purity."),
+        CalibrationDependency("polarization.slm_director_axis_deg", "required", "Physical shaped SLM axis."),
+        CalibrationDependency("fourier_filter.iris_radius_m", "required", "Selected-order support."),
+        CalibrationDependency("fourier_filter.plus_one_position_m", "required", "Selected-order centre."),
+    ),
+    "segmented_vector_hexagon": (
+        CalibrationDependency("slm.slm1_phase_lut_path", "required", "Measured SLM1 phase response."),
+        CalibrationDependency("slm.slm2_phase_lut_path", "required", "Measured SLM2 phase response."),
+        CalibrationDependency("polarization.input_linear_angle_deg", "required", "Input polarization state."),
+        CalibrationDependency("polarization.slm_director_axis_deg", "required", "SLM/polarization basis registration."),
+        CalibrationDependency("polarization.segmented_vector_hwp_retardance_rad", "required", "Measured HWP retardance."),
+        CalibrationDependency("polarization.segmented_vector_hwp_fast_axis_deg", "required", "Measured HWP orientation."),
+        CalibrationDependency("polarization.segmented_vector_qwp_retardance_rad", "required", "Measured QWP retardance."),
+        CalibrationDependency("polarization.segmented_vector_qwp_fast_axis_deg", "required", "Measured QWP orientation."),
+        CalibrationDependency("polarization.segmented_vector_optics_evidence_path", "required", "Vector encoder optics calibration evidence."),
+        CalibrationDependency("fourier_filter.iris_radius_m", "required", "Vector selected-order filtering."),
+        CalibrationDependency("camera.object_plane_scale_m_per_pixel", "required", "Measured hexagon/spot scale."),
+    ),
+    "full_stokes_vector": (
+        CalibrationDependency("polarization.full_stokes_qwp_present", "required", "A QWP analyzer is required for S3."),
+        CalibrationDependency("polarization.full_stokes_qwp_retardance_rad", "required", "Measured QWP retardance for S3."),
+        CalibrationDependency("polarization.full_stokes_qwp_fast_axis_deg", "required", "Measured QWP fast-axis orientation."),
+    ),
     "spatiotemporal_field": (
         CalibrationDependency("laser.pulse_duration_s", "required", "Pulse temporal scale."),
         CalibrationDependency("temporal.spectrum_path", "required", "Measured spectral amplitude."),
@@ -192,6 +231,22 @@ EXPECTED_UNITS = {
     "camera.magnification": "1",
     "camera.object_plane_scale_m_per_pixel": "m/pixel",
     "camera.rotation_deg": "deg",
+    "polarization.input_linear_angle_deg": "deg",
+    "polarization.input_degree_linear_polarization": "1",
+    "polarization.input_relative_phase_rad": "rad",
+    "polarization.slm_director_axis_deg": "deg",
+    "polarization.analyzer_0_actual_deg": "deg",
+    "polarization.analyzer_45_actual_deg": "deg",
+    "polarization.analyzer_90_actual_deg": "deg",
+    "polarization.analyzer_135_actual_deg": "deg",
+    "polarization.analyzer_extinction_ratio": "1",
+    "polarization.analyzer_transmission": "1",
+    "polarization.full_stokes_qwp_retardance_rad": "rad",
+    "polarization.full_stokes_qwp_fast_axis_deg": "deg",
+    "polarization.segmented_vector_hwp_retardance_rad": "rad",
+    "polarization.segmented_vector_hwp_fast_axis_deg": "deg",
+    "polarization.segmented_vector_qwp_retardance_rad": "rad",
+    "polarization.segmented_vector_qwp_fast_axis_deg": "deg",
     "material.refractive_index": "1",
     **{f"transmissions.{name}": "1" for name in ("slm1", "slm2", "four_f", "objective", "interface")},
 }
@@ -317,15 +372,21 @@ def validate_calibration_bundle(bundle: CalibrationBundle) -> CalibrationValidat
             continue
         numeric = float(value)
         if path.startswith("transmissions.") or path in {
-            "objective.numerical_aperture", "objective.pupil_fill_fraction"
+            "objective.numerical_aperture",
+            "objective.pupil_fill_fraction",
+            "polarization.analyzer_transmission",
         }:
             valid = 0.0 < numeric <= 1.0
+        elif path == "polarization.input_degree_linear_polarization":
+            valid = 0.0 <= numeric <= 1.0
+        elif path == "polarization.analyzer_extinction_ratio":
+            valid = numeric >= 1.0
         elif path.endswith("refractive_index"):
             valid = numeric >= 1.0
-        elif path == "camera.rotation_deg":
-            valid = True
         elif path == "axicon.base_angle_deg":
             valid = 0.0 < numeric < 90.0
+        elif path.endswith("_deg") or path.endswith("_rad"):
+            valid = np.isfinite(numeric)
         else:
             valid = numeric > 0.0
         if not valid:
@@ -399,10 +460,7 @@ def calibration_dependency_rows(bundle: CalibrationBundle) -> list[dict[str, Any
     return rows
 
 
-# The original solver-policy claim set remains unchanged; Phase 2G additions are
-# extra calibration gates rather than new solver-policy claims.
 assert set(CLAIM_TYPES) == set(CLAIM_DEPENDENCIES)
 
 
-# Local import avoided above to keep validation import-time lightweight.
 import numpy as np
