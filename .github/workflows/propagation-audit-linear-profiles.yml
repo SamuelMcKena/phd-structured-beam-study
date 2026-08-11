@@ -7,12 +7,14 @@ on:
       - 'vbb_study/digital_twin/propagation_audit.py'
       - 'vbb_study/digital_twin/vortex_profile_evidence.py'
       - 'vbb_study/digital_twin/vortex_continuous_propagation.py'
+      - 'vbb_study/digital_twin/vortex_fixed_plane_bl_propagation.py'
       - 'vbb_study/digital_twin/phase2b_visual_cases.py'
       - 'tools/audit_phase2b_propagation.py'
-      - 'tools/run_vortex_system_error_suite.py'
+      - 'tools/run_vortex_system_error_evidence_v5.py'
       - 'tools/run_vortex_declared_aberration_suite.py'
       - 'tests/test_propagation_audit.py'
       - 'tests/test_vortex_profile_evidence.py'
+      - 'tests/test_vortex_fixed_plane_bl_propagation.py'
       - '.github/workflows/propagation-audit-linear-profiles.yml'
 
 concurrency:
@@ -43,6 +45,7 @@ jobs:
           python -m pytest -q
           tests/test_propagation_audit.py
           tests/test_vortex_profile_evidence.py
+          tests/test_vortex_fixed_plane_bl_propagation.py
           tests/test_vortex_continuous_propagation.py
           tests/test_vortex_following_axis.py
           tests/test_vortex_rotated_plane_carrier.py
@@ -51,8 +54,9 @@ jobs:
           python -m compileall -q
           vbb_study/digital_twin/propagation_audit.py
           vbb_study/digital_twin/vortex_profile_evidence.py
+          vbb_study/digital_twin/vortex_fixed_plane_bl_propagation.py
           tools/audit_phase2b_propagation.py
-          tools/run_vortex_system_error_suite.py
+          tools/run_vortex_system_error_evidence_v5.py
           tools/run_vortex_declared_aberration_suite.py
 
   phase2b-audit:
@@ -106,7 +110,7 @@ jobs:
           retention-days: 14
 
   system-smoke:
-    name: System profile/propagation smoke
+    name: V5 system 2D/profile/propagation smoke
     needs: [unit-gates, phase2b-audit]
     runs-on: ubuntu-24.04
     timeout-minutes: 90
@@ -119,7 +123,7 @@ jobs:
       - run: python -m pip install -r requirements.txt
       - name: Exercise steering, SLM, iris and lens families
         run: >-
-          python tools/run_vortex_system_error_suite.py
+          python tools/run_vortex_system_error_evidence_v5.py
           --cases V1
           --families
           beam_lateral_decentre_x
@@ -128,19 +132,19 @@ jobs:
           fourf_lens1_tilt_x
           --grid-n 512
           --z-mm 60
-          --output-root outputs/validation/propagation_audit/system_smoke
-          --figure-root outputs/figures/propagation_audit/system_smoke
+          --output-root outputs/validation/propagation_audit/system_smoke_v5
+          --figure-root outputs/figures/propagation_audit/system_smoke_v5
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: system-profile-smoke
+          name: system-profile-smoke-v5
           path: |
-            outputs/validation/propagation_audit/system_smoke
-            outputs/figures/propagation_audit/system_smoke
+            outputs/validation/propagation_audit/system_smoke_v5
+            outputs/figures/propagation_audit/system_smoke_v5
           retention-days: 14
 
   aberration-smoke:
-    name: Declared aberration profile smoke
+    name: Declared aberration 2D/profile smoke
     needs: unit-gates
     runs-on: ubuntu-24.04
     timeout-minutes: 60
@@ -170,7 +174,7 @@ jobs:
           retention-days: 14
 
   system-full:
-    name: N1536 ${{ matrix.case }} / ${{ matrix.group.name }} profiles
+    name: N1536 ${{ matrix.case }} / ${{ matrix.group.name }} evidence
     needs: [system-smoke, phase2b-vector-production-audit]
     runs-on: ubuntu-24.04
     timeout-minutes: 240
@@ -197,23 +201,23 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
-      - name: Run full common-scale profile group
+      - name: Run full 2D and common-scale profile group
         shell: bash
         run: >-
-          python tools/run_vortex_system_error_suite.py
+          python tools/run_vortex_system_error_evidence_v5.py
           --cases '${{ matrix.case }}'
           --families ${{ matrix.group.families }}
           --grid-n 1536
           --z-mm 60
-          --output-root 'outputs/validation/propagation_audit/full/${{ matrix.case }}/${{ matrix.group.name }}'
-          --figure-root 'outputs/figures/propagation_audit/full/${{ matrix.case }}/${{ matrix.group.name }}'
+          --output-root 'outputs/validation/propagation_audit/full_v5/${{ matrix.case }}/${{ matrix.group.name }}'
+          --figure-root 'outputs/figures/propagation_audit/full_v5/${{ matrix.case }}/${{ matrix.group.name }}'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: propagation-profiles-${{ matrix.case }}-${{ matrix.group.name }}
+          name: system-evidence-v5-${{ matrix.case }}-${{ matrix.group.name }}
           path: |
-            outputs/validation/propagation_audit/full/${{ matrix.case }}/${{ matrix.group.name }}
-            outputs/figures/propagation_audit/full/${{ matrix.case }}/${{ matrix.group.name }}
+            outputs/validation/propagation_audit/full_v5/${{ matrix.case }}/${{ matrix.group.name }}
+            outputs/figures/propagation_audit/full_v5/${{ matrix.case }}/${{ matrix.group.name }}
           retention-days: 14
 
   aberration-full:
