@@ -9,13 +9,13 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import numpy as np
 
-from vbb_study.calibration.vector_observables import petal_observable
 from vbb_study.digital_twin.vector_refractive_axicon_eikonal import build_tilted_vector_refractive_axicon_field
 from vbb_study.digital_twin.vector_tilt_study import (
     beam_moment_metrics,
     centered_coordinate_maps,
     higher_order_cylindrical_vector_input,
     ideal_linear_analyzer_frames,
+    well_sampled_petal_observable,
 )
 from vbb_study.digital_twin.vortex_refractive_axicon import RefractiveAxiconGeometry
 from vbb_study.vector_field import VectorField, propagate_vector_asm
@@ -69,9 +69,16 @@ def _build_output(mode: str, ell: int, direction: str, tilt_deg: float) -> tuple
 def _frame_metrics(field: VectorField, mode: str, ell: int, direction: str, tilt_deg: float) -> tuple[list[dict], dict[int, np.ndarray]]:
     frames = ideal_linear_analyzer_frames(field, angles_deg=ANALYZERS_DEG)
     Xc, Yc, moments = centered_coordinate_maps(field)
+    q = float(field.grid["dx"])
     rows: list[dict] = []
     for angle in ANALYZERS_DEG:
-        petals = petal_observable(frames[angle], Xc, Yc)
+        petals = well_sampled_petal_observable(
+            frames[angle],
+            Xc,
+            Yc,
+            pixel_pitch_m=q,
+            minimum_radius_pixels=12.0,
+        )
         expected = 2 * abs(int(ell))
         rows.append(
             {
@@ -89,6 +96,7 @@ def _frame_metrics(field: VectorField, mode: str, ell: int, direction: str, tilt
                 "modulation_fraction": float(petals.modulation_fraction),
                 "ring_radius_um": float(petals.ring_radius_m) * 1e6,
                 "ring_sample_count": int(petals.ring_sample_count),
+                "petal_ring_minimum_radius_pixels": 12.0,
                 "centroid_x_mm": moments.centroid_x_m * 1e3,
                 "centroid_y_mm": moments.centroid_y_m * 1e3,
                 "beam_ellipticity": moments.ellipticity,
@@ -204,6 +212,7 @@ def main() -> None:
         "tilts_deg": list(TILTS_DEG),
         "tilt_directions": ["x", "y"],
         "canonical_z_ref_mm": Z_REF_MM,
+        "petal_annulus_policy": "strongest radial annulus beyond 12 output pixels, then calibrated-pixel angular Fourier harmonic",
         "small_tilt_expected_harmonic_retention_fraction_abs_tilt_le_0p5deg": retention,
         "rows": rows,
     }
