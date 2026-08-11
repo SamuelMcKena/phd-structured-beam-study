@@ -15,6 +15,10 @@ PHASE2G_GATES = (
     "wavefront_correction",
     "refractive_axicon_tilt",
     "objective_sample_vector_field",
+    "vector_case1_hardware",
+    "vector_analyzer_spots",
+    "segmented_vector_hexagon",
+    "full_stokes_vector",
     "absolute_dimensions",
     "absolute_fluence",
     "spatiotemporal_field",
@@ -70,6 +74,22 @@ def main() -> None:
             "wavelength_m": template["laser"]["wavelength_m"]["value"],
             "camera_model": template["camera"]["model"],
         },
+        "vector_study_contract": {
+            "cylindrical_vector_atlas": {
+                "states": ["radial", "azimuthal"],
+                "ell_values": [1, 3],
+                "linear_analyzer_angles_deg": [0, 45, 90, 135],
+                "expected_petal_counts": {"ell_1": 2, "ell_3": 6},
+                "direct_linear_analyzer_observables": ["S0", "S1", "S2", "psi"],
+                "S3_policy": "blocked without calibrated QWP/full-Stokes analyzer",
+            },
+            "segmented_vector_hexagon": {
+                "n_pairs": 3,
+                "sector_family": "alternating radial/azimuthal six-sector",
+                "route_kept_separate_from_case1": True,
+                "calibration_requires": ["both SLM LUTs", "input polarization", "HWP/QWP state", "4F", "camera"],
+            },
+        },
         "readiness": readiness,
         "physics_components_available": [
             "audited scalar/vector free-space propagation",
@@ -81,6 +101,9 @@ def main() -> None:
             "explicit two-surface refractive axicon reference for rigid tilt",
             "vector Debye/Richards-Wolf objective focusing",
             "spectral vector Fresnel sample interface",
+            "cylindrical-vector 0/45/90/135 analyzer comparison",
+            "camera-calibrated 2|ell|-petal count/orientation/modulation metrics",
+            "segmented radial/azimuthal six-sector vector-hexagon study",
             "linear ultrafast spectral/time reconstruction",
             "fluence/peak-intensity/discrete scan exposure",
             "camera-calibrated simulation/experiment comparison",
@@ -88,7 +111,8 @@ def main() -> None:
         ],
         "absolute_claim_policy": (
             "Code readiness is not measurement readiness. A gate remains blocked until the corresponding "
-            "laboratory values are present with calibrated provenance."
+            "laboratory values are present with calibrated provenance. Vector analyzer morphology and "
+            "segmented-vector hardware are independently gated."
         ),
     }
     args.output.parent.mkdir(parents=True, exist_ok=True)
