@@ -1,63 +1,65 @@
-# Phase 2H — vector two-surface refractive axicon mathematics
+# Phase 2H — common-eikonal vector two-surface refractive axicon mathematics
 
-## Scope
+## Scope and model class
 
-This stage models a macroscopic plano-conical refractive axicon as two physical
-dielectric interfaces and constructs a complex vector boundary field on a fixed
-laboratory plane immediately downstream of the optic.  Diffraction after that
-plane is handled by the repository vector angular-spectrum / Debye machinery.
+Phase 2H constructs the electromagnetic boundary field produced by a rigidly
+misaligned macroscopic plano-conical refractive axicon.  The optic is represented
+by two real dielectric surfaces and the transmitted complex vector field is
+placed on one fixed laboratory plane immediately downstream.  Subsequent
+propagation is performed by the repository vector angular-spectrum / Debye
+machinery.
 
-It is a vector geometrical-optics/eikonal boundary-field model, not a full-volume
-FDTD/FEM solution.  The intended asymptotic regime is a macroscopic optic whose
-surface radii/thicknesses are many wavelengths, with a coherent field that can be
-sampled on the entrance surface.
-
-Primary literature motivating the formulation:
-
-- Yun, Crabtree & Chipman, *Applied Optics* **50**, 2855–2865 (2011): 3-D
-  polarization ray tracing, including refraction and diattenuation.
-- Kim et al., *JOSA A* **35**, 526–535 (2018): vectorial diffraction with both ray
-  vectors and electromagnetic field vectors traced to generate aperture fields.
-- Bin & Zhu, *Applied Optics* **37**, 2563–2568 (1998): oblique axicon diffraction,
-  theory checked experimentally.
-- Thaning, Jaroszewicz & Friberg, *Applied Optics* **42**, 9–17 (2003): broadened
-  focal lines / caustics under oblique axicon illumination, checked by diffraction
-  simulation and experiment.
-
-## 1. Coordinate systems and rigid pose
-
-Let primed coordinates be fixed to the axicon.  The rotation
+The model is a **vector geometrical-optics / eikonal boundary-field model**, not a
+full-volume FDTD/FEM solution of the glass.  Its high-frequency ansatz is
 
 \[
-\mathbf r_{\rm lab}=R\,\mathbf r_{\rm ax}
+\mathbf E(\mathbf r)=\mathbf a(\mathbf r)e^{i\Phi(\mathbf r)},
+\qquad
+\mathbf k=\nabla\Phi,
 \]
 
-uses the repository convention
+with a common eikonal shared by the coherent polarization components.  The code
+therefore contains explicit validity gates that reject fields for which a single
+local phase normal is not a good description.
+
+The primary external formulation/validation references recorded for this stage
+are Yun, Crabtree & Chipman (Applied Optics 50, 2855–2865, 2011), Kim et al.
+(JOSA A 35, 526–535, 2018), Zhao Bin & Li Zhu (Applied Optics 37, 2563–2568,
+1998), and Thaning, Jaroszewicz & Friberg (Applied Optics 42, 9–17, 2003).
+
+## 1. Coordinate systems and physical pose
+
+Let \((x',y',z')\) be fixed to the axicon and \((x,y,z)\) be the laboratory
+frame.  The repository rigid-rotation convention is
 
 \[
-R=R_y(\theta_y)R_x(\theta_x).
+R=R_y(\theta_y)R_x(\theta_x),
+\qquad
+\mathbf r_{\rm lab}=R\mathbf r_{\rm ax}.
 \]
 
-The field is sampled on the physical flat entrance surface.  Its complex vector
-components remain in the fixed laboratory basis during the rotated-plane sample;
-for interface calculations they are transformed into the axicon basis by
+Field components remain in the fixed laboratory Cartesian basis during
+rotated-plane sampling.  At a physical interface they are transformed to the
+axicon basis by
 
 \[
 \mathbf E_{\rm ax}=R^T\mathbf E_{\rm lab}.
 \]
 
-A lateral axicon decentre is a tangent-plane displacement and is therefore kept
-separate from rigid rotation.
+A lateral axicon decentre is a tangent-plane displacement and remains separate
+from rigid rotation.  The currently implemented physical surface order is
+**flat entrance -> conical exit**.  Cone-first orientation is deliberately not
+reinterpreted as the same geometry.
 
-## 2. Physical plano-conical geometry
+## 2. Physical plano-conical surfaces
 
-For the current flat-first geometry,
+For the current flat-first model,
 
 \[
 z'=0
 \]
 
-is the air-to-glass surface and
+is the external-to-glass entrance surface and
 
 \[
 z'=t_c-r'\tan\gamma,
@@ -65,16 +67,15 @@ z'=t_c-r'\tan\gamma,
 r'=\sqrt{x'^2+y'^2}
 \]
 
-is the glass-to-air conical surface.  The physical edge thickness is
+is the conical glass-to-external exit surface.  A declared clear radius \(R_c\)
+requires
 
 \[
-t_e=t_c-R_c\tan\gamma>0,
+t_e=t_c-R_c\tan\gamma>0.
 \]
 
-where \(R_c\) is the declared clear radius.  The code refuses impossible
-centre-thickness/base-angle/clear-radius combinations.
-
-The outward normal from glass to air at the conical surface is
+Impossible combinations of base angle, radius and centre thickness are rejected.
+The conical outward normal is
 
 \[
 \hat{\mathbf n}_2=
@@ -85,75 +86,202 @@ The outward normal from glass to air at the conical surface is
 \end{bmatrix}.
 \]
 
-## 3. Exact ray/surface intersection
+The calibration wrapper only accepts the angle convention
+`base_angle_from_flat_face`; vendor apex/deviation conventions must be converted
+explicitly before they enter this geometry.
 
-An internal ray is
+## 3. Carrier-tracked vector sampling on the tilted entrance plane
 
-\[
-\mathbf r'(s)=\mathbf r'_0+s\hat{\mathbf s}_g.
-\]
+The incoming vector field is first projected onto the Maxwell transverse
+subspace.  A single spectral carrier centre \((f_{c,x},f_{c,y})\) is estimated
+from the combined Ex/Ey/Ez spectrum and removed before rotated-plane
+interpolation.  Each Cartesian component is then rotated with the same
+carrier-aware angular-spectrum mapping.
 
-Substitution into the cone equation gives a quadratic in \(s\).  The solver
-selects the first positive physical root and rejects degenerate/missing
-intersections.  This determines the actual glass path length for every entrance
-sample rather than assigning a thin phase delay.
-
-## 4. Vector Snell law
-
-At any interface, let the unit normal point from medium 1 to medium 2.  Decompose
+The destination carrier on the physical tilted surface is retained **analytically**.
+It is not sampled as
 
 \[
-\hat{\mathbf s}_1=
-(\hat{\mathbf s}_1\cdot\hat{\mathbf n})\hat{\mathbf n}
-+\hat{\mathbf s}_{1t}.
+e^{i2\pi(f'_{c,x}x'+f'_{c,y}y')}
 \]
 
-Tangential wave-vector continuity is
+on the entrance grid.  This is essential because a several-degree physical plane
+rotation can produce a local carrier above that grid's Nyquist limit even when
+the final laboratory output field is perfectly representable.
+
+The entrance data therefore consist of
 
 \[
-n_1\hat{\mathbf s}_{1t}=n_2\hat{\mathbf s}_{2t}.
+\mathbf E_{\rm env}(x',y')
 \]
 
-Hence
+plus an analytic carrier vector.  Maxwell-consistent \(\mathbf H\) is reconstructed
+spectrally from
 
 \[
-\hat{\mathbf s}_{2t}=\frac{n_1}{n_2}\hat{\mathbf s}_{1t},
+Z_0\mathbf H=n\,\hat{\mathbf k}\times\mathbf E,
 \]
 
-and the transmitted unit direction is
+which also supplies an independent Poynting-flux diagnostic.
+
+## 4. Why Snell law uses the eikonal, not total structured-field Poynting
+
+An early Phase-2H prototype used the local total time-averaged Poynting direction
+as the ray direction.  The independent Fermat/eikonal gradient gate rejected
+that formulation.  For a single local plane wave, phase normal and Poynting
+vector are parallel.  For a structured vector superposition, however, spin and
+interference currents can make the total energy-flow direction differ from the
+local canonical wavevector.
+
+The accepted model therefore enforces
+
+\[
+\boxed{\text{Snell direction}=\hat{\mathbf k}=\nabla\Phi/|\nabla\Phi|}
+\]
+
+and uses Poynting only for energy-flow validation.
+
+For a vector envelope with fixed Cartesian components \(E_a\), the local
+canonical transverse phase gradients are estimated in a basis-invariant form:
+
+\[
+q_j^{\rm env}=
+\frac{\operatorname{Im}\left[\sum_a E_a^*\,\partial_jE_a\right]}
+{\sum_a|E_a|^2},
+\qquad j\in\{x',y'\}.
+\]
+
+The analytic carrier is then added exactly:
+
+\[
+q_x=q_x^{\rm env}+2\pi f'_{c,x},
+\qquad
+q_y=q_y^{\rm env}+2\pi f'_{c,y}.
+\]
+
+For medium wavenumber
+
+\[
+k=n\frac{2\pi}{\lambda_0},
+\]
+
+the forward local longitudinal component is
+
+\[
+q_z=\sqrt{k^2-q_x^2-q_y^2},
+\]
+
+and
+
+\[
+\hat{\mathbf k}_{\rm in}=\frac{1}{k}(q_x,q_y,q_z).
+\]
+
+A non-positive radicand is a non-propagating local phase gradient and is rejected.
+
+## 5. Common-eikonal validity and Southwell integration
+
+The vector GO model is only valid when the energetic components genuinely share
+one local eikonal.  For each sufficiently bright Cartesian component, its own
+local canonical phase gradient is compared with the vector-weighted gradient.
+The intensity-weighted disagreement is recorded as a fraction of \(|k|\).  The
+production default rejects the field when the 95th percentile exceeds 2%.
+
+The two measured transverse gradients are then integrated to one scalar eikonal
+with the repository sparse Southwell/trapezoidal least-squares reconstruction.
+Writing optical-path slopes as
+
+\[
+\frac{\partial W}{\partial x'}=\frac{q_x}{k_0},
+\qquad
+\frac{\partial W}{\partial y'}=\frac{q_y}{k_0},
+\]
+
+with \(k_0=2\pi/\lambda_0\), the reconstructed phase is
+
+\[
+\Phi_{\rm in}=k_0W.
+\]
+
+The reconstructed gradients are compared back to \((q_x,q_y)\).  The default
+95th-percentile reconstruction-error gate is 1% of \(|k|\).  Thus a genuinely
+multimode/non-integrable vector superposition is refused instead of being forced
+through a one-ray-per-point model.
+
+The angle between the reconstructed wavevector and the separately calculated
+Poynting direction is stored as a diagnostic; disagreement here is not used to
+alter Snell's law.
+
+## 6. Exact vector Snell refraction
+
+At each interface, let \(\hat{\mathbf n}\) point from medium 1 to medium 2.  Split
+
+\[
+\hat{\mathbf k}_1=
+(\hat{\mathbf k}_1\cdot\hat{\mathbf n})\hat{\mathbf n}
++\hat{\mathbf k}_{1t}.
+\]
+
+Tangential-wavevector continuity gives
+
+\[
+n_1\hat{\mathbf k}_{1t}=n_2\hat{\mathbf k}_{2t},
+\]
+
+so
+
+\[
+\hat{\mathbf k}_{2t}=\frac{n_1}{n_2}\hat{\mathbf k}_{1t}
+\]
+
+and the forward transmitted direction is
 
 \[
 \boxed{
-\hat{\mathbf s}_2=
-\frac{n_1}{n_2}\hat{\mathbf s}_{1t}
-+\sqrt{1-\left\|\frac{n_1}{n_2}\hat{\mathbf s}_{1t}\right\|^2}\,
+\hat{\mathbf k}_2=
+\frac{n_1}{n_2}\hat{\mathbf k}_{1t}
++\sqrt{1-\left\|\frac{n_1}{n_2}\hat{\mathbf k}_{1t}\right\|^2}\,
 \hat{\mathbf n}
 }.
 \]
 
-A negative square-root radicand is total internal reflection and is not repaired
-numerically by taking an absolute value.
+A negative radicand is total internal reflection and is not numerically repaired.
+The same law is applied at the flat entrance and conical exit.
 
-## 5. Three-dimensional polarization transport
+## 7. Exact ray/cone intersection and finite glass path
 
-The incident complex electric field is first projected transverse to its ray:
+After the entrance refraction, an internal ray is
+
+\[
+\mathbf r'(s)=\mathbf r'_0+s\hat{\mathbf k}_g.
+\]
+
+Substitution into the cone equation produces a quadratic in \(s\).  The first
+positive physical intersection is selected.  This supplies the actual exit point,
+local cone normal and glass path length for each valid entrance sample.  The
+solver therefore does not replace rigid tilt with a rotated thin conical phase.
+
+## 8. Three-dimensional local s/p Fresnel transport
+
+Before interface transport, the electric vector is projected transverse to its
+incident wavevector:
 
 \[
 \mathbf E_\perp=
-\left(I-\hat{\mathbf s}_1\hat{\mathbf s}_1^T\right)\mathbf E.
+\left(I-\hat{\mathbf k}_1\hat{\mathbf k}_1^T\right)\mathbf E.
 \]
 
 For non-normal incidence,
 
 \[
-\hat{\mathbf s}=\frac{\hat{\mathbf n}\times\hat{\mathbf s}_1}
-{\|\hat{\mathbf n}\times\hat{\mathbf s}_1\|},
+\hat{\mathbf s}=\frac{\hat{\mathbf n}\times\hat{\mathbf k}_1}
+{\|\hat{\mathbf n}\times\hat{\mathbf k}_1\|},
 \]
 
 \[
-\hat{\mathbf p}_1=\hat{\mathbf s}_1\times\hat{\mathbf s},
+\hat{\mathbf p}_1=\hat{\mathbf k}_1\times\hat{\mathbf s},
 \qquad
-\hat{\mathbf p}_2=\hat{\mathbf s}_2\times\hat{\mathbf s}.
+\hat{\mathbf p}_2=\hat{\mathbf k}_2\times\hat{\mathbf s}.
 \]
 
 The local amplitudes are
@@ -176,89 +304,84 @@ t_p=\frac{2n_1\cos\theta_i}
 {n_2\cos\theta_i+n_1\cos\theta_t}.
 \]
 
-The transmitted vector is therefore
+The transmitted complex vector is
 
 \[
 \boxed{
-\mathbf E_2=t_sE_s\hat{\mathbf s}+t_pE_p\hat{\mathbf p}_2
-}.
+\mathbf E_2=t_sE_s\hat{\mathbf s}+t_pE_p\hat{\mathbf p}_2.
+}
 \]
 
-This operation is repeated at the flat and conical surfaces.  Because the cone
-normal varies with azimuth, the local s/p basis and Fresnel weighting vary over a
-tilted vector beam.  A single global 2x2 Jones matrix is therefore not used.
+At exact normal incidence the s/p plane is degenerate and the code uses the
+polarization-independent normal-incidence amplitude.  The operation is repeated
+at the second surface.  Because the conical normal and oblique incidence vary
+spatially, the model uses no single global 2x2 Jones matrix for the tilted axicon.
 
-At exact normal incidence the plane of incidence is degenerate; the code uses the
-polarization-independent normal-incidence Fresnel amplitude.
+## 9. Interface energy identity
 
-## 6. Interface energy gate
-
-For each local mixed polarization state, the transmitted power ratio is
+For the actual mixed polarization state,
 
 \[
-T=\frac{n_2\cos\theta_t\,|\mathbf E_2|^2}
-{n_1\cos\theta_i\,|\mathbf E_1|^2}.
+T=\frac{n_2\cos\theta_t|\mathbf E_2|^2}
+{n_1\cos\theta_i|\mathbf E_1|^2}.
 \]
 
-The reflected ratio is computed from \(r_s,r_p\).  For lossless real indices the
-mandatory numerical identity is
+Reflection is calculated from \(r_s,r_p\).  With real lossless indices each
+surface must satisfy
 
 \[
-\boxed{R+T=1}.
+\boxed{R+T=1}
 \]
 
-This is checked independently at both surfaces.
+to numerical tolerance.  These are independent surface gates, not an inferred
+end-to-end power check.
 
-## 7. Finite optical path and eikonal phase
+## 10. Finite optical path and total transmitted eikonal
 
-For a ray whose glass distance is \(L_g\) and whose downstream distance to the
-chosen reference plane is \(L_e\),
+For internal glass distance \(L_g\) and downstream external distance \(L_e\),
 
 \[
 \mathrm{OPL}=n_gL_g+n_eL_e.
 \]
 
-The propagated phase relative to a common piston is
+The phase arriving at the reference plane is
 
 \[
-\Phi=k_0\left(\mathrm{OPL}-\mathrm{OPL}_{\rm ref}\right),
-\qquad
-k_0=\frac{2\pi}{\lambda_0}.
+\Phi_{\rm ref}(x',y')=
+\Phi_{\rm in}(x',y')+k_0\,\mathrm{OPL}(x',y'),
 \]
 
-The incident complex vector phase is retained; the eikonal phase is multiplied
-onto it rather than replacing it.
+up to one irrelevant global piston.  This is the phase used by the Fermat gate:
+a coordinate-transformed gradient on the output plane must recover the independently
+traced outgoing transverse wavevector.
 
-## 8. Fixed laboratory reference plane
+## 11. Fixed laboratory reference plane
 
-Unlike the scalar eikonal reference, the calibrated vector bench route uses a
-fixed laboratory plane
+The output boundary field is constructed on one physical laboratory plane
 
 \[
 z=z_{\rm ref}
 \]
 
-placed just downstream of all valid exit points.  For each outgoing ray,
+placed immediately downstream of all valid exit points.  For each outgoing ray,
 
 \[
-L_e=\frac{z_{\rm ref}-z_{\rm exit}}{s_{z,\rm out}},
+L_e=\frac{z_{\rm ref}-z_{\rm exit}}{k_{z,\rm out}/|\mathbf k|},
 \]
 
-and
-
 \[
-x_{\rm ref}=x_{\rm exit}+L_es_{x,\rm out},
+x_{\rm ref}=x_{\rm exit}+L_e\hat k_{x,\rm out},
 \qquad
-y_{\rm ref}=y_{\rm exit}+L_es_{y,\rm out}.
+y_{\rm ref}=y_{\rm exit}+L_e\hat k_{y,\rm out}.
 \]
 
-This intentionally preserves beam steering and decentre.  The field is never
-recentred row-by-row or made to follow the tilted beam axis.
+No z-dependent recentering or beam-following coordinate warp is allowed.  Real
+steering/decentre therefore survives into subsequent propagation and objective
+mapping.
 
-## 9. Ray-tube/Poynting amplitude transport
+## 12. Ray-tube Jacobian and normal-flux amplitude
 
-The mapping from physical flat entrance coordinates to the laboratory reference
-plane has Jacobian
+The entrance-to-reference-plane map has Jacobian
 
 \[
 J=\det
@@ -268,101 +391,132 @@ J=\det
 \end{bmatrix}.
 \]
 
-A sign change within the valid footprint indicates a fold/caustic before the
-reference plane and is rejected rather than hidden by interpolation.
+A mixed sign over the physical footprint indicates a fold/caustic before the
+chosen boundary plane and is rejected rather than hidden by interpolation.
 
-For external medium index equal on input and output, normal Poynting-flux
-conservation gives
+Within the common-eikonal local-plane-wave approximation, normal flux conservation
+sets the output magnitude:
 
 \[
-|\mathbf E_{\rm ref}|^2
-(s_{z,\rm out})|J|
+n_e|\mathbf E_{\rm out}|^2\hat k_{z,\rm out}|J|
 =
-|\mathbf E_{\rm in}|^2
-(\hat{\mathbf s}_{\rm in}\cdot\hat{\mathbf n}_{\rm ent})
-T_1T_2.
+n_e|\mathbf E_{\rm in,\perp}|^2\hat k_{z,\rm in}T_1T_2.
 \]
 
-The complex Fresnel-transported polarization vector is normalized only by a real
-magnitude, retaining all relative component phases, and this equation sets its
-ray-tube amplitude.
+The independently reconstructed electromagnetic Poynting flux is also compared
+with the local-plane-wave normal-flux model.  Excessive spatial disagreement is
+a model-validity failure; Poynting is not used to redefine the ray direction.
 
-## 10. Scalable inverse field remapping
+## 13. Phase-safe inverse remapping
 
-The traced map is irregular on the output plane.  A production grid cannot use a
-multi-million-point Delaunay triangulation, so Phase 2H inverts the smooth map:
+The traced output coordinates are irregular.  The implementation first fits a
+sparse affine inverse seed, then Newton-solves
 
-1. fit a sparse affine map as an initial inverse estimate;
-2. solve \((x',y')\mapsto(x_{\rm ref},y_{\rm ref})\) by Newton iteration;
-3. interpolate the three complex laboratory components at the converged inverse
-   coordinates;
-4. reject pixels outside the valid ray footprint or above the inverse residual
-   tolerance.
+\[
+(x',y')\mapsto(x_{\rm ref},y_{\rm ref})
+\]
 
-The local Jacobian amplitude already carries the geometrical ray density.
+for every regular output-grid point.  Invalid rays, points outside the mapped
+footprint and large inverse residuals are rejected.
 
-## 11. Maxwell transverse projection and spectral flux closure
+Crucially, two quantities are remapped **separately**:
 
-Interpolation can introduce a small non-transverse component.  The regular field
-is therefore projected in angular-spectrum space using
+1. the slowly sampled complex vector/polarization envelope;
+2. the continuous unwrapped common-eikonal + OPL phase.
+
+Only on the final laboratory grid is
+
+\[
+\mathbf E_{\rm ref}=\mathbf A_{\rm ref}e^{i\Phi_{\rm ref}}
+\]
+
+formed.  This prevents an unrepresentable entrance-plane carrier from aliasing
+before physical refraction.
+
+## 14. Maxwell projection and spectral normal-flux closure
+
+Interpolation can create a small longitudinal inconsistency, so the final regular
+field is projected in angular-spectrum space with
 
 \[
 P(\mathbf k)=I-\frac{\mathbf k\mathbf k^T}{|\mathbf k|^2}.
 \]
 
-For a projected field in a lossless dielectric, plane-integrated +z Poynting
-flux is proportional to
+For a projected field in a lossless dielectric, the plane-integrated +z flux is
+proportional to
 
 \[
-\int\!\!\int
-n\frac{k_z}{k}
-\left(|\tilde E_x|^2+|\tilde E_y|^2+|\tilde E_z|^2\right)
+\iint n\frac{k_z}{k}
+\left(|\widetilde E_x|^2+|\widetilde E_y|^2+|\widetilde E_z|^2\right)
 \,dk_xdk_y.
 \]
 
-The code evaluates the corresponding discrete Parseval sum and applies one final
-*global* amplitude correction equal to the difference between expected traced
-transmitted flux and the interpolated/projected field flux.  Local structure is
-set by the ray-tube Jacobian; the global factor closes only interpolation loss.
-Both the pre-correction factor and final closure ratio are recorded.
+The local morphology has already been fixed by the physical ray-tube Jacobian.
+One final **global** amplitude factor is allowed only to close small interpolation
+and transverse-projection loss.  The default implementation rejects a case if
+this power correction differs from unity by more than 10%.
 
-## 12. Sampling gate
+## 15. Sampling / alias rejection
 
-A physically valid axicon can still be numerically unrepresentable.  The traced
-outgoing directions require transverse spatial frequencies
+Outgoing rays require transverse spatial frequencies
 
 \[
-f_x=\frac{n_e}{\lambda_0}s_x,
+f_x=\frac{n_e}{\lambda_0}\hat k_x,
 \qquad
-f_y=\frac{n_e}{\lambda_0}s_y.
+f_y=\frac{n_e}{\lambda_0}\hat k_y.
 \]
 
-For grid spacing \(\Delta x\),
+For output spacing \(\Delta x\),
 
 \[
 f_{\rm Nyq}=\frac{1}{2\Delta x}.
 \]
 
-If the traced wavevectors approach/exceed the declared fraction of Nyquist, the
-solver stops and demands a finer/smaller computational window.  This is
-particularly important if a laboratory ``20 degree`` axicon specification turns
-out to mean a large physical base angle.
+The default production gate requires the largest traced transverse frequency to
+remain below 90% of Nyquist.  A physically valid high-cone-angle optic can
+therefore be rejected on a coarse/large computational window instead of producing
+an aliased but visually plausible result.
 
-## 13. Mandatory validation hierarchy
+## 16. Calibration boundary
 
-Before report figures can be authorised, Phase 2H requires:
+The calibrated segmented-vector tilt wrapper reuses the already-validated
+SLM1 -> relay -> HWP -> SLM2 -> QWP -> physical 4F selected-order chain and
+replaces only its normal-incidence axicon stage with Phase 2H.  Absolute tilt is
+enabled only when the bundle contains calibrated provenance for:
 
-1. zero-tilt recovery of the existing exact-Snell cone direction;
-2. lossless Fresnel \(R+T=1\) at both surfaces;
-3. finite-OPL gradient agreement with the traced outgoing transverse wavevector;
-4. x/y rotational covariance for axisymmetric geometry with circular input;
-5. positive/negative tilt mirror consistency in scalar ray metrics;
-6. ray-tube flux closure before interpolation;
-7. spectral normal-flux closure after interpolation/projection;
-8. spectral transversality after projection;
-9. hard rejection of under-sampled large-cone cases;
-10. preservation of all existing scalar refractive and Phase 2G vector/objective
-    regression gates.
+- base angle;
+- explicit angle convention `base_angle_from_flat_face`;
+- clear radius;
+- centre thickness;
+- refractive index;
+- verified flat-face-upstream orientation.
 
-Only after these pass is the calibrated segmented-vector bench route permitted to
-replace its previous rigid-tilt guard with the Phase 2H solver.
+The current wrapper refuses cone-first orientation and refuses to infer a base
+angle from an apex/deviation/vendor label.
+
+## 17. Mandatory validation hierarchy
+
+Before Phase-2H figures can be report-authorised, all of the following must pass:
+
+1. vector Fresnel \(R+T=1\) at each lossless surface;
+2. zero-tilt plane-wave recovery of the exact Snell conical direction;
+3. common-component eikonal agreement;
+4. common-phase integrability / Southwell reconstruction agreement;
+5. Fermat consistency: propagated phase gradient equals the independently traced
+   outgoing transverse wavevector;
+6. x/y rotational covariance for an axisymmetric optic and circular input;
+7. positive/negative tilt mirror consistency in polarization-independent ray
+   metrics;
+8. ray-tube normal-flux closure;
+9. regular-grid spectral normal-flux closure;
+10. Maxwell transversality after remapping/projection;
+11. hard rejection of under-sampled outgoing wavevectors;
+12. direct 0/5/10-degree plane-wave geometry agreement with the pre-existing,
+    independently validated scalar two-surface Snell tracer;
+13. end-to-end execution of the calibrated six-sector vector SLM/4F field through
+    Phase 2H and into the spatial-vector objective/sample solver;
+14. preservation of all existing Phase-2G vector/analyzer and Phase-2C
+    objective/interface numerical regressions.
+
+The old total-Poynting-directed prototype remains non-authoritative provenance.
+The accepted Phase-2H route is the **common-eikonal / phase-normal** formulation.
