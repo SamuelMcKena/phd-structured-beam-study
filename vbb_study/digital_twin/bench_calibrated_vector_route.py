@@ -16,11 +16,11 @@ Physical sequence retained from ``vector_arm_chain``::
       -> explicit physical 4F / selected common diffraction order
       -> refractive axicon (exact normal-incidence Snell cone)
 
-The two SLM blaze signs are opposite.  After the relay inversion/HWP component
+The two SLM blaze signs are opposite. After the relay inversion/HWP component
 swap, both synthesized polarization channels carry the same SLM2-frame selected
-order.  The physical bench blaze is fixed at 20 pixels = 6.25 lp/mm.
+order. The physical bench blaze is fixed at 20 pixels = 6.25 lp/mm.
 
-Rigid axicon tilt is deliberately blocked here.  The scalar two-surface
+Rigid axicon tilt is deliberately blocked here. The scalar two-surface
 refractive reference cannot be used as if it were a full vector surface solver;
 polarization transport through a tilted refractive axicon requires its own
 validated vector surface-remapping implementation.
@@ -37,6 +37,7 @@ import numpy as np
 from vbb_study.calibration.bench_binding import bind_calibration_to_manifest
 from vbb_study.calibration.schema import CalibrationBundle, source_at, value_at
 from vbb_study.calibration.slm_phase import SLMPhaseCalibration, calibrated_phase_to_grey
+from vbb_study.calibration.validation import calibration_readiness_for_claim
 from vbb_study.digital_twin.nathan_vector_hexagon import (
     NathanHexagonConfig,
     canonical_target_field,
@@ -171,8 +172,6 @@ def _calibrated_slm_on_director(
         apply_carrier=False,
         fill_factor_model=PHASE2A_CANONICAL_SLM_MODEL,
     )
-    # Preserve the established vector-arm hardware contract: the orthogonal
-    # polarization is not LC phase-modulated but is clipped by the panel aperture.
     orth_out = np.where(slm_active_aperture(grid, panel), orth, 0.0j)
     ex_out, ey_out = _from_director_components(applied.total, orth_out, director_axis_rad)
     return ex_out, ey_out, {
@@ -213,6 +212,11 @@ def _input_jones_field(
     }
 
 
+def _complex_pair(value: complex) -> list[float]:
+    z = complex(value)
+    return [float(z.real), float(z.imag)]
+
+
 def _apply_exact_snell_vector_axicon(
     field: VectorField,
     *,
@@ -245,14 +249,14 @@ def _apply_exact_snell_vector_axicon(
         refractive_index=float(refractive_index),
         external_index=float(external_index),
     )
-    fresnel = fresnel_sp_amplitudes(
+    t_entry, t_p, t_s = fresnel_sp_amplitudes(
         float(refractive_index),
         float(external_index),
         float(base_angle_rad),
     )
     phase = np.exp(-1j * float(kr) * R)
-    er_out = phase * float(fresnel["t_entry"]) * float(fresnel["t_p"]) * er
-    et_out = phase * float(fresnel["t_entry"]) * float(fresnel["t_s"]) * et
+    er_out = phase * t_entry * t_p * er
+    et_out = phase * t_entry * t_s * et
     ex = c * er_out - s * et_out
     ey = s * er_out + c * et_out
     if clear_radius_m is not None:
@@ -276,7 +280,16 @@ def _apply_exact_snell_vector_axicon(
         "exact_kr_m_inv": float(kr),
         "clear_radius_m": None if clear_radius_m is None else float(clear_radius_m),
         "decentre_m": list(map(float, decentre_m)),
-        "fresnel": {key: float(value) for key, value in fresnel.items()},
+        "fresnel_field_amplitudes": {
+            "t_entry": _complex_pair(t_entry),
+            "t_p": _complex_pair(t_p),
+            "t_s": _complex_pair(t_s),
+        },
+        "fresnel_amplitude_magnitudes": {
+            "t_entry": float(abs(t_entry)),
+            "t_p": float(abs(t_p)),
+            "t_s": float(abs(t_s)),
+        },
         "rigid_tilt_supported": False,
     }
 
@@ -291,6 +304,7 @@ def build_calibrated_segmented_vector_route(
 
     bundle = calibrated.calibration_bundle
     binding = bind_calibration_to_manifest(bundle)
+    vector_readiness = calibration_readiness_for_claim(bundle, "segmented_vector_hexagon")
     manifest = binding.manifest
     wavelength = float(hardware_value(manifest, "wavelength_m"))
     beam_radius = float(hardware_value(manifest, "beam_radius_on_slm_m"))
@@ -354,7 +368,6 @@ def build_calibrated_segmented_vector_route(
         fringing_sigma_px=calibrated.slm1_fringing_sigma_px,
     )
 
-    # Existing vector-arm relay contract: exact 180-degree image inversion.
     ex1 = np.flip(ex1, axis=(0, 1))
     ey1 = np.flip(ey1, axis=(0, 1))
     ex_hwp, ey_hwp = retarder_jones(ex1, ey1, hwp_delta, hwp_axis)
@@ -428,8 +441,6 @@ def build_calibrated_segmented_vector_route(
     )
     target = canonical_target_field(replace(config, vector=vcfg, grid_n=n), grid=grid)
 
-    # For encoder diagnostics only, remove the known common SLM2-frame carrier
-    # before comparing the pre-4F vector state with the analytic target.
     pre4f_demod = VectorField(
         ex=pre4f.ex * np.exp(-1j * TWOPI * selected_carrier * X),
         ey=pre4f.ey * np.exp(-1j * TWOPI * selected_carrier * X),
@@ -454,7 +465,14 @@ def build_calibrated_segmented_vector_route(
             "route_id": "phase2g_calibrated_segmented_vector_dual_slm",
             "calibration_id": bundle.calibration_id,
             "data_classification": bundle.data_classification,
-            "absolute_bench_ready": bool(binding.absolute_bench_ready),
+            "core_manifest_absolute_ready": bool(binding.absolute_bench_ready),
+            "segmented_vector_readiness": {
+                "ready": bool(vector_readiness.ready),
+                "status": vector_readiness.status,
+                "missing_measurements": list(vector_readiness.missing_measurements),
+                "non_calibrated_measurements": list(vector_readiness.non_calibrated_measurements),
+            },
+            "absolute_segmented_vector_comparison_ready": bool(vector_readiness.ready and not bundle.is_synthetic),
             "unresolved_manifest_parameters": list(binding.unresolved_parameters),
             "carrier_period_px": 20.0,
             "selected_common_carrier_cpm": selected_carrier,
