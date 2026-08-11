@@ -42,7 +42,8 @@ class ObjectiveSampleConfig:
             raise ValueError("wavelength, focal length and pupil radius must be positive")
         if not 0.0 < self.numerical_aperture <= self.incident_medium_index:
             raise ValueError("numerical_aperture must lie in (0,n_incident]")
-        if complex(self.sample_refractive_index).real <= 0.0 or complex(self.sample_refractive_index).imag < 0.0:
+        sample_n = complex(self.sample_refractive_index)
+        if sample_n.real <= 0.0 or sample_n.imag < 0.0:
             raise ValueError("sample_refractive_index must use passive Im(n)>=0 convention")
         if self.sample_depth_m < 0.0:
             raise ValueError("sample_depth_m cannot be negative")
@@ -78,9 +79,24 @@ def focus_pupil_field_into_sample(
     config: ObjectiveSampleConfig,
     input_jones_xy: tuple[complex, complex] = (1.0 + 0.0j, 0.0 + 0.0j),
 ) -> ObjectiveSampleResult:
-    """Vector-focus a calibrated pupil field and transmit it into the sample."""
+    """Vector-focus a calibrated pupil field and transmit it into the sample.
+
+    The vector Fresnel interface supports a passive complex refractive index.
+    The repository's currently validated in-material vector ASM, however,
+    assumes a real lossless propagation index.  Therefore an absorbing sample is
+    allowed for the immediate interface calculation but propagation to a
+    non-zero depth is blocked until a complex-k vector propagator is separately
+    implemented and validated.  No imaginary index is silently discarded.
+    """
 
     config.validate()
+    sample_n = complex(config.sample_refractive_index)
+    if config.sample_depth_m > 0.0 and abs(sample_n.imag) > 1.0e-14:
+        raise ValueError(
+            "current vector ASM material propagation requires a real lossless refractive index; "
+            "absorbing-media depth propagation needs a separately validated complex-k propagator"
+        )
+
     scalar = np.asarray(scalar_pupil_field, dtype=np.complex128)
     if scalar.ndim != 2:
         raise ValueError("scalar_pupil_field must be 2-D")
@@ -141,7 +157,7 @@ def focus_pupil_field_into_sample(
         FresnelInterfaceConfig(
             wavelength_m=float(config.wavelength_m),
             n_incident=complex(config.incident_medium_index),
-            n_transmitted=complex(config.sample_refractive_index),
+            n_transmitted=sample_n,
             include_evanescent=False,
         ),
     )
@@ -158,7 +174,7 @@ def focus_pupil_field_into_sample(
         ez=interface.Ez,
         grid=output_grid,
         wavelength_m=float(config.wavelength_m),
-        medium_index=complex(config.sample_refractive_index),
+        medium_index=float(sample_n.real),
         metadata={"interface_model": "spectral_vector_fresnel"},
     )
     material = (
@@ -177,11 +193,10 @@ def focus_pupil_field_into_sample(
             "objective_NA": float(config.numerical_aperture),
             "objective_focal_length_m": float(config.objective_focal_length_m),
             "objective_pupil_radius_m": float(config.objective_pupil_radius_m),
-            "sample_refractive_index": [
-                float(complex(config.sample_refractive_index).real),
-                float(complex(config.sample_refractive_index).imag),
-            ],
+            "sample_refractive_index": [float(sample_n.real), float(sample_n.imag)],
             "sample_depth_m": float(config.sample_depth_m),
+            "in_material_propagation_index": float(sample_n.real),
+            "absorbing_depth_propagation_supported": False,
             "pupil_power_fraction": pupil_fraction,
             "interface_transmitted_power_fraction": float(interface.diagnostics["transmitted_power_fraction"]),
             "interface_R_plus_T": float(interface.diagnostics["lossless_R_plus_T"]),
