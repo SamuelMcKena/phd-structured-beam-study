@@ -16,6 +16,7 @@ on:
       - 'tests/test_phase2g_bench_calibrated_digital_twin.py'
       - 'tests/test_phase2g_objective_pupil_mapping.py'
       - 'tests/test_phase2g_vector_observables.py'
+      - 'tests/test_phase2g_shack_hartmann_masked.py'
       - 'tools/build_phase2g_bench_readiness.py'
       - '.github/workflows/phase2g-bench-calibrated-digital-twin.yml'
 
@@ -48,6 +49,7 @@ jobs:
           tests/test_phase2g_bench_calibrated_digital_twin.py
           tests/test_phase2g_objective_pupil_mapping.py
           tests/test_phase2g_vector_observables.py
+          tests/test_phase2g_shack_hartmann_masked.py
       - name: Preserve clean-checkout Phase 2D numerical/calibration contracts
         run: >-
           python -m pytest -q tests/test_phase2d_calibration_bridge.py
