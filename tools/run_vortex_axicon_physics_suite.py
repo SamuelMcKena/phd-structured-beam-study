@@ -21,8 +21,9 @@ from vbb_study.digital_twin.vortex_axicon_oblique_wave import (
 )
 from vbb_study.digital_twin.vortex_axicon_tip_reference import tip_resolution
 from vbb_study.digital_twin.vortex_following_propagation import (
+    bessel_feature_axis_path_m,
     build_beam_following_propagation,
-    robust_axis_path_m,
+    transverse_morphology_axis,
 )
 from vbb_study.digital_twin.vortex_system_route import (
     AxiconError,
@@ -34,6 +35,13 @@ from vbb_study.equations.propagation import angular_spectrum_propagate_bl
 
 
 EPS = np.finfo(float).tiny
+
+
+def _ell(case_id: str) -> int:
+    try:
+        return {"B0": 0, "V1": 1, "V3": 3}[case_id]
+    except KeyError as exc:
+        raise ValueError(f"unsupported case {case_id!r}") from exc
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]]) -> None:
@@ -84,7 +92,7 @@ def _registry() -> dict[str, dict[str, Any]]:
                 axicon=AxiconError(tilt_rad=(float(v), 0.0))
             ),
             "axis": "x",
-            "fidelity": "carrier_tracked_scalar_oblique_thin_axicon; full refractive surface claims blocked",
+            "fidelity": "REJECTED carrier-tracked scalar oblique thin axicon; use explicit refractive solver",
         },
         "axicon_rigid_tilt_y": {
             "values": tilt,
@@ -94,7 +102,7 @@ def _registry() -> dict[str, dict[str, Any]]:
                 axicon=AxiconError(tilt_rad=(0.0, float(v)))
             ),
             "axis": "y",
-            "fidelity": "carrier_tracked_scalar_oblique_thin_axicon; full refractive surface claims blocked",
+            "fidelity": "REJECTED carrier-tracked scalar oblique thin axicon; use explicit refractive solver",
         },
         "axicon_round_tip_radius": {
             "values": tip_radius,
@@ -103,8 +111,9 @@ def _registry() -> dict[str, dict[str, Any]]:
             "builder": lambda v: SystemErrorConfig(
                 axicon=AxiconError(
                     tip_model="sharp" if float(v) == 0.0 else "hyperboloidal_round",
-                    # Existing production sag uses vertical a.  For the standard
-                    # hyperbola f=v(sqrt(r^2+r_h^2)-r_h), a=v*r_h.
+                    # Production sag historically uses vertical parameter a.
+                    # For f=v(sqrt(r^2+r_h^2)-r_h), a=v*r_h, so the external
+                    # sweep is expressed in the physically legible radial scale.
                     rounding_parameter_m=float(v) * math.tan(gamma),
                 )
             ),
@@ -164,11 +173,17 @@ def _metrics(I: np.ndarray, grid: dict[str, Any]) -> dict[str, float]:
     Y = np.asarray(grid["Y"], dtype=float)
     cx = float(np.sum(arr * X) / max(total, EPS))
     cy = float(np.sum(arr * Y) / max(total, EPS))
+    radial_second_moment = float(
+        np.sum(arr * ((X - cx) ** 2 + (Y - cy) ** 2)) / max(total, EPS)
+    )
     return {
         "peak_au": float(np.max(arr)),
         "power_au": total * float(grid["dx"]) ** 2,
         "centroid_x_m": cx,
         "centroid_y_m": cy,
+        "rms_radius_about_energy_centroid_m": float(
+            np.sqrt(max(radial_second_moment, 0.0))
+        ),
     }
 
 
@@ -187,20 +202,24 @@ def _line_metrics(I: np.ndarray, offsets: np.ndarray, z: np.ndarray) -> dict[str
     }
 
 
-def _crop_about_centroid(
+def _crop_about_axis(
     arr: np.ndarray,
     x: np.ndarray,
     *,
-    cx: float,
-    cy: float,
+    axis_x_m: float,
+    axis_y_m: float,
     halfwidth: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    ix = np.flatnonzero(np.abs(x - float(cx)) <= float(halfwidth))
-    iy = np.flatnonzero(np.abs(x - float(cy)) <= float(halfwidth))
+    ix = np.flatnonzero(np.abs(x - float(axis_x_m)) <= float(halfwidth))
+    iy = np.flatnonzero(np.abs(x - float(axis_y_m)) <= float(halfwidth))
     if ix.size < 16 or iy.size < 16:
-        raise ValueError("beam-centred ROI has too few native samples")
+        raise ValueError("morphology-axis ROI has too few native samples")
     crop = np.asarray(arr)[np.ix_(iy, ix)]
-    return (x[ix] - float(cx), x[iy] - float(cy), crop)
+    return (
+        x[ix] - float(axis_x_m),
+        x[iy] - float(axis_y_m),
+        crop,
+    )
 
 
 def _spectral_crop(
@@ -225,6 +244,14 @@ def _route(case_id: str, grid_n: int, config: SystemErrorConfig, family: str) ->
     return build_system_route(case_id, grid_n=grid_n, config=config)
 
 
+def _transverse_seed(family: str, value: float) -> tuple[float, float]:
+    if family == "axicon_lateral_decentre_x":
+        return float(value), 0.0
+    if family == "axicon_lateral_decentre_y":
+        return 0.0, float(value)
+    return 0.0, 0.0
+
+
 def run_family(
     family: str,
     *,
@@ -238,7 +265,12 @@ def run_family(
 
     spec = _registry()[family]
     values = tuple(float(v) for v in spec["values"])
-    nominal_value = min(values, key=abs) if 0.0 in values else min(values, key=lambda v: abs(v - 1.0))
+    nominal_value = (
+        min(values, key=abs)
+        if 0.0 in values
+        else min(values, key=lambda v: abs(v - 1.0))
+    )
+    ell = _ell(case_id)
     z = np.arange(5e-3, 140e-3 + 2e-3, 2e-3)
     fixed_coordinate = np.linspace(-1.2e-3, 1.2e-3, 481)
     morphology_offset = np.linspace(-220e-6, 220e-6, 401)
@@ -271,6 +303,14 @@ def run_family(
         )
         Ixy = np.abs(propagated) ** 2
         xy_metrics = _metrics(Ixy, grid)
+        seed_x, seed_y = _transverse_seed(family, value)
+        morphology_axis = transverse_morphology_axis(
+            propagated,
+            grid,
+            vortex_charge=ell,
+            seed_x_m=seed_x,
+            seed_y_m=seed_y,
+        )
 
         fixed = build_dense_spectral_propagation(
             grid=grid,
@@ -282,10 +322,18 @@ def run_family(
         )
         axis = spec.get("axis")
         if axis == "x":
-            x_path = robust_axis_path_m(fixed.xz_intensity, fixed_coordinate)
+            x_path = bessel_feature_axis_path_m(
+                fixed.xz_intensity,
+                fixed_coordinate,
+                vortex_charge=ell,
+            )
             y_path = np.zeros_like(x_path)
         elif axis == "y":
-            y_path = robust_axis_path_m(fixed.yz_intensity, fixed_coordinate)
+            y_path = bessel_feature_axis_path_m(
+                fixed.yz_intensity,
+                fixed_coordinate,
+                vortex_charge=ell,
+            )
             x_path = np.zeros_like(y_path)
         else:
             x_path = np.zeros(z.size, dtype=float)
@@ -309,6 +357,7 @@ def run_family(
                 "grid": grid,
                 "Ixy": Ixy,
                 "xy_metrics": xy_metrics,
+                "morphology_axis": morphology_axis,
                 "following": following,
                 "x_path": x_path,
                 "y_path": y_path,
@@ -331,9 +380,11 @@ def run_family(
         from_meta = meta.get("tilted_to_lab", {})
         ray = meta.get("independent_snell_ray_reference", {})
         resolution = rec["resolution"]
+        morphology_axis = rec["morphology_axis"]
         rows.append(
             {
                 "case_id": case_id,
+                "vortex_charge": ell,
                 "family": family,
                 "value": rec["value"],
                 "units": spec["units"],
@@ -341,8 +392,30 @@ def run_family(
                 "grid_n": int(grid_n),
                 "dx_m": float(rec["grid"]["dx"]),
                 **rec["xy_metrics"],
-                "peak_ratio_to_nominal": float(rec["xy_metrics"]["peak_au"] / max(peak0, EPS)),
-                "power_ratio_to_nominal": float(rec["xy_metrics"]["power_au"] / max(power0, EPS)),
+                "morphology_axis_x_m": float(morphology_axis.x_m),
+                "morphology_axis_y_m": float(morphology_axis.y_m),
+                "morphology_axis_method": morphology_axis.method,
+                "detected_topological_charge": int(
+                    morphology_axis.detected_topological_charge
+                ),
+                "selected_singularity_count": int(
+                    morphology_axis.selected_singularity_count
+                ),
+                "morphology_axis_distance_from_seed_m": float(
+                    morphology_axis.distance_from_seed_m
+                ),
+                "energy_centroid_minus_axis_x_m": float(
+                    rec["xy_metrics"]["centroid_x_m"] - morphology_axis.x_m
+                ),
+                "energy_centroid_minus_axis_y_m": float(
+                    rec["xy_metrics"]["centroid_y_m"] - morphology_axis.y_m
+                ),
+                "peak_ratio_to_nominal": float(
+                    rec["xy_metrics"]["peak_au"] / max(peak0, EPS)
+                ),
+                "power_ratio_to_nominal": float(
+                    rec["xy_metrics"]["power_au"] / max(power0, EPS)
+                ),
                 "tracked_x_axis_mean_m": float(np.mean(rec["x_path"])),
                 "tracked_y_axis_mean_m": float(np.mean(rec["y_path"])),
                 "tracked_x_axis_span_m": float(np.ptp(rec["x_path"])),
@@ -358,15 +431,27 @@ def run_family(
                 "snell_ray_cone_anisotropy_fraction": float(
                     ray.get("cone_radius_anisotropy_fraction", float("nan"))
                 ),
-                "lab_to_tilted_spectral_power_ratio": float(to_meta.get("spectral_power_ratio", 1.0)),
-                "tilted_to_lab_spectral_power_ratio": float(from_meta.get("spectral_power_ratio", 1.0)),
+                "lab_to_tilted_spectral_power_ratio": float(
+                    to_meta.get("spectral_power_ratio", 1.0)
+                ),
+                "tilted_to_lab_spectral_power_ratio": float(
+                    from_meta.get("spectral_power_ratio", 1.0)
+                ),
                 "tip_radius_pixels": (
-                    float(resolution.radius_pixels) if resolution is not None else float("nan")
+                    float(resolution.radius_pixels)
+                    if resolution is not None
+                    else float("nan")
                 ),
             }
         )
 
-    fig, axes = plt.subplots(4, len(records), figsize=(3.25 * len(records), 11.5), constrained_layout=True, squeeze=False)
+    fig, axes = plt.subplots(
+        4,
+        len(records),
+        figsize=(3.25 * len(records), 11.5),
+        constrained_layout=True,
+        squeeze=False,
+    )
     x_native = np.asarray(records[0]["grid"]["x"], dtype=float)
     for col, rec in enumerate(records):
         value = rec["value"]
@@ -375,7 +460,12 @@ def run_family(
         axes[0, col].imshow(
             spec_img / max(float(np.max(spec_img)), EPS),
             origin="lower",
-            extent=[rec["fx"][0] / 1e3, rec["fx"][-1] / 1e3, rec["fx"][0] / 1e3, rec["fx"][-1] / 1e3],
+            extent=[
+                rec["fx"][0] / 1e3,
+                rec["fx"][-1] / 1e3,
+                rec["fx"][0] / 1e3,
+                rec["fx"][-1] / 1e3,
+            ],
             vmin=0,
             vmax=1,
             cmap="inferno",
@@ -385,11 +475,12 @@ def run_family(
         axes[0, col].set_ylabel("fy (10³ m⁻¹)")
 
         m = rec["xy_metrics"]
-        xr, yr, crop = _crop_about_centroid(
+        morphology_axis = rec["morphology_axis"]
+        xr, yr, crop = _crop_about_axis(
             rec["Ixy"],
             x_native,
-            cx=m["centroid_x_m"],
-            cy=m["centroid_y_m"],
+            axis_x_m=morphology_axis.x_m,
+            axis_y_m=morphology_axis.y_m,
             halfwidth=xy_halfwidth,
         )
         axes[1, col].imshow(
@@ -400,16 +491,23 @@ def run_family(
             vmax=1,
             cmap="inferno",
         )
-        axes[1, col].set_xlabel("Δx from centroid (µm)")
-        axes[1, col].set_ylabel("Δy from centroid (µm)")
+        axes[1, col].axhline(0.0, linewidth=0.5, color="white", alpha=0.45)
+        axes[1, col].axvline(0.0, linewidth=0.5, color="white", alpha=0.45)
+        axes[1, col].set_xlabel("Δx from Bessel/vortex axis (µm)")
+        axes[1, col].set_ylabel("Δy from Bessel/vortex axis (µm)")
         axes[1, col].text(
             0.02,
             0.98,
-            f"peak/0={m['peak_au']/max(peak0,EPS):.3f}\nP/0={m['power_au']/max(power0,EPS):.3f}\nlab c=({m['centroid_x_m']*1e6:.0f},{m['centroid_y_m']*1e6:.0f}) µm",
+            (
+                f"peak/0={m['peak_au']/max(peak0,EPS):.3f}\n"
+                f"P/0={m['power_au']/max(power0,EPS):.3f}\n"
+                f"axis=({morphology_axis.x_m*1e6:.0f},{morphology_axis.y_m*1e6:.0f}) µm\n"
+                f"energy c=({m['centroid_x_m']*1e6:.0f},{m['centroid_y_m']*1e6:.0f}) µm"
+            ),
             transform=axes[1, col].transAxes,
             ha="left",
             va="top",
-            fontsize=7,
+            fontsize=6.7,
             color="white",
         )
 
@@ -422,18 +520,26 @@ def run_family(
                 (data / max(float(np.max(data)), EPS)).T,
                 origin="lower",
                 aspect="auto",
-                extent=[z[0] * 1e3, z[-1] * 1e3, morphology_offset[0] * 1e6, morphology_offset[-1] * 1e6],
+                extent=[
+                    z[0] * 1e3,
+                    z[-1] * 1e3,
+                    morphology_offset[0] * 1e6,
+                    morphology_offset[-1] * 1e6,
+                ],
                 vmin=0,
                 vmax=1,
                 cmap="inferno",
             )
             axes[row, col].axhline(0.0, linewidth=0.6, color="white", alpha=0.55)
             axes[row, col].set_xlabel("z from axicon (mm)")
-            axes[row, col].set_ylabel(f"{axis_name} from tracked axis (µm)")
+            axes[row, col].set_ylabel(f"{axis_name} from tracked Bessel/vortex axis (µm)")
 
     axes[0, 0].set_ylabel("fy (10³ m⁻¹)\npost-axicon spectrum")
     fig.suptitle(
-        f"{case_id} — {family}\n{spec['fidelity']} | beam-centred morphology; panels individually normalised",
+        (
+            f"{case_id} — {family}\n{spec['fidelity']} | morphology-axis centred; "
+            "panels individually normalised"
+        ),
         fontsize=12,
     )
     path = figure_root / case_id / f"{family}_physics_diagnostic.png"
@@ -446,13 +552,23 @@ def run_family(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Run resolution-aware axicon physics diagnostics.")
+    parser = argparse.ArgumentParser(
+        description="Run resolution-aware axicon physics diagnostics."
+    )
     parser.add_argument("--cases", nargs="+", default=["B0", "V1", "V3"])
     parser.add_argument("--families", nargs="+", default=["all"])
     parser.add_argument("--grid-n", type=int, default=1536)
     parser.add_argument("--z-mm", type=float, default=60.0)
-    parser.add_argument("--output-root", type=Path, default=Path("outputs/validation/axicon_physics_v2"))
-    parser.add_argument("--figure-root", type=Path, default=Path("outputs/figures/axicon_physics_v2"))
+    parser.add_argument(
+        "--output-root",
+        type=Path,
+        default=Path("outputs/validation/axicon_physics_v2"),
+    )
+    parser.add_argument(
+        "--figure-root",
+        type=Path,
+        default=Path("outputs/figures/axicon_physics_v2"),
+    )
     args = parser.parse_args()
 
     registry = _registry()
@@ -464,6 +580,12 @@ def main() -> None:
     all_rows: list[dict[str, Any]] = []
     for case_id in args.cases:
         for family in families:
+            if family.startswith("axicon_rigid_tilt"):
+                raise SystemExit(
+                    "rigid-tilt figures are blocked in this runner: the carrier-tracked thin "
+                    "surrogate is intentionally rejected; use the explicit refractive-axicon "
+                    "reference branch once physical hardware geometry is supplied"
+                )
             print(f"running {case_id} / {family}", flush=True)
             all_rows.extend(
                 run_family(
@@ -483,13 +605,14 @@ def main() -> None:
         "families": families,
         "grid_n": int(args.grid_n),
         "diagnostic_contract": (
-            "post-axicon angular spectrum + beam-centred xy + beam-following xz/yz; "
-            "morphology panels individually normalised; absolute peak/power/steering retained in CSV"
+            "post-axicon angular spectrum + topological/central-peak centred xy + "
+            "Bessel-feature-following xz/yz; morphology panels individually normalised; "
+            "energy centroid, absolute peak/power and steering retained separately in CSV"
         ),
         "tip_resolution_policy": "nonzero local tip radius >= 12 native 2-D pixels",
         "tilt_policy": (
-            "carrier-tracked scalar thin-axicon wave model at literature-scale angles; "
-            "independent two-interface Snell anisotropy recorded; full refractive/vector claims blocked"
+            "thin rotated-phase rigid tilt is rejected and cannot be rendered here; "
+            "explicit two-surface refractive/eikonal solver is the replacement reference"
         ),
     }
     args.output_root.mkdir(parents=True, exist_ok=True)
