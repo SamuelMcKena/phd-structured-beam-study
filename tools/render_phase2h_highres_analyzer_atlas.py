@@ -31,6 +31,9 @@ SOURCE_WINDOW_M = 3.0e-3
 OUTPUT_N = 768
 OUTPUT_WINDOW_M = 4.5e-3
 DISPLAY_HALF_WIDTH_MM = 0.42
+# Preserve the validated *physical* annulus policy when changing sampling.
+# The earlier 12-pixel gate on a 512 / 7.2 mm grid was 168.75 um.
+MINIMUM_ANALYSIS_RADIUS_M = 170.0e-6
 GEOMETRY = RefractiveAxiconGeometry(
     base_angle_rad=math.radians(2.0),
     clear_radius_m=3.0e-3,
@@ -68,18 +71,21 @@ def _render_state(mode: str, ell: int, outdir: Path) -> dict[str, object]:
         field, metadata = _build(mode, ell, tilt)
         frames = ideal_linear_analyzer_frames(field, angles_deg=ANALYZERS_DEG)
         Xc, Yc, moments = centered_coordinate_maps(field)
+        pixel_pitch_m = float(field.grid["dx"])
+        minimum_radius_pixels = MINIMUM_ANALYSIS_RADIUS_M / pixel_pitch_m
         for analyzer in ANALYZERS_DEG:
             petals = well_sampled_petal_observable(
                 frames[analyzer],
                 Xc,
                 Yc,
-                pixel_pitch_m=float(field.grid["dx"]),
-                minimum_radius_pixels=18.0,
+                pixel_pitch_m=pixel_pitch_m,
+                minimum_radius_pixels=minimum_radius_pixels,
             )
             if int(petals.petal_count) != expected:
                 raise RuntimeError(
                     f"high-resolution {mode} ell={ell} tilt={tilt:g} analyzer={analyzer:g} "
-                    f"resolved {petals.petal_count} petals, expected {expected}"
+                    f"resolved {petals.petal_count} petals, expected {expected}; "
+                    f"physical annulus floor={MINIMUM_ANALYSIS_RADIUS_M * 1e6:.1f} um"
                 )
             rows.append(
                 {
@@ -91,6 +97,8 @@ def _render_state(mode: str, ell: int, outdir: Path) -> dict[str, object]:
                     "measured_petals": int(petals.petal_count),
                     "ring_radius_um": float(petals.ring_radius_m) * 1e6,
                     "ring_sample_count": int(petals.ring_sample_count),
+                    "minimum_analysis_radius_um": MINIMUM_ANALYSIS_RADIUS_M * 1e6,
+                    "minimum_analysis_radius_pixels": float(minimum_radius_pixels),
                     "modulation_cv": float(petals.modulation_fraction),
                     "centroid_x_mm": moments.centroid_x_m * 1e3,
                     "centroid_y_mm": moments.centroid_y_m * 1e3,
@@ -166,6 +174,8 @@ def main() -> None:
         "report_figures_authorised": False,
         "purpose": "supplementary morphology display; full validated 224-frame systematic metrics remain separate",
         "optical_resolution_policy": "field_recomputed_at_higher_N_not_image_upscaled",
+        "observable_resolution_policy": "minimum analyzer annulus radius held fixed in physical units when N/window changes",
+        "minimum_analysis_radius_um": MINIMUM_ANALYSIS_RADIUS_M * 1e6,
         "rendered_image_interpolation": "nearest_display_only",
         "intensity_colormap": INTENSITY_CMAP,
         "heatmap_normalisation": "one_common_peak_per_mode_ell_atlas",
