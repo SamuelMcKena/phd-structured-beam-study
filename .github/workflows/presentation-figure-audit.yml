@@ -8,12 +8,14 @@ on:
     paths:
       - 'tools/build_phase2i_presentation_figures.py'
       - 'tools/build_presentation_extended_evidence.py'
+      - 'tools/build_presentation_extended_evidence_v2.py'
       - 'tools/audit_presentation_figure_inventory.py'
       - '.github/workflows/presentation-figure-audit.yml'
   pull_request:
     paths:
       - 'tools/build_phase2i_presentation_figures.py'
       - 'tools/build_presentation_extended_evidence.py'
+      - 'tools/build_presentation_extended_evidence_v2.py'
       - 'tools/audit_presentation_figure_inventory.py'
       - '.github/workflows/presentation-figure-audit.yml'
 
@@ -104,7 +106,7 @@ jobs:
           --output-dir outputs/figures/presentation_phase2i
       - name: Build extended presentation evidence
         run: >-
-          python tools/build_presentation_extended_evidence.py
+          python tools/build_presentation_extended_evidence_v2.py
           --grid-n 1024
           --inverse-grid-n 512
           --output-dir outputs/figures/presentation_phase2i
