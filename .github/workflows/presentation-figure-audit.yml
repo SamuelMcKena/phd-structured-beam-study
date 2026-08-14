@@ -67,6 +67,47 @@ jobs:
           test -s outputs/figures/presentation_phase2i/05_V1_nonideal_tip_fixed_lab.png
           test -s outputs/figures/presentation_phase2i/06_simulation_experiment_closure.png
           test -s outputs/figures/presentation_phase2i/presentation_figure_manifest.json
+      - name: Build compact inspection contact sheet
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from PIL import Image, ImageOps, ImageDraw
+          import base64
+
+          root = Path('outputs/figures/presentation_phase2i')
+          files = [root / f'{i:02d}_{name}' for i, name in [
+              (1, 'computational_route.png'),
+              (2, 'beam_profile_shaping_B0_V1_V3.png'),
+              (3, 'realistic_error_scope.png'),
+              (4, 'V1_axicon_decentre_fixed_lab.png'),
+              (5, 'V1_nonideal_tip_fixed_lab.png'),
+              (6, 'simulation_experiment_closure.png'),
+          ]]
+          thumb_w, thumb_h = 760, 420
+          pad = 20
+          sheet = Image.new('RGB', (2*thumb_w + 3*pad, 3*thumb_h + 4*pad), '#101318')
+          draw = ImageDraw.Draw(sheet)
+          for idx, path in enumerate(files):
+              im = Image.open(path).convert('RGB')
+              im.thumbnail((thumb_w, thumb_h - 30), Image.Resampling.LANCZOS)
+              x = pad + (idx % 2) * (thumb_w + pad)
+              y = pad + (idx // 2) * (thumb_h + pad)
+              px = x + (thumb_w - im.width)//2
+              py = y + 28 + (thumb_h - 30 - im.height)//2
+              sheet.paste(im, (px, py))
+              draw.text((x+8, y+4), path.stem, fill='white')
+          inspect = root / '_inspection'
+          inspect.mkdir(parents=True, exist_ok=True)
+          jpg = inspect / 'contact_sheet.jpg'
+          sheet.save(jpg, quality=62, optimize=True, progressive=True)
+          data = base64.b64encode(jpg.read_bytes()).decode('ascii')
+          chunk = 32000
+          for old in inspect.glob('contact_sheet_b64_*.txt'):
+              old.unlink()
+          for n, start in enumerate(range(0, len(data), chunk)):
+              (inspect / f'contact_sheet_b64_{n:03d}.txt').write_text(data[start:start+chunk], encoding='ascii')
+          (inspect / 'contact_sheet_meta.txt').write_text(f'bytes={jpg.stat().st_size}\nbase64_chars={len(data)}\nchunks={(len(data)+chunk-1)//chunk}\n', encoding='utf-8')
+          PY
       - name: Commit generated presentation figures to audit branch
         if: github.event_name != 'pull_request'
         run: |
