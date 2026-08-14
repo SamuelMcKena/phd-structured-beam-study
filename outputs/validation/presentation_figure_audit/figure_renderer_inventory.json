@@ -137,6 +137,22 @@
     "presentation_relevance_hint": "high"
   },
   {
+    "path": "tools/build_presentation_extended_evidence.py",
+    "tokens": [
+      "plt.figure",
+      "plt.subplots",
+      "savefig"
+    ],
+    "presentation_relevance_hint": "review"
+  },
+  {
+    "path": "tools/build_presentation_extended_evidence_v2.py",
+    "tokens": [
+      "plt.figure"
+    ],
+    "presentation_relevance_hint": "review"
+  },
+  {
     "path": "tools/render_phase2h_canonical_evidence.py",
     "tokens": [
       "plt.subplots",

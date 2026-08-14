@@ -50,9 +50,9 @@
       "case_id": "B0",
       "vortex_charge": 0,
       "z_ref_m": 0.06,
-      "xy_centroid_x_m": 7.53963291597837e-08,
-      "xy_centroid_y_m": 0.0,
-      "fixed_support_retained_power_fraction": 0.9999998797212357,
+      "xy_centroid_x_m": 7.539632915979803e-08,
+      "xy_centroid_y_m": -3.124449615749499e-20,
+      "fixed_support_retained_power_fraction": 0.9999998797212358,
       "normalisation": "per_case_peak_for_morphology_only",
       "fixed_lab_longitudinal": true
     },
@@ -60,8 +60,8 @@
       "case_id": "V1",
       "vortex_charge": 1,
       "z_ref_m": 0.06,
-      "xy_centroid_x_m": 6.977601460751886e-08,
-      "xy_centroid_y_m": -2.5339510505466464e-08,
+      "xy_centroid_x_m": 6.977601460750104e-08,
+      "xy_centroid_y_m": -2.5339510505435157e-08,
       "fixed_support_retained_power_fraction": 0.9999999545774589,
       "normalisation": "per_case_peak_for_morphology_only",
       "fixed_lab_longitudinal": true
@@ -70,9 +70,9 @@
       "case_id": "V3",
       "vortex_charge": 3,
       "z_ref_m": 0.06,
-      "xy_centroid_x_m": -1.0307674687723393e-08,
-      "xy_centroid_y_m": -6.92528820734303e-08,
-      "fixed_support_retained_power_fraction": 0.9999999625038514,
+      "xy_centroid_x_m": -1.0307674687711912e-08,
+      "xy_centroid_y_m": -6.925288207346214e-08,
+      "fixed_support_retained_power_fraction": 0.9999999625038513,
       "normalisation": "per_case_peak_for_morphology_only",
       "fixed_lab_longitudinal": true
     }
@@ -81,26 +81,26 @@
     {
       "decentre_m": -0.0005,
       "label": "\u2212500 \u00b5m",
-      "centroid_x_m": -0.0002906104545002585,
+      "centroid_x_m": -0.00029061045450025857,
       "centroid_y_m": -2.4359630117881846e-08,
-      "fixed_lab_line_centroid_slope_rad": -0.001338722074102133,
+      "fixed_lab_line_centroid_slope_rad": -0.001338722074102134,
       "fixed_support_retained_power_fraction": 0.9999998462073411
     },
     {
       "decentre_m": 0.0,
       "label": "aligned",
-      "centroid_x_m": 6.977601460751886e-08,
-      "centroid_y_m": -2.5339510505466464e-08,
-      "fixed_lab_line_centroid_slope_rad": -1.3021000630794634e-07,
+      "centroid_x_m": 6.977601460750104e-08,
+      "centroid_y_m": -2.5339510505435157e-08,
+      "fixed_lab_line_centroid_slope_rad": -1.3021000630838553e-07,
       "fixed_support_retained_power_fraction": 0.9999999545774589
     },
     {
       "decentre_m": 0.0005,
       "label": "+500 \u00b5m",
-      "centroid_x_m": 0.00029074503830049995,
-      "centroid_y_m": -2.0599222409232453e-08,
-      "fixed_lab_line_centroid_slope_rad": 0.0013383153839248208,
-      "fixed_support_retained_power_fraction": 0.9999998535095543
+      "centroid_x_m": 0.0002907450383004999,
+      "centroid_y_m": -2.0599222409169836e-08,
+      "fixed_lab_line_centroid_slope_rad": 0.0013383153839248202,
+      "fixed_support_retained_power_fraction": 0.9999998535095542
     }
   ],
   "V1_tip_metrics": [
@@ -116,14 +116,14 @@
       "label": "200 \u00b5m radial rounding",
       "tip_radius_pixels": 20.48,
       "passes_12_pixel_resolution_gate": true,
-      "fixed_support_retained_power_fraction": 0.9999999586915124
+      "fixed_support_retained_power_fraction": 0.9999999586915123
     },
     {
       "radial_rounding_scale_m": 0.0008,
       "label": "800 \u00b5m radial rounding",
       "tip_radius_pixels": 81.92,
       "passes_12_pixel_resolution_gate": true,
-      "fixed_support_retained_power_fraction": 0.9999999589859643
+      "fixed_support_retained_power_fraction": 0.9999999589859645
     }
   ],
   "evidence_conventions": {

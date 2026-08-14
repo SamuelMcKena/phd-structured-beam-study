@@ -1,10 +1,10 @@
 {
   "outcome": "PRESENTATION-FIGURE-INVENTORY",
-  "tracked_figure_assets": 237,
-  "figure_producing_python_files": 98,
+  "tracked_figure_assets": 252,
+  "figure_producing_python_files": 100,
   "classification_counts": {
     "historical_or_legacy": 18,
-    "new_presentation_candidate": 9,
+    "new_presentation_candidate": 24,
     "other_figure_asset": 129,
     "other_tracked_figure": 1,
     "phase2b_diagnostic_or_appendix": 4,
