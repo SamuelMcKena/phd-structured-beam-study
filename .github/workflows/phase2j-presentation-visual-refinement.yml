@@ -4,10 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - phase2j-presentation-visual-refinement
+      - phase2j-presentation-visual-standardisation
     paths:
+      - 'tools/presentation_phase2j_style.py'
       - 'tools/build_phase2j_ideal_beam_profile_figure.py'
+      - 'tools/build_phase2j_presentation_suite.py'
       - '.github/workflows/phase2j-presentation-visual-refinement.yml'
+      - 'docs/PRESENTATION_CURRENT.md'
 
 permissions:
   contents: write
@@ -20,9 +23,9 @@ env:
   MKL_NUM_THREADS: '2'
 
 jobs:
-  render-phase2j-ideal-profile:
+  render-phase2j-presentation-suite:
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -30,25 +33,44 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
-      - name: Render high-resolution B0/V1/V3 figure
+
+      - name: Compile Phase 2J presentation renderers
         run: >-
-          python tools/build_phase2j_ideal_beam_profile_figure.py
+          python -m py_compile
+          tools/presentation_phase2j_style.py
+          tools/build_phase2j_ideal_beam_profile_figure.py
+          tools/build_phase2j_presentation_suite.py
+
+      - name: Render full Phase 2J presentation suite
+        run: >-
+          python tools/build_phase2j_presentation_suite.py
           --grid-n 1536
+          --inverse-grid-n 512
           --output-dir outputs/figures/presentation_phase2j
-      - name: Verify figure and provenance note
+
+      - name: Verify canonical Phase 2J outputs
         run: |
+          test -s outputs/figures/presentation_phase2j/01_computational_route_phase2j.png
           test -s outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_inferno_tight.png
           test -s outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_inferno_tight.txt
+          test -s outputs/figures/presentation_phase2j/04_V1_axicon_decentre_fixed_lab_inferno_tight.png
+          test -s outputs/figures/presentation_phase2j/05_V1_nonideal_tip_fixed_lab_inferno_tight.png
+          test -s outputs/figures/presentation_phase2j/06_simulation_experiment_closure_phase2j.png
+          test -s outputs/figures/presentation_phase2j/08_V1_real_error_fingerprints_inferno_tight.png
+          test -s outputs/figures/presentation_phase2j/09_tip_avoidance_planning_proxy_inferno.png
+          test -s outputs/figures/presentation_phase2j/10_synthetic_zstack_inverse_recovery_inferno.png
+          test -s outputs/figures/presentation_phase2j/presentation_phase2j_manifest.json
           cat outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_inferno_tight.txt
-      - name: Commit generated Phase 2J figure
+
+      - name: Commit generated Phase 2J presentation suite
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -f outputs/figures/presentation_phase2j
           if git diff --cached --quiet; then
-            echo 'Phase 2J output unchanged.'
+            echo 'Phase 2J presentation outputs unchanged.'
           else
-            git commit -m 'Generate Phase 2J high-resolution ideal beam figure'
-            git pull --rebase origin phase2j-presentation-visual-refinement
-            git push origin HEAD:phase2j-presentation-visual-refinement
+            git commit -m 'Generate standardised Phase 2J presentation figures'
+            git pull --rebase origin phase2j-presentation-visual-standardisation
+            git push origin HEAD:phase2j-presentation-visual-standardisation
           fi
