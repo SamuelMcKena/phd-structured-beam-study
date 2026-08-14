@@ -12,6 +12,10 @@ on:
       - '.github/workflows/phase2j-presentation-visual-refinement.yml'
       - 'docs/PRESENTATION_CURRENT.md'
 
+concurrency:
+  group: phase2j-presentation-visual-standardisation
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -25,7 +29,7 @@ env:
 jobs:
   render-phase2j-presentation-suite:
     runs-on: ubuntu-24.04
-    timeout-minutes: 240
+    timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -34,43 +38,70 @@ jobs:
           cache: pip
       - run: python -m pip install -r requirements.txt
 
-      - name: Compile Phase 2J presentation renderers
-        run: >-
-          python -m py_compile
-          tools/presentation_phase2j_style.py
-          tools/build_phase2j_ideal_beam_profile_figure.py
-          tools/build_phase2j_presentation_suite.py
+      - name: Compile and validate Phase 2J presentation renderers
+        run: |
+          python -m py_compile \
+            tools/presentation_phase2j_style.py \
+            tools/build_phase2j_ideal_beam_profile_figure.py \
+            tools/build_phase2j_presentation_suite.py
+          python - <<'PY'
+          import sys
+          sys.path.insert(0, 'tools')
+          import presentation_phase2j_style as style
+          style.validate_palette_has_no_cool_segment()
+          print(style.CMAP_NAME, style.THERMAL_HEX)
+          PY
 
       - name: Render full Phase 2J presentation suite
         run: >-
           python tools/build_phase2j_presentation_suite.py
-          --grid-n 1536
+          --grid-n 2048
           --inverse-grid-n 512
           --output-dir outputs/figures/presentation_phase2j
 
-      - name: Verify canonical Phase 2J outputs
+      - name: Verify canonical Phase 2J outputs and manifest
         run: |
+          test -s outputs/figures/presentation_phase2j/00_phase2j_visual_audit_contact_sheet.jpg
           test -s outputs/figures/presentation_phase2j/01_computational_route_phase2j.png
-          test -s outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_inferno_tight.png
-          test -s outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_inferno_tight.txt
-          test -s outputs/figures/presentation_phase2j/04_V1_axicon_decentre_fixed_lab_inferno_tight.png
-          test -s outputs/figures/presentation_phase2j/05_V1_nonideal_tip_fixed_lab_inferno_tight.png
+          test -s outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_thermal_tight.png
+          test -s outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_thermal_tight.txt
+          test -s outputs/figures/presentation_phase2j/04_V1_axicon_decentre_fixed_lab_thermal_tight.png
+          test -s outputs/figures/presentation_phase2j/05_V1_nonideal_tip_fixed_lab_thermal_tight.png
           test -s outputs/figures/presentation_phase2j/06_simulation_experiment_closure_phase2j.png
-          test -s outputs/figures/presentation_phase2j/08_V1_real_error_fingerprints_inferno_tight.png
-          test -s outputs/figures/presentation_phase2j/09_tip_avoidance_planning_proxy_inferno.png
-          test -s outputs/figures/presentation_phase2j/10_synthetic_zstack_inverse_recovery_inferno.png
+          test -s outputs/figures/presentation_phase2j/08_V1_real_error_fingerprints_thermal_tight.png
+          test -s outputs/figures/presentation_phase2j/09_tip_avoidance_planning_proxy_thermal.png
+          test -s outputs/figures/presentation_phase2j/10_synthetic_zstack_inverse_recovery_thermal.png
           test -s outputs/figures/presentation_phase2j/presentation_phase2j_manifest.json
-          cat outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_inferno_tight.txt
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p = Path('outputs/figures/presentation_phase2j/presentation_phase2j_manifest.json')
+          m = json.loads(p.read_text())
+          assert m['grid_n'] == 2048
+          assert m['visual_policy']['intensity_colormap'] == 'phase2j_thermal'
+          assert 'no blue/cyan/green/purple segment' in m['visual_policy']['palette']
+          assert m['visual_policy']['ideal_transverse_halfwidth_m'] == 0.00018
+          print(json.dumps(m['visual_policy'], indent=2))
+          PY
+          cat outputs/figures/presentation_phase2j/02_beam_profile_shaping_B0_V1_V3_thermal_tight.txt
+
+      - name: Upload exact rendered suite for visual inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2j-presentation-thermal-audit
+          path: outputs/figures/presentation_phase2j/
+          if-no-files-found: error
+          compression-level: 6
 
       - name: Commit generated Phase 2J presentation suite
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f outputs/figures/presentation_phase2j
+          git add -A -f outputs/figures/presentation_phase2j
           if git diff --cached --quiet; then
             echo 'Phase 2J presentation outputs unchanged.'
           else
-            git commit -m 'Generate standardised Phase 2J presentation figures'
+            git commit -m 'Generate corrected thermal Phase 2J presentation figures'
             git pull --rebase origin phase2j-presentation-visual-standardisation
             git push origin HEAD:phase2j-presentation-visual-standardisation
           fi
