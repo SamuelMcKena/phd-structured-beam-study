@@ -7,10 +7,12 @@ on:
       - presentation-figure-audit-phase2i
     paths:
       - 'tools/build_phase2i_presentation_figures.py'
+      - 'tools/audit_presentation_figure_inventory.py'
       - '.github/workflows/presentation-figure-audit.yml'
   pull_request:
     paths:
       - 'tools/build_phase2i_presentation_figures.py'
+      - 'tools/audit_presentation_figure_inventory.py'
       - '.github/workflows/presentation-figure-audit.yml'
 
 permissions:
@@ -42,6 +44,26 @@ jobs:
       - name: Check whitespace / patch integrity
         run: git diff --check
 
+  core-figure-pipeline-smoke:
+    name: Regenerate current core figure families
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Phase 2B scalar visual diagnostics
+        run: python tools/run_phase2b_visual_diagnostics.py
+      - name: Phase 2C objective/interface figures
+        run: python tools/run_phase2c_objective_interface.py --pupil-grid-n 512 --no-publication-quality
+      - name: Phase 2E report visualisation
+        run: python tools/run_phase2e_report_visualisation.py --overwrite
+      - name: Repaired-route vortex visual atlas smoke
+        run: python tools/run_vortex_visual_atlas.py --grid-n 1024 --cases B0 V1 V3 --z-mm 60
+
   render-presentation-evidence:
     name: Generate slide-ready figures from current physics
     runs-on: ubuntu-24.04
@@ -53,6 +75,8 @@ jobs:
           python-version: '3.12'
           cache: pip
       - run: python -m pip install -r requirements.txt
+      - name: Build repository-wide figure inventory
+        run: python tools/audit_presentation_figure_inventory.py
       - name: Build Phase 2I presentation figures
         run: >-
           python tools/build_phase2i_presentation_figures.py
@@ -67,6 +91,7 @@ jobs:
           test -s outputs/figures/presentation_phase2i/05_V1_nonideal_tip_fixed_lab.png
           test -s outputs/figures/presentation_phase2i/06_simulation_experiment_closure.png
           test -s outputs/figures/presentation_phase2i/presentation_figure_manifest.json
+          test -s outputs/validation/presentation_figure_audit/summary.json
       - name: Build visual-audit contact sheets
         run: |
           python - <<'PY'
@@ -141,15 +166,15 @@ jobs:
           build_sheet(new_files,'new_figures_tiny',3,thumb=(300,165),quality=34)
           build_sheet(existing_files,'existing_candidates_tiny',4,thumb=(260,145),quality=34)
           PY
-      - name: Commit generated presentation figures to audit branch
+      - name: Commit audit and generated presentation figures to audit branch
         if: github.event_name != 'pull_request'
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -f outputs/figures/presentation_phase2i
+          git add -f outputs/figures/presentation_phase2i outputs/validation/presentation_figure_audit
           if git diff --cached --quiet; then
-            echo 'Presentation figures unchanged.'
+            echo 'Presentation audit outputs unchanged.'
           else
-            git commit -m 'Generate Phase 2I presentation figures'
+            git commit -m 'Generate Phase 2I presentation audit outputs'
             git push origin HEAD:presentation-figure-audit-phase2i
           fi
