@@ -1,0 +1,12 @@
+PHASE2J-PRESENTATION-VISUAL-REFINEMENT-V2
+grid_n=2048
+colormap=phase2j_thermal
+palette_hex=#000000,#180000,#4d0000,#8f0800,#cf1d00,#f04400,#ff7600,#ffab00,#ffd13a,#fff176
+transverse_halfwidth_mm=0.180000
+longitudinal_halfwidth_mm=0.180000
+z_samples=72
+native_crop_samples=[74, 74, 74]
+fixed_support_retained_power_fraction=[0.9999995039285036, 0.999999929776872, 0.999999934115341]
+display_interpolation=lanczos_only_for_rendering
+longitudinal_coordinates=fixed_lab_no_per_z_recentering
+normalisation=per_case_peak_for_morphology_only
