@@ -13,6 +13,9 @@ on:
       - 'tools/build_phase2i_presentation_figures.py'
       - '.github/workflows/presentation-figure-audit.yml'
 
+permissions:
+  contents: write
+
 env:
   PYTHONPATH: .
   MPLBACKEND: Agg
@@ -64,9 +67,15 @@ jobs:
           test -s outputs/figures/presentation_phase2i/05_V1_nonideal_tip_fixed_lab.png
           test -s outputs/figures/presentation_phase2i/06_simulation_experiment_closure.png
           test -s outputs/figures/presentation_phase2i/presentation_figure_manifest.json
-      - name: Upload presentation figure audit
-        uses: actions/upload-artifact@v4
-        with:
-          name: phase2i-presentation-figures
-          path: outputs/figures/presentation_phase2i
-          if-no-files-found: error
+      - name: Commit generated presentation figures to audit branch
+        if: github.event_name != 'pull_request'
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -f outputs/figures/presentation_phase2i
+          if git diff --cached --quiet; then
+            echo 'Presentation figures unchanged.'
+          else
+            git commit -m 'Generate Phase 2I presentation figures'
+            git push origin HEAD:presentation-figure-audit-phase2i
+          fi
