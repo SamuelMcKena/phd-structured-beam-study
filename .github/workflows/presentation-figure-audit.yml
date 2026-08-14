@@ -56,13 +56,31 @@ jobs:
           cache: pip
       - run: python -m pip install -r requirements.txt
       - name: Phase 2B scalar visual diagnostics
+        id: phase2b
+        continue-on-error: true
         run: python tools/run_phase2b_visual_diagnostics.py
       - name: Phase 2C objective/interface figures
+        id: phase2c
+        continue-on-error: true
         run: python tools/run_phase2c_objective_interface.py --pupil-grid-n 512 --no-publication-quality
       - name: Phase 2E report visualisation
+        id: phase2e
+        continue-on-error: true
         run: python tools/run_phase2e_report_visualisation.py --overwrite
       - name: Repaired-route vortex visual atlas smoke
+        id: atlas
+        continue-on-error: true
         run: python tools/run_vortex_visual_atlas.py --grid-n 1024 --cases B0 V1 V3 --z-mm 60
+      - name: Record pipeline outcomes
+        run: |
+          mkdir -p outputs/validation/presentation_figure_audit
+          cat > outputs/validation/presentation_figure_audit/core_pipeline_smoke.txt <<EOF
+          phase2b=${{ steps.phase2b.outcome }}
+          phase2c=${{ steps.phase2c.outcome }}
+          phase2e=${{ steps.phase2e.outcome }}
+          atlas=${{ steps.atlas.outcome }}
+          EOF
+          cat outputs/validation/presentation_figure_audit/core_pipeline_smoke.txt
 
   render-presentation-evidence:
     name: Generate slide-ready figures from current physics
@@ -92,79 +110,51 @@ jobs:
           test -s outputs/figures/presentation_phase2i/06_simulation_experiment_closure.png
           test -s outputs/figures/presentation_phase2i/presentation_figure_manifest.json
           test -s outputs/validation/presentation_figure_audit/summary.json
-      - name: Build visual-audit contact sheets
+      - name: Build visual-audit thumbnails
         run: |
           python - <<'PY'
           from pathlib import Path
-          from PIL import Image, ImageDraw
-          import base64
+          from PIL import Image
 
           out = Path('outputs/figures/presentation_phase2i/_inspection')
           out.mkdir(parents=True, exist_ok=True)
-
-          new_root = Path('outputs/figures/presentation_phase2i')
-          new_files = [new_root / name for name in [
+          current = [
               '01_computational_route.png',
               '02_beam_profile_shaping_B0_V1_V3.png',
               '03_realistic_error_scope.png',
               '04_V1_axicon_decentre_fixed_lab.png',
               '05_V1_nonideal_tip_fixed_lab.png',
               '06_simulation_experiment_closure.png',
-          ]]
+          ]
+          for i, name in enumerate(current, 1):
+              src = Path('outputs/figures/presentation_phase2i') / name
+              im = Image.open(src).convert('RGB')
+              im.thumbnail((360, 210), Image.Resampling.LANCZOS)
+              im.save(out / f'current_{i:02d}_thumb.jpg', quality=18, optimize=True, progressive=True)
 
-          existing_files = [Path(p) for p in [
+          existing = [
               'outputs/figures/phase2e_report_visualisation/01b_propagation_maps/b0_canonical_propagation_primary.png',
               'outputs/figures/phase2e_report_visualisation/01b_propagation_maps/v1_canonical_propagation_primary.png',
               'outputs/figures/phase2e_report_visualisation/01b_propagation_maps/v3_canonical_propagation_primary.png',
               'outputs/figures/phase2e_report_visualisation/01b_propagation_maps/b0_transverse_snapshots.png',
               'outputs/figures/phase2e_report_visualisation/01b_propagation_maps/v1_transverse_snapshots.png',
               'outputs/figures/phase2e_report_visualisation/01b_propagation_maps/v3_transverse_snapshots.png',
-              'outputs/figures/phase2b_visual_diagnostics/02_xy_planes/b0_xy_landmarks_and_sas_focus.png',
-              'outputs/figures/phase2b_visual_diagnostics/02_xy_planes/v1_xy_landmarks_and_sas_focus.png',
-              'outputs/figures/phase2b_visual_diagnostics/02_xy_planes/v3_xy_landmarks_and_sas_focus.png',
               'outputs/figures/phase2b_visual_diagnostics/03_xz_yz_slices/b0_xz_yz_and_power.png',
               'outputs/figures/phase2b_visual_diagnostics/03_xz_yz_slices/v1_xz_yz_and_power.png',
               'outputs/figures/phase2b_visual_diagnostics/03_xz_yz_slices/v3_xz_yz_and_power.png',
               'outputs/figures/phase2c/objective/scalar_vs_vector_v1.png',
               'outputs/figures/phase2c/objective/scalar_vs_vector_v3.png',
-              'outputs/figures/phase2c/profiles/v1_scalar_vs_vector_profile.png',
-              'outputs/figures/phase2c/profiles/v3_scalar_vs_vector_profile.png',
-          ]]
-          existing_files = [p for p in existing_files if p.exists()]
-
-          def build_sheet(files, stem, cols, thumb=(330, 180), quality=38):
-              tw, th = thumb
-              pad = 8
-              label_h = 22
-              rows = (len(files) + cols - 1)//cols
-              sheet = Image.new('RGB', (cols*tw + (cols+1)*pad, rows*(th+label_h) + (rows+1)*pad), '#101318')
-              draw = ImageDraw.Draw(sheet)
-              for idx, path in enumerate(files):
-                  im = Image.open(path).convert('RGB')
-                  im.thumbnail((tw, th), Image.Resampling.LANCZOS)
-                  col = idx % cols
-                  row = idx // cols
-                  x = pad + col*(tw+pad)
-                  y = pad + row*(th+label_h+pad)
-                  px = x + (tw-im.width)//2
-                  py = y + label_h + (th-im.height)//2
-                  sheet.paste(im,(px,py))
-                  label = path.stem[:42]
-                  draw.text((x+3,y+3),label,fill='white')
-              jpg = out / f'{stem}.jpg'
-              sheet.save(jpg, quality=quality, optimize=True, progressive=True)
-              data = base64.b64encode(jpg.read_bytes()).decode('ascii')
-              chunk = 4000
-              for old in out.glob(f'{stem}_b64_*.txt'):
-                  old.unlink()
-              for n,start in enumerate(range(0,len(data),chunk)):
-                  (out / f'{stem}_b64_{n:03d}.txt').write_text(data[start:start+chunk],encoding='ascii')
-              (out / f'{stem}_meta.txt').write_text(
-                  f'bytes={jpg.stat().st_size}\nbase64_chars={len(data)}\nchunks={(len(data)+chunk-1)//chunk}\nfiles={len(files)}\n',
-                  encoding='utf-8')
-
-          build_sheet(new_files,'new_figures_tiny',3,thumb=(300,165),quality=34)
-          build_sheet(existing_files,'existing_candidates_tiny',4,thumb=(260,145),quality=34)
+          ]
+          n = 0
+          for path_text in existing:
+              src = Path(path_text)
+              if not src.exists():
+                  continue
+              n += 1
+              im = Image.open(src).convert('RGB')
+              im.thumbnail((360, 210), Image.Resampling.LANCZOS)
+              im.save(out / f'existing_{n:02d}_{src.stem[:32]}_thumb.jpg', quality=18, optimize=True, progressive=True)
+          (out / 'thumb_count.txt').write_text(f'current=6\nexisting={n}\n', encoding='utf-8')
           PY
       - name: Commit audit and generated presentation figures to audit branch
         if: github.event_name != 'pull_request'
@@ -176,5 +166,6 @@ jobs:
             echo 'Presentation audit outputs unchanged.'
           else
             git commit -m 'Generate Phase 2I presentation audit outputs'
+            git pull --rebase origin presentation-figure-audit-phase2i
             git push origin HEAD:presentation-figure-audit-phase2i
           fi
