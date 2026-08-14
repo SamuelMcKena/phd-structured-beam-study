@@ -19,7 +19,7 @@ The current policy is now explicit:
 - display interpolation is `lanczos` only after the numerical field is calculated;
 - main longitudinal maps use 72 z samples;
 - x-z evidence stays in fixed laboratory coordinates with no per-z recentring;
-- output beam crops are materially tighter than the original Phase 2I presentation set;
+- tighter crops are presentation framing only and never alter the simulated field;
 - comparative error figures preserve common nominal normalisation.
 
 Shared style:
@@ -30,11 +30,11 @@ Master renderer:
 
 `tools/build_phase2j_presentation_suite.py`
 
-GitHub Actions also creates and uploads:
+GitHub Actions creates and uploads:
 
 `outputs/figures/presentation_phase2j/00_phase2j_visual_audit_contact_sheet.jpg`
 
-so the exact generated suite can be visually inspected before merging.
+so the exact generated suite is visually inspected before promotion.
 
 ## Canonical live-presentation figures
 
