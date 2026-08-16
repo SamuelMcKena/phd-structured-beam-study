@@ -1,8 +1,13 @@
 """Holographic axicon, vortex, and SLM phase equations.
 
-These helpers collect the phase formulas that appear in Baliyan-Nishchal eqs.
-2, 3, and 6.  I keep the wrapping and quantisation utilities here too because
-they define how a continuous phase becomes the actual SLM command.
+These helpers collect the phase formulas used to build phase-only structured
+beam holograms.  A key Phase 2K convention is explicit here: the thin-element
+axicon optical-path phase uses the **vacuum** wavenumber ``k0=2*pi/lambda0``.
+Using a propagation-medium wavenumber and then multiplying by
+``(n_axicon-n_medium)`` would count the external refractive index twice.
+
+The physical refractive-axicon route is validated separately against Snell-law
+geometry; this module describes the digital/thin phase-screen command.
 """
 
 from __future__ import annotations
@@ -31,10 +36,18 @@ def axicon_phase_rad(
     n_medium: float = 1.0,
     gamma_rad: float,
 ) -> np.ndarray:
-    """Return the holographic axicon phase from Baliyan-Nishchal eq. 3.
+    """Return a thin-element holographic axicon phase in radians.
 
-    The phase is ``-k (n_axicon - n_medium) r tan(gamma)`` in radians.  In the
-    digital twin this is usually equivalent to ``-k_r r`` on the SLM plane.
+    The retained keyword name ``k_m_inv`` is historical API compatibility. Its
+    value **must be the vacuum wavenumber** ``k0 = 2*pi/lambda0``.  The optical
+    path difference of a conical thickness profile gives
+
+    ``phi(r) = -k0 (n_axicon - n_medium) r tan(gamma)``.
+
+    This is the phase-screen approximation, not the exact ray-deflection law of
+    a real refractive axicon.  For quantitative physical-axicon geometry use the
+    Snell-law reference in :mod:`vbb_study.equations.scalar_bessel` /
+    ``vortex_error_reference_models``.
     """
 
     R = np.asarray(R_m, dtype=float)
@@ -57,7 +70,11 @@ def combined_axicon_spp_phase_rad(
     gamma_rad: float,
     ell: int,
 ) -> np.ndarray:
-    """Return the continuous phase beta from Baliyan-Nishchal eqs. 2 and 6."""
+    """Return thin axicon phase plus spiral phase ``ell*phi``.
+
+    ``k_m_inv`` retains the historical name but, exactly as in
+    :func:`axicon_phase_rad`, must be the vacuum wavenumber ``k0``.
+    """
 
     return axicon_phase_rad(
         R_m,
@@ -71,8 +88,8 @@ def combined_axicon_spp_phase_rad(
 def signum_bessel_pi_flip_phase_rad(R_m: Any, *, ell: int, kr_m_inv: float) -> np.ndarray:
     """Return the optional pi flip used to keep Bessel radial signs explicit.
 
-    I keep this separate from the Baliyan phase because it is a modelling choice
-    for signed-amplitude holograms, not part of the canonical eq. 6 phase.
+    This is separate from the canonical conical+spiral phase because it is a
+    signed-amplitude encoding choice, not part of the physical axicon phase.
     """
 
     R = np.asarray(R_m, dtype=float)
@@ -128,9 +145,9 @@ def fill_factor_amplitude(
 ) -> np.ndarray:
     """Return a square-pixel fill-factor amplitude mask.
 
-    When the simulation has roughly one sample per SLM pixel I use a uniform
-    ``sqrt(fill_factor)`` amplitude so the total power bookkeeping stays honest.
-    At finer sampling I resolve the inactive pixel border.
+    When the simulation has roughly one sample per SLM pixel a uniform
+    ``sqrt(fill_factor)`` amplitude preserves the intended total-power factor.
+    At finer sampling the inactive pixel border is resolved explicitly.
     """
 
     X = np.asarray(X_m, dtype=float)
