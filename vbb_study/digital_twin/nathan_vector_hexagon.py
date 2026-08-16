@@ -28,7 +28,7 @@ import numpy as np
 from scipy.ndimage import map_coordinates
 
 from vbb_study.config import EPS, TwinConfig
-from vbb_study.design import compute_design_from_targets, default_config
+from vbb_study.design import J0_FIRST_ZERO, compute_design_from_targets, default_config
 from vbb_study.digital_twin.nathan_literal_source_port import (
     NathanLiteralSourceConfig,
     apply_source_axicon,
@@ -5883,7 +5883,7 @@ def make_mode1c_twin_with_target_kr(twin: TwinConfig, target_k_r_surface_m_inv: 
     """
 
     kr = max(float(target_k_r_surface_m_inv), EPS)
-    target_core_diameter_m = float(2.0 * 2.405 / kr)
+    target_core_diameter_m = float(2.0 * J0_FIRST_ZERO / kr)
     return replace(twin, target=replace(twin.target, target_core_diameter_m=target_core_diameter_m))
 
 
@@ -7734,7 +7734,7 @@ def make_mode1e_redesigned_config(
         n_axicon=n_axicon,
         n_medium=n_medium,
     )
-    target_core_diameter_m = float(2.0 * 2.405 / max(k_surface, EPS))
+    target_core_diameter_m = float(2.0 * J0_FIRST_ZERO / max(k_surface, EPS))
 
     failures: list[str] = []
     if not within_na:

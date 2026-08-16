@@ -21,7 +21,7 @@ import pandas as pd
 
 from . import vbb_materials, vbb_style
 from vbb_study.config import BeamDesign, EPS as BT_EPS, TWOPI as BT_TWOPI, TwinConfig, um as BT_UM
-from vbb_study.design import compute_design_from_config
+from vbb_study.design import J0_FIRST_ZERO, compute_design_from_config
 from vbb_study.equations.fields import (
     fft2c,
     gaussian_amplitude,
@@ -511,7 +511,7 @@ def build_lab_realistic_case(
 ) -> dict[str, Any]:
     """Build a lab-realistic SLM/focal-plane version of the polygonal ring."""
 
-    target_core = 2.0 * 2.405 / max(float(config.kr_m_inv), BT_EPS)
+    target_core = 2.0 * J0_FIRST_ZERO / max(float(config.kr_m_inv), BT_EPS)
     cfg = replace(
         twin_config,
         target=replace(

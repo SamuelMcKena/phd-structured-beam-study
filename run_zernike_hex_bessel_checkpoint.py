@@ -71,7 +71,7 @@ def _lab_zernike_bessel_case(
 
     jprime = float(sp.jnp_zeros(abs(int(ell)), 1)[0])
     kr_sample = jprime / (float(flat_radius_um) * bt.um)
-    target_core = 2.0 * 2.405 / max(kr_sample, bt.EPS)
+    target_core = 2.0 * float(sp.jn_zeros(0, 1)[0]) / max(kr_sample, bt.EPS)
     cfg = replace(
         twin,
         target=replace(

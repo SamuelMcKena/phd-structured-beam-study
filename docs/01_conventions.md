@@ -19,7 +19,7 @@ meaning, units, plane/medium, and implementing function.
 | | |
 |---|---|
 | Symbol | `core_first_zero_radius_m`, `equivalent_l0_first_zero_radius_m` |
-| Formula | `2.405 / k_r`, the first zero of `J0(k_r r)` |
+| Formula | `j_{0,1} / k_r`, where `j_{0,1}=2.404825557...` is the first zero of `J0` |
 | Units | metres in code, micrometres in tables |
 | Plane / medium | transverse design scale, sample medium |
 | Implementing function | `bessel_twin_core.compute_design_from_targets`; radial metrics also report `core_first_zero_radius_m` |
@@ -52,7 +52,7 @@ meaning, units, plane/medium, and implementing function.
 | | |
 |---|---|
 | Symbol | `target_core_diameter_m`, `target_equivalent_l0_core_diameter_m` |
-| Formula | `target_core_diameter_m = 2 * 2.405 / k_r` in the current compatibility mode |
+| Formula | `target_core_diameter_m = 2 * j_{0,1} / k_r` using the exact SciPy Bessel root |
 | Units | metres in code, micrometres in tables |
 | Plane / medium | inverse-design scale, sample medium |
 | Implementing function | `bessel_twin_core.compute_design_from_targets` |

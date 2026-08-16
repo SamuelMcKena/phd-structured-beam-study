@@ -12,7 +12,7 @@ from vbb_study.equations.objective_pupil import (
     fourier_plane_carrier_separation_m,
     fourier_plane_ring_radius_m,
 )
-from vbb_study.design import compute_design_from_config, default_config, objective_map_from_config
+from vbb_study.design import J0_FIRST_ZERO, compute_design_from_config, default_config, objective_map_from_config
 
 
 WAVELENGTH_M = 1029e-9
@@ -173,10 +173,10 @@ def test_fixed_optics_does_not_claim_requested_target_by_construction() -> None:
     assert report["length_relative_error"] > 0.03
 
 
-def test_historical_inverse_design_default_is_numerically_unchanged() -> None:
+def test_inverse_design_uses_exact_j0_first_zero_reference() -> None:
     cfg = default_config("fast")
     design = compute_design_from_config(cfg)
-    kr_sample = 2.0 * 2.405 / cfg.target.target_core_diameter_m
+    kr_sample = 2.0 * J0_FIRST_ZERO / cfg.target.target_core_diameter_m
     expected_w0 = cfg.target.target_bessel_length_m * kr_sample / (
         cfg.laser.k0 * cfg.material.refractive_index
     )

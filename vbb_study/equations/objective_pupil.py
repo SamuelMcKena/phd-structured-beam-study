@@ -30,6 +30,7 @@ import math
 from typing import Any
 
 import numpy as np
+import scipy.special as sp
 
 from vbb_study import vbb_planes
 
@@ -276,7 +277,7 @@ def objective_map_from_design_inputs(
     The current inverse design chooses the sample Bessel-Gauss waist from the
     requested sample-plane zone length, then maps the SLM Gaussian radius onto
     that waist.  This helper keeps that cross-plane conversion named and
-    auditable while preserving the legacy numerical value exactly.
+    auditable while using the exact first zero of J_0 rather than the historical 2.405 rounding.
     """
 
     D = max(float(target.target_core_diameter_m), EPS)
@@ -285,7 +286,7 @@ def objective_map_from_design_inputs(
     k_medium = laser.k0 * float(material.refractive_index)
     # Compatibility contract: D is the equivalent ell=0 first-zero diameter,
     # not the measured bright-ring diameter for vortex beams.
-    kr_sample = 2.0 * 2.405 / D
+    kr_sample = 2.0 * float(sp.jn_zeros(0, 1)[0]) / D
     w0_sample = L * kr_sample / max(k_medium, EPS)
     return vbb_planes.objective_map_from_waists(
         pre_objective_radius_m=w_slm,

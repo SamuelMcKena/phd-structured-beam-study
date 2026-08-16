@@ -18,7 +18,7 @@ Each candidate is a fully-resolved redesigned `TwinConfig`, not a proxy:
 
 ```text
 k_r,pre     = 2 pi N / R_P2                      (physical_axicon.axicon_base_angle_deg)
-k_r,surface = M_k k_r,pre                        (target.target_core_diameter_m = 2 x 2.405 / k_r,surface)
+k_r,surface = M_k k_r,pre                        (target.target_core_diameter_m = 2 x j_0,1 / k_r,surface)
 NA_required = k_r,surface / k0
 R_P2        -> laser.beam_radius_on_slm_m        (vector waist re-derived from the twin)
 ```

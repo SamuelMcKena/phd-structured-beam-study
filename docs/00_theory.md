@@ -115,7 +115,7 @@ r_ring = jnp_zeros(ℓ, 1)[0] / k_r
 For ℓ = 0 (Gaussian-Bessel), the on-axis peak replaces the ring, and the effective "core radius" is:
 
 ```
-r_core = 2.405 / k_r    (first zero of J_0)
+r_core = j_{0,1} / k_r    (j_{0,1} = 2.404825557... is the first zero of J_0)
 ```
 
 **Code**: `bessel_twin_core.compute_design_from_targets` (line ~597):

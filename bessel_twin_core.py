@@ -91,6 +91,7 @@ from vbb_study.config import (
     um,
 )
 from vbb_study.design import (
+    J0_FIRST_ZERO,
     axial_scan_values,
     compute_design_from_config,
     compute_design_from_targets,
@@ -159,8 +160,10 @@ def analytic_references(config: TwinConfig, design: Optional[BeamDesign] = None)
         "zmax_baliyan_um": float(zmax / um),
         "target_scale_definition": str(design.target_scale_definition),
         "target_equivalent_l0_core_diameter_um": float(design.target_equivalent_l0_core_diameter_m / um),
-        "core_radius_2405_um": float(2.405 / design.kr_sample_m_inv / um),
-        "core_diameter_2405_um": float(2.0 * 2.405 / design.kr_sample_m_inv / um),
+        "core_radius_2405_um": float(J0_FIRST_ZERO / design.kr_sample_m_inv / um),  # legacy key; exact j_0,1 value
+        "core_diameter_2405_um": float(2.0 * J0_FIRST_ZERO / design.kr_sample_m_inv / um),  # legacy key; exact j_0,1 value
+        "core_first_zero_radius_um": float(design.equivalent_l0_first_zero_radius_m / um),
+        "core_first_zero_diameter_um": float(design.equivalent_l0_first_zero_diameter_m / um),
         "equivalent_l0_first_zero_radius_um": float(design.equivalent_l0_first_zero_radius_m / um),
         "equivalent_l0_first_zero_diameter_um": float(design.equivalent_l0_first_zero_diameter_m / um),
         "vortex_first_ring_radius_um": float(ring / um),
@@ -180,14 +183,14 @@ def inverse_design_round_trip(config: TwinConfig, rtol: float = 0.03) -> Dict[st
 
     design = compute_design_from_config(config)
     refs = analytic_references(config, design)
-    core_err = abs(refs["core_diameter_2405_um"] * um - config.target.target_core_diameter_m) / max(config.target.target_core_diameter_m, EPS)
+    core_err = abs(refs["core_first_zero_diameter_um"] * um - config.target.target_core_diameter_m) / max(config.target.target_core_diameter_m, EPS)
     length_err = abs(refs["zmax_baliyan_um"] * um - config.target.target_bessel_length_m) / max(config.target.target_bessel_length_m, EPS)
     mapping_mode = str(design.mapping_mode)
     target_within_tolerance = bool(core_err <= rtol and length_err <= rtol)
     inverse_mode = mapping_mode == "target_matched_inverse_design"
     return {
         "target_core_um": config.target.target_core_diameter_m / um,
-        "recovered_core_um": refs["core_diameter_2405_um"],
+        "recovered_core_um": refs["core_first_zero_diameter_um"],
         "target_length_um": config.target.target_bessel_length_m / um,
         "recovered_length_um": refs["zmax_baliyan_um"],
         "core_relative_error": float(core_err),
@@ -1876,7 +1879,7 @@ def run_self_checks(preset: str = "fast", output_dir: str | Path = "outputs") ->
         ("energy_conservation_lossless_ASM", energy["pass"], energy["power_drift_fraction"]),
         ("sampling_QA_not_fail", samp["qa_status"] != "fail", samp.get("propagation_power_drift_fraction", np.nan)),
         ("interface_correction_recovers_zone", interface_pass, corr_abs_zone / max(ideal_abs_zone, EPS)),
-        ("analytic_core_diameter", abs(refs["core_diameter_2405_um"] - cfg.target.target_core_diameter_m / um) <= 0.1, refs["core_diameter_2405_um"]),
+        ("analytic_core_diameter", abs(refs["core_first_zero_diameter_um"] - cfg.target.target_core_diameter_m / um) <= 0.1, refs["core_first_zero_diameter_um"]),
         ("analytic_zmax", abs(refs["zmax_baliyan_um"] - cfg.target.target_bessel_length_m / um) <= 2.0, refs["zmax_baliyan_um"]),
     ]
     df = pd.DataFrame(checks, columns=["check", "pass", "value"])
