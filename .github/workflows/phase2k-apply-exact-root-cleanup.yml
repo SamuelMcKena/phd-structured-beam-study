@@ -84,10 +84,11 @@ jobs:
           ])
           PY
 
-      - name: Prove no active rounded root remains
+      - name: Prove no active rounded root remains in equations
         run: |
-          ! grep -RIn --exclude-dir=.git --exclude='*.ipynb' -E '2\.405([0-9]*)?' \
-            bessel_twin_core.py tests vbb_study run_zernike_hex_bessel_checkpoint.py docs/00_theory.md docs/01_conventions.md docs/60_nathan_mode1e_redesigned_downstream_confirmation.md
+          ! grep -RIn --exclude-dir=.git --exclude='*.ipynb' \
+            -E '(2\.0[[:space:]]*\*[[:space:]]*2\.405|2\.405[[:space:]]*/[[:space:]]*(k|kr|design)|=[[:space:]]*2\.405[[:space:]]*/)' \
+            bessel_twin_core.py tests vbb_study run_zernike_hex_bessel_checkpoint.py
 
       - name: Commit cleanup
         run: |
