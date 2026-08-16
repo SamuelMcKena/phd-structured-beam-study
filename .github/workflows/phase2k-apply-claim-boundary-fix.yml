@@ -28,29 +28,31 @@ jobs:
           old = '''        "calibration_required_parameters": unresolved,\n        "fixed_bench_prediction_ready": True,\n        "absolute_sample_plane_claim_ready": False,\n        "absolute_energy_claim_ready": False,\n'''
           new = '''        "calibration_required_parameters": unresolved,\n        "nominal_fixed_parameter_simulation_ready": True,\n        "fixed_bench_prediction_ready": False,\n        "fixed_bench_prediction_blocker": (\n            "The optical route is fixed numerically, but critical bench geometry, SLM calibration, "\n            "axicon geometry, camera scale and throughput remain unresolved. This is a nominal "\n            "fixed-parameter model, not a calibrated bench prediction."\n        ),\n        "absolute_sample_plane_claim_ready": False,\n        "absolute_energy_claim_ready": False,\n'''
           if old not in text:
-              raise SystemExit('expected Phase 2A claim block not found')
-          path.write_text(text.replace(old, new), encoding='utf-8')
+              if '"nominal_fixed_parameter_simulation_ready": True' not in text:
+                  raise SystemExit('expected Phase 2A claim block not found')
+          else:
+              path.write_text(text.replace(old, new), encoding='utf-8')
 
           doc = Path('docs/PHASE2K_MATHEMATICAL_TRUTH_AND_OUTPUT_AUDIT.md')
           dtext = doc.read_text(encoding='utf-8')
           needle = '''The Phase 2K audit presently blocks an absolute fixed-bench quantitative claim because the following critical values are not all measured/verified in the repository manifest:\n'''
           replacement = '''The Phase 2K audit presently blocks an absolute fixed-bench quantitative claim because the following critical values are not all measured/verified in the repository manifest. The manifest's old `fixed_bench_prediction_ready=true` label has therefore been corrected: `nominal_fixed_parameter_simulation_ready=true`, while `fixed_bench_prediction_ready=false` until the calibration gate is closed.\n'''
-          if needle not in dtext:
+          if needle in dtext:
+              doc.write_text(dtext.replace(needle, replacement), encoding='utf-8')
+          elif 'nominal_fixed_parameter_simulation_ready=true' not in dtext:
               raise SystemExit('expected Phase 2K documentation sentence not found')
-          doc.write_text(dtext.replace(needle, replacement), encoding='utf-8')
           PY
 
-      - name: Verify corrected claim boundary
+      - name: Verify corrected claim boundary without importing numerical dependencies
         run: |
           python - <<'PY'
-          from vbb_study.digital_twin.phase2a_contracts import canonical_hardware_manifest
-          m = canonical_hardware_manifest()
-          assert m['nominal_fixed_parameter_simulation_ready'] is True
-          assert m['fixed_bench_prediction_ready'] is False
-          assert m['absolute_sample_plane_claim_ready'] is False
-          assert m['absolute_energy_claim_ready'] is False
-          assert len(m['calibration_required_parameters']) > 0
-          print('calibration-required parameters:', len(m['calibration_required_parameters']))
+          from pathlib import Path
+          text = Path('vbb_study/digital_twin/phase2a_contracts.py').read_text(encoding='utf-8')
+          assert '"nominal_fixed_parameter_simulation_ready": True' in text
+          assert '"fixed_bench_prediction_ready": False' in text
+          assert '"absolute_sample_plane_claim_ready": False' in text
+          assert '"absolute_energy_claim_ready": False' in text
+          assert '"fixed_bench_prediction_ready": True' not in text
           PY
 
       - name: Commit corrected claim semantics
@@ -58,5 +60,9 @@ jobs:
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add vbb_study/digital_twin/phase2a_contracts.py docs/PHASE2K_MATHEMATICAL_TRUTH_AND_OUTPUT_AUDIT.md
+          if git diff --cached --quiet; then
+            echo 'Claim boundary already corrected; nothing to commit.'
+            exit 0
+          fi
           git commit -m 'Phase 2K claim-boundary fix: distinguish nominal model from calibrated bench'
           git push origin HEAD:phase2k-mathematical-physics-output-audit
