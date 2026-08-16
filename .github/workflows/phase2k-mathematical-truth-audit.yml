@@ -1,0 +1,61 @@
+name: Phase 2K mathematical truth audit
+
+on:
+  push:
+    branches:
+      - phase2k-mathematical-physics-output-audit
+  pull_request:
+    branches:
+      - phase2j-presentation-visual-standardisation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  analytic-truth-and-output-inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install focused numerical dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==2.4.1 scipy==1.17.0 pandas==3.0.3 matplotlib==3.10.8 pytest==9.0.3 pillow==12.1.0
+
+      - name: Compile changed physics and audit code
+        run: |
+          python -m compileall -q vbb_study tools tests/test_phase2k_mathematical_truth.py
+
+      - name: Phase 2K analytic/reference truth tests
+        run: |
+          python -m pytest tests/test_phase2k_mathematical_truth.py -q
+
+      - name: Existing repaired-physics compatibility checks
+        run: |
+          python -m pytest \
+            tests/test_phase1_critical_physics_repairs.py \
+            tests/test_slm2_preserve_vortex.py \
+            tests/test_slm2_preserve_vortex_end_to_end.py \
+            tests/test_phase2c_objective_interface.py \
+            -q
+
+      - name: Inventory and quarantine every existing output
+        if: always()
+        run: |
+          python tools/phase2k_output_truth_audit.py
+
+      - name: Upload Phase 2K audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2k-mathematical-truth-audit
+          path: outputs/validation/phase2k_truth_audit/
+          if-no-files-found: error
