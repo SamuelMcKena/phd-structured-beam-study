@@ -47,11 +47,10 @@ jobs:
             tests/test_slm2_preserve_vortex.py \
             tests/test_slm2_preserve_vortex_end_to_end.py \
             -q
-          # The Phase 2C numerical tests are run here while two old file-opening
-          # checks are excluded temporarily.  Their stored manifest uses Windows
-          # backslashes and therefore cannot open its PNG paths on Linux.  That
-          # portability defect is tracked by Phase 2K, but it is not a physics
-          # failure and must not hide the numerical/objective checks.
+          # Two legacy Phase 2C file-opening checks are still excluded because
+          # the stored manifest contains Windows path separators.  The numerical
+          # objective/interface tests remain active; the portability defect is
+          # audited separately and must not be confused with a physics failure.
           python -m pytest tests/test_phase2c_objective_interface.py \
             -k 'not test_figure_manifest_reuses_phase2b_and_keeps_metrics_native and not test_h1_3d_outputs_are_pure_fixed_plane_intensity_surfaces' \
             -q
@@ -60,6 +59,7 @@ jobs:
         if: always()
         run: |
           python tools/phase2k_output_truth_audit.py
+          python tools/phase2k_output_semantic_audit.py
 
       - name: Upload Phase 2K audit evidence
         if: always()
