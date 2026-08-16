@@ -1,0 +1,62 @@
+name: Phase 2K apply calibrated-claim boundary fix
+
+on:
+  push:
+    branches:
+      - phase2k-mathematical-physics-output-audit
+
+permissions:
+  contents: write
+
+jobs:
+  apply-claim-boundary:
+    if: ${{ !contains(github.event.head_commit.message, 'Phase 2K claim-boundary fix') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: phase2k-mathematical-physics-output-audit
+          fetch-depth: 0
+
+      - name: Correct nominal-model versus calibrated-bench semantics
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('vbb_study/digital_twin/phase2a_contracts.py')
+          text = path.read_text(encoding='utf-8')
+          old = '''        "calibration_required_parameters": unresolved,\n        "fixed_bench_prediction_ready": True,\n        "absolute_sample_plane_claim_ready": False,\n        "absolute_energy_claim_ready": False,\n'''
+          new = '''        "calibration_required_parameters": unresolved,\n        "nominal_fixed_parameter_simulation_ready": True,\n        "fixed_bench_prediction_ready": False,\n        "fixed_bench_prediction_blocker": (\n            "The optical route is fixed numerically, but critical bench geometry, SLM calibration, "\n            "axicon geometry, camera scale and throughput remain unresolved. This is a nominal "\n            "fixed-parameter model, not a calibrated bench prediction."\n        ),\n        "absolute_sample_plane_claim_ready": False,\n        "absolute_energy_claim_ready": False,\n'''
+          if old not in text:
+              raise SystemExit('expected Phase 2A claim block not found')
+          path.write_text(text.replace(old, new), encoding='utf-8')
+
+          doc = Path('docs/PHASE2K_MATHEMATICAL_TRUTH_AND_OUTPUT_AUDIT.md')
+          dtext = doc.read_text(encoding='utf-8')
+          needle = '''The Phase 2K audit presently blocks an absolute fixed-bench quantitative claim because the following critical values are not all measured/verified in the repository manifest:\n'''
+          replacement = '''The Phase 2K audit presently blocks an absolute fixed-bench quantitative claim because the following critical values are not all measured/verified in the repository manifest. The manifest's old `fixed_bench_prediction_ready=true` label has therefore been corrected: `nominal_fixed_parameter_simulation_ready=true`, while `fixed_bench_prediction_ready=false` until the calibration gate is closed.\n'''
+          if needle not in dtext:
+              raise SystemExit('expected Phase 2K documentation sentence not found')
+          doc.write_text(dtext.replace(needle, replacement), encoding='utf-8')
+          PY
+
+      - name: Verify corrected claim boundary
+        run: |
+          python - <<'PY'
+          from vbb_study.digital_twin.phase2a_contracts import canonical_hardware_manifest
+          m = canonical_hardware_manifest()
+          assert m['nominal_fixed_parameter_simulation_ready'] is True
+          assert m['fixed_bench_prediction_ready'] is False
+          assert m['absolute_sample_plane_claim_ready'] is False
+          assert m['absolute_energy_claim_ready'] is False
+          assert len(m['calibration_required_parameters']) > 0
+          print('calibration-required parameters:', len(m['calibration_required_parameters']))
+          PY
+
+      - name: Commit corrected claim semantics
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add vbb_study/digital_twin/phase2a_contracts.py docs/PHASE2K_MATHEMATICAL_TRUTH_AND_OUTPUT_AUDIT.md
+          git commit -m 'Phase 2K claim-boundary fix: distinguish nominal model from calibrated bench'
+          git push origin HEAD:phase2k-mathematical-physics-output-audit
