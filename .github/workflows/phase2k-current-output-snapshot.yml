@@ -1,0 +1,43 @@
+name: Phase 2K current output snapshot
+
+on:
+  push:
+    branches:
+      - phase2k-mathematical-physics-output-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record tree and sizes
+        run: |
+          find outputs -type f -printf '%s\t%p\n' | sort -k2 > phase2k_current_output_filelist.tsv
+          du -sh outputs || true
+      - name: Upload complete checked-in outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2k-current-checked-in-outputs
+          path: |
+            outputs/
+            phase2k_current_output_filelist.tsv
+          if-no-files-found: error
+          compression-level: 6
+      - name: Upload current source needed to reproduce outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2k-current-source-snapshot
+          path: |
+            vbb_study/
+            tools/
+            tests/
+            *.py
+            requirements*.txt
+            docs/
+          if-no-files-found: error
+          compression-level: 6
