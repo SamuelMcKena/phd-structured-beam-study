@@ -152,7 +152,13 @@ def canonical_hardware_manifest() -> dict[str, Any]:
         "parameter_provenance_labels": sorted(ALLOWED_HARDWARE_PROVENANCE),
         "parameters": parameters,
         "calibration_required_parameters": unresolved,
-        "fixed_bench_prediction_ready": True,
+        "nominal_fixed_parameter_simulation_ready": True,
+        "fixed_bench_prediction_ready": False,
+        "fixed_bench_prediction_blocker": (
+            "The optical route is fixed numerically, but critical bench geometry, SLM calibration, "
+            "axicon geometry, camera scale and throughput remain unresolved. This is a nominal "
+            "fixed-parameter model, not a calibrated bench prediction."
+        ),
         "absolute_sample_plane_claim_ready": False,
         "absolute_energy_claim_ready": False,
     }

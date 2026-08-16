@@ -122,7 +122,7 @@ Phase 2D calibration governance also states that there is currently no experimen
 
 ## Hardware truth gate
 
-The Phase 2K audit presently blocks an absolute fixed-bench quantitative claim because the following critical values are not all measured/verified in the repository manifest:
+The Phase 2K audit presently blocks an absolute fixed-bench quantitative claim because the following critical values are not all measured/verified in the repository manifest. The manifest's old `fixed_bench_prediction_ready=true` label has therefore been corrected: `nominal_fixed_parameter_simulation_ready=true`, while `fixed_bench_prediction_ready=false` until the calibration gate is closed.
 
 - physical axicon angle convention/value and clear aperture,
 - beam radius incident on the SLM,
