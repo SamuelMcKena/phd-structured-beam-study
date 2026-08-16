@@ -22,6 +22,13 @@ Coordinate convention:
   All radii are at the plane implied by the argument name.
   ``f_eff_m`` is the effective focal length of the objective at the
   design tube-lens spacing, not the nominal manufacturer value.
+
+Phase-2K note on Fourier-plane distances:
+  ``x = lambda*f*nu`` is the paraxial Fourier-optics coordinate used by the
+  FFT/Fresnel 4f model.  It is not silently called an exact high-angle ray
+  position.  Exact geometric comparison helpers based on ``sin(theta)`` and
+  ``x=f*tan(theta)`` are provided below so the paraxial approximation can be
+  bounded for every generated output family.
 """
 
 from __future__ import annotations
@@ -45,54 +52,21 @@ EPS = 1.0e-30
 def pupil_radius_m(f_eff_m: float, NA: float, n_medium: float = 1.0) -> float:
     """Return the objective back-pupil radius in metres.
 
-    The scalar ideal-lens formula is ``R_pupil = f_eff * NA / n``.
-
-    Parameters
-    ----------
-    f_eff_m:
-        Effective focal length of the objective at the working wavelength, m.
-    NA:
-        Numerical aperture (in the medium).
-    n_medium:
-        Refractive index of the immersion medium (1.0 for air).
+    Under the aplanatic sine-condition convention,
+    ``R_pupil = f_eff * sin(theta_max) = f_eff * NA / n``.
     """
 
     return float(f_eff_m) * float(NA) / max(float(n_medium), EPS)
 
 
 def focal_plane_pixel_size_m(slm_pixel_pitch_m: float, demag: float) -> float:
-    """Return the effective pixel size in the focal/surface plane in metres.
-
-    The demagnification ``M = f_obj / f_relay`` converts the SLM pixel pitch
-    to an equivalent size in the focused plane.
-
-    Parameters
-    ----------
-    slm_pixel_pitch_m:
-        SLM pixel pitch, m.
-    demag:
-        Demagnification factor ``sample_size / slm_size`` (< 1 for a
-        focusing relay).
-    """
+    """Return the equivalent sample-plane pixel pitch after transverse demagnification."""
 
     return float(slm_pixel_pitch_m) * abs(float(demag))
 
 
 def slm_to_pupil_magnification(f_relay_m: float, f_tube_m: float) -> float:
-    """Return the SLM-plane to objective-back-pupil magnification.
-
-    In a standard 4f SLM relay with focal lengths ``f_relay`` (beam-shaping
-    lens) and ``f_tube`` (tube lens that images the SLM onto the pupil), the
-    transverse magnification is ``M = f_tube / f_relay``.  Values > 1 mean
-    the beam is expanded at the pupil; < 1 means it is contracted.
-
-    Parameters
-    ----------
-    f_relay_m:
-        Focal length of the relay lens closest to the SLM, m.
-    f_tube_m:
-        Focal length of the lens that images onto the objective back pupil, m.
-    """
+    """Return the transverse 4f relay magnification ``f_tube/f_relay``."""
 
     return float(f_tube_m) / max(float(f_relay_m), EPS)
 
@@ -107,26 +81,43 @@ def fourier_plane_ring_radius_m(
     f_lens_m: float,
     wavelength_m: float,
 ) -> float:
-    """Return the Bessel-ring radius in the Fourier plane of a lens.
+    """Return the **paraxial Fourier-coordinate** Bessel-ring radius.
 
-    A lens of focal length ``f`` maps the transverse spatial frequency
-    ``k_r / (2*pi)`` (cycles/m) to a radial position
-    ``r = wavelength * f * k_r / (2*pi) = f * k_r / k0`` in its back focal
-    plane.  This is where the
-    Bessel ring appears, and where the first-order filter must be centred.
+    A Fresnel/Fourier-transform lens maps transverse spatial frequency
+    ``nu_r=k_r/(2*pi)`` to
 
-    Parameters
-    ----------
-    kr_m_inv:
-        Transverse wavevector (axicon ring spatial frequency), rad/m.
-    f_lens_m:
-        Focal length of the Fourier-transform lens, m.
-    wavelength_m:
-        Vacuum wavelength, m. It is explicit because this function returns a
-        physical distance rather than a spatial-frequency coordinate.
+    ``r_paraxial = lambda*f*nu_r = lambda*f*k_r/(2*pi)``.
+
+    This is the correct coordinate for the repository's paraxial FFT 4f model.
+    It is not an exact high-angle ray-intersection law.  Use
+    :func:`fourier_plane_ring_radius_exact_geometric_m` to quantify the
+    approximation whenever the support is not strongly paraxial.
     """
 
     return float(wavelength_m) * float(kr_m_inv) * float(f_lens_m) / (2.0 * math.pi)
+
+
+def fourier_plane_ring_radius_exact_geometric_m(
+    kr_m_inv: float,
+    f_lens_m: float,
+    wavelength_m: float,
+    *,
+    n_medium: float = 1.0,
+) -> float:
+    """Return the exact geometric ray intersection ``f*tan(theta)``.
+
+    The transverse wavevector obeys
+    ``k_r = k0*n_medium*sin(theta)``.  This helper is a reference/bound on the
+    paraxial Fourier coordinate, not a replacement for a full nonparaxial lens
+    diffraction model.
+    """
+
+    k = 2.0 * math.pi * float(n_medium) / max(float(wavelength_m), EPS)
+    ratio = float(kr_m_inv) / max(k, EPS)
+    if abs(ratio) > 1.0 + 1.0e-12:
+        raise ValueError("|k_r| exceeds the propagation-medium wavenumber")
+    theta = math.asin(float(np.clip(ratio, -1.0, 1.0)))
+    return float(f_lens_m) * math.tan(theta)
 
 
 def fourier_plane_carrier_separation_m(
@@ -134,24 +125,40 @@ def fourier_plane_carrier_separation_m(
     f_lens_m: float,
     wavelength_m: float,
 ) -> float:
-    """Return the lateral shift of the blaze carrier in the Fourier plane.
+    """Return the **paraxial Fourier-coordinate** carrier separation.
 
-    A carrier grating with frequency ``carrier_cpm`` (cycles/m) shifts the
-    first diffraction order by ``wavelength * f * carrier_cpm`` in the
-    Fourier plane.
-    The filter must be positioned at this offset to capture the first order.
-
-    Parameters
-    ----------
-    carrier_cpm:
-        Blaze carrier spatial frequency, cycles/m.
-    f_lens_m:
-        Focal length of the Fourier-transform lens, m.
-    wavelength_m:
-        Vacuum wavelength, m.
+    ``x_paraxial = lambda*f*carrier_cpm`` for a grating spatial frequency in
+    cycles/m.  Use :func:`fourier_plane_carrier_separation_exact_geometric_m`
+    to bound the small-angle approximation for a physical lens plane.
     """
 
     return float(wavelength_m) * float(carrier_cpm) * float(f_lens_m)
+
+
+def fourier_plane_carrier_separation_exact_geometric_m(
+    carrier_cpm: float,
+    f_lens_m: float,
+    wavelength_m: float,
+    *,
+    n_medium: float = 1.0,
+) -> float:
+    """Return exact geometric separation from ``sin(theta)=lambda0*nu/n``."""
+
+    ratio = float(wavelength_m) * float(carrier_cpm) / max(float(n_medium), EPS)
+    if abs(ratio) > 1.0 + 1.0e-12:
+        raise ValueError("carrier spatial frequency is not a propagating diffraction order")
+    theta = math.asin(float(np.clip(ratio, -1.0, 1.0)))
+    return float(f_lens_m) * math.tan(theta)
+
+
+def paraxial_fourier_relative_error(
+    paraxial_distance_m: float,
+    exact_geometric_distance_m: float,
+) -> float:
+    """Return ``(paraxial-exact)/exact`` for an auditable approximation bound."""
+
+    exact = float(exact_geometric_distance_m)
+    return (float(paraxial_distance_m) - exact) / max(abs(exact), EPS)
 
 
 # ---------------------------------------------------------------------------
@@ -167,28 +174,10 @@ def first_order_filter_inner_radius_m(
     *,
     safety_factor: float = 0.5,
 ) -> float:
-    """Estimate the minimum safe inner radius of the first-order filter.
-
-    The filter must exclude the DC order (at the Fourier-plane origin) and
-    any higher Bessel rings.  The minimum inner radius is chosen to sit
-    between the carrier-shifted ring and the DC spot.
-
-    Parameters
-    ----------
-    carrier_cpm:
-        Blaze carrier spatial frequency, cycles/m.
-    f_lens_m:
-        Focal length of the Fourier-transform lens, m.
-    kr_m_inv:
-        Bessel-ring transverse wavevector, rad/m.
-    safety_factor:
-        Fraction of the carrier separation used as inner clearance (0–1).
-    """
+    """Estimate the minimum safe inner radius in the paraxial Fourier plane."""
 
     ring_r = fourier_plane_ring_radius_m(kr_m_inv, f_lens_m, wavelength_m)
     carrier_shift = fourier_plane_carrier_separation_m(carrier_cpm, f_lens_m, wavelength_m)
-    # The first-order ring sits at carrier_shift ± ring_r.
-    # Inner edge clears the DC spot; set to carrier_shift - ring_r with margin.
     inner = max(carrier_shift - ring_r * (1.0 + float(safety_factor)), 0.0)
     return float(inner)
 
@@ -201,20 +190,10 @@ def first_order_filter_outer_radius_m(
     *,
     safety_factor: float = 0.5,
 ) -> float:
-    """Estimate the maximum safe outer radius of the first-order filter.
-
-    The filter must exclude the second-order ring (at twice the carrier
-    shift).  The outer radius is set between the ring and the second order.
-
-    Parameters
-    ----------
-    safety_factor:
-        Fraction of the ring-to-second-order gap retained as outer margin (0–1).
-    """
+    """Estimate the maximum safe outer radius in the paraxial Fourier plane."""
 
     ring_r = fourier_plane_ring_radius_m(kr_m_inv, f_lens_m, wavelength_m)
     carrier_shift = fourier_plane_carrier_separation_m(carrier_cpm, f_lens_m, wavelength_m)
-    # Second-order ring sits at 2*carrier_shift.  Outer edge should be less.
     outer = carrier_shift + ring_r * (1.0 + float(safety_factor))
     outer = min(outer, 2.0 * carrier_shift - ring_r * float(safety_factor))
     return float(max(outer, ring_r))
@@ -226,20 +205,11 @@ def first_order_filter_outer_radius_m(
 
 
 def gaussian_pupil_fill_fraction(beam_1e_radius_m: float, pupil_radius_m_val: float) -> float:
-    """Return the power fraction of a Gaussian beam passing through a circular pupil.
+    """Return Gaussian power inside a circular pupil.
 
-    The Gaussian beam has ``1/e`` field amplitude radius ``w0``
-    (equivalently, ``1/e^2`` intensity radius ``w0``).  The fraction of
-    total power within a hard aperture of radius ``R_pupil`` is::
-
-        P_through / P_total = 1 - exp(-2 * R_pupil^2 / w0^2)
-
-    Parameters
-    ----------
-    beam_1e_radius_m:
-        Gaussian beam ``1/e`` amplitude radius at the pupil plane, m.
-    pupil_radius_m_val:
-        Pupil hard aperture radius, m.
+    For a ``1/e`` field-amplitude radius ``w``, intensity is
+    ``I(r) proportional exp(-2 r^2/w^2)`` and the enclosed fraction is
+    ``1-exp(-2 R^2/w^2)``.
     """
 
     w = max(float(beam_1e_radius_m), EPS)
@@ -248,20 +218,13 @@ def gaussian_pupil_fill_fraction(beam_1e_radius_m: float, pupil_radius_m_val: fl
 
 
 def gaussian_clipping_power_fraction(beam_1e_radius_m: float, pupil_radius_m_val: float) -> float:
-    """Return the power fraction clipped (lost) at a circular pupil.
-
-    Complement of :func:`gaussian_pupil_fill_fraction`.
-    """
+    """Return the Gaussian power fraction clipped at a circular pupil."""
 
     return 1.0 - gaussian_pupil_fill_fraction(beam_1e_radius_m, pupil_radius_m_val)
 
 
 def pupil_fill_ratio(beam_1e_radius_m: float, pupil_radius_m_val: float) -> float:
-    """Return the dimensionless fill ratio ``w0 / R_pupil``.
-
-    A fill ratio close to 1 means the beam nearly fills the pupil.
-    Ratios > 1 indicate the beam overfills the aperture (significant clipping).
-    """
+    """Return the dimensionless fill ratio ``w/R_pupil``."""
 
     return float(beam_1e_radius_m) / max(float(pupil_radius_m_val), EPS)
 
@@ -272,20 +235,18 @@ def objective_map_from_design_inputs(
     material: Any,
     beam_radius_on_slm_m: float | None = None,
 ):
-    """Return the explicit SLM/free-space -> sample transverse map.
+    """Return the explicit target-matched inverse-design transverse map.
 
-    The current inverse design chooses the sample Bessel-Gauss waist from the
-    requested sample-plane zone length, then maps the SLM Gaussian radius onto
-    that waist.  This helper keeps that cross-plane conversion named and
-    auditable while using the exact first zero of J_0 rather than the historical 2.405 rounding.
+    The requested sample BG reference length determines the required sample
+    Gaussian radius; the ratio to the declared SLM beam radius then defines the
+    **required** demagnification.  This is an inverse-design feasibility map,
+    not a measured relay calibration.
     """
 
     D = max(float(target.target_core_diameter_m), EPS)
     L = max(float(target.target_bessel_length_m), EPS)
     w_slm = float(laser.beam_radius_on_slm_m if beam_radius_on_slm_m is None else beam_radius_on_slm_m)
     k_medium = laser.k0 * float(material.refractive_index)
-    # Compatibility contract: D is the equivalent ell=0 first-zero diameter,
-    # not the measured bright-ring diameter for vortex beams.
     kr_sample = 2.0 * float(sp.jn_zeros(0, 1)[0]) / D
     w0_sample = L * kr_sample / max(k_medium, EPS)
     return vbb_planes.objective_map_from_waists(
