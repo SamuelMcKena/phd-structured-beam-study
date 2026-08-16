@@ -24,6 +24,9 @@ from vbb_study.config import (
 from vbb_study.equations.objective_pupil import objective_map_from_design_inputs
 
 
+J0_FIRST_ZERO = float(sp.jn_zeros(0, 1)[0])
+
+
 def get_preset(name: str = "fast") -> SimulationPreset:
     """Return a deterministic grid preset."""
 
@@ -88,11 +91,9 @@ def default_config(preset: str = "fast") -> TwinConfig:
 def axial_scan_values(config: TwinConfig, design: BeamDesign, *, z_anchor_m: float = 0.0) -> np.ndarray:
     """Return the forward z samples used for Bessel-region measurements.
 
-    I intentionally make the scan longer than the requested design length. The
-    old notebooks often clipped the half-maximum zone at the right edge of the
-    scan, which made the heatmaps look artificially short. The target-factor
-    term lets the scan follow long Bessel targets, while the absolute
-    `axial_range_m` term keeps short targets from being under-sampled.
+    The scan is deliberately longer than the requested design length so a
+    measured half-maximum interval cannot be truncated by the numerical
+    boundary and mistaken for a physical Bessel-zone length.
     """
 
     span = float(config.grid.axial_range_m)
@@ -111,21 +112,28 @@ def compute_design_from_targets(
     mapping_mode: OpticalMappingMode = "target_matched_inverse_design",
     fixed_objective_map: Optional[vbb_planes.ObjectiveMap] = None,
 ) -> BeamDesign:
-    """Inverse-design SLM cone strength from target scale and length.
+    """Inverse-design SLM cone strength from a declared target scale and length.
 
-    The legacy input name ``target_core_diameter_m`` is interpreted as the
-    equivalent ell=0 first-zero diameter. For ``ell > 0`` the actual vortex
-    ring diameter is computed from the first zero of ``J'_ell`` and reported
-    separately on the design.
+    ``target_core_diameter_m`` is the equivalent charge-zero first-null
+    diameter.  The exact first positive zero of ``J_0`` is used; the old
+    repository shorthand ``2.405`` has been removed so the reference and its
+    inverse are mathematically identical.
+
+    The requested Bessel length is interpreted as the standard geometrical
+    overlap/reference length ``z_ref = w0*k/k_r``.  It is not silently equated
+    with a numerical intensity FWHM.  Under ``fixed_physical_optics`` the
+    hardware mapping fixes ``w0`` and therefore the predicted reference length;
+    under ``target_matched_inverse_design`` the target is used to infer the
+    required waist/mapping and is a feasibility design rather than a measured
+    bench prediction.
     """
 
     D = max(float(target.target_core_diameter_m), EPS)
     L = max(float(target.target_bessel_length_m), EPS)
     k_medium = laser.k0 * float(material.refractive_index)
 
-    # Do not read D as a vortex-ring diameter. It is the J0 first-zero
-    # diameter that would give the same transverse wavevector for ell=0.
-    kr_sample = 2.0 * 2.405 / D
+    # D = 2*j_0,1/k_r exactly for the equivalent ell=0 first-null diameter.
+    kr_sample = 2.0 * J0_FIRST_ZERO / D
     required_w0_sample = L * kr_sample / max(k_medium, EPS)
     mode = str(mapping_mode).lower().strip()
     if mode == "target_matched_inverse_design":
@@ -140,19 +148,30 @@ def compute_design_from_targets(
         if fixed_objective_map is None:
             raise ValueError("fixed_physical_optics requires an explicit fixed_objective_map")
         objective_map = fixed_objective_map
-        w_slm = float(laser.beam_radius_on_slm_m if beam_radius_on_slm_m is None else beam_radius_on_slm_m)
+        w_slm = float(
+            laser.beam_radius_on_slm_m
+            if beam_radius_on_slm_m is None
+            else beam_radius_on_slm_m
+        )
         w0_sample = objective_map.pre_to_sample_m(w_slm)
     else:
         raise ValueError(f"Unsupported optical mapping mode: {mapping_mode!r}")
+
     M = float(objective_map.demag)
     kr_slm = objective_map.sample_to_pre_spatial_frequency_m_inv(kr_sample)
     predicted_bessel_length = float(w0_sample * k_medium / max(kr_sample, EPS))
 
+    # Digital conical phase-screen angle.  k0 rather than k_medium appears
+    # because this is an optical-path phase gradient at the modulator plane.
     denom = laser.k0 * (float(target.n_axicon) - float(target.hologram_medium_n))
     gamma = math.atan(kr_slm / max(denom, EPS))
     ell_abs = abs(int(target.ell))
-    first_zero_r = float(2.405 / kr_sample)
+    first_zero_r = float(J0_FIRST_ZERO / kr_sample)
     first_zero_d = float(2.0 * first_zero_r)
+
+    # This remains the infinite-Bessel J'_ell reference.  A finite BG ring can
+    # be shifted by Gaussian apodization and is measured separately in the
+    # Phase 2K reference module/output metrics.
     ring_r = 0.0 if ell_abs == 0 else float(sp.jnp_zeros(ell_abs, 1)[0] / kr_sample)
 
     return BeamDesign(
@@ -240,6 +259,7 @@ def objective_map_from_config(config: TwinConfig, design: Optional[BeamDesign] =
 
 
 __all__ = [
+    "J0_FIRST_ZERO",
     "axial_scan_values",
     "compute_design_from_targets",
     "compute_design_from_config",
