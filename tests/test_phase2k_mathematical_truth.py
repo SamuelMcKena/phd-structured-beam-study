@@ -1,9 +1,9 @@
 """Phase 2K mathematical truth tests.
 
-These tests are intentionally reference-first rather than regression-first.  A
+These tests are intentionally reference-first rather than regression-first. A
 historical numerical baseline is not accepted merely because the old code
-reproduces it.  Each check compares the implementation with an analytic law or
-an independently written propagation calculation.
+reproduces it. Each check compares the implementation with an analytic law or
+an independently written formulation.
 """
 
 from __future__ import annotations
@@ -13,8 +13,16 @@ import math
 import numpy as np
 import scipy.special as sp
 
+from vbb_study.design import J0_FIRST_ZERO, compute_design_from_config, default_config
 from vbb_study.digital_twin.vortex_error_reference_models import (
     exact_refractive_axicon_kr_m_inv,
+)
+from vbb_study.equations.fields import make_xy_grid
+from vbb_study.equations.propagation import (
+    angular_spectrum_propagate_bl,
+    bandlimit_mask_matsushima,
+    discrete_power,
+    matsushima_bandlimit_mask,
 )
 from vbb_study.equations.scalar_bessel import (
     axicon_cone_angle_exact_rad,
@@ -23,6 +31,7 @@ from vbb_study.equations.scalar_bessel import (
     ring_radius_from_jprime_zero_m,
     transverse_wavevector_from_axicon,
 )
+from vbb_study.equations.vector_fresnel_interface import fresnel_coefficients
 
 
 def _fresnel_fft(field: np.ndarray, dx_m: float, z_m: float, k_m_inv: float) -> np.ndarray:
@@ -42,6 +51,20 @@ def _grid(n: int = 384, dx_m: float = 0.35e-6):
     return xg, yg, np.hypot(xg, yg), np.arctan2(yg, xg)
 
 
+def test_inverse_design_uses_exact_j0_first_zero_and_round_trips() -> None:
+    cfg = default_config("fast")
+    design = compute_design_from_config(cfg)
+    expected_kr = 2.0 * J0_FIRST_ZERO / float(cfg.target.target_core_diameter_m)
+    recovered_diameter = 2.0 * J0_FIRST_ZERO / float(design.kr_sample_m_inv)
+    assert math.isclose(design.kr_sample_m_inv, expected_kr, rel_tol=2.0e-15, abs_tol=0.0)
+    assert math.isclose(
+        recovered_diameter,
+        float(cfg.target.target_core_diameter_m),
+        rel_tol=2.0e-15,
+        abs_tol=0.0,
+    )
+
+
 def test_bessel_gauss_z0_is_exact_requested_waist_field() -> None:
     _, _, radius, phi = _grid(192, 0.45e-6)
     ell = 3
@@ -53,7 +76,7 @@ def test_bessel_gauss_z0_is_exact_requested_waist_field() -> None:
 
 
 def test_bessel_gauss_analytic_propagation_matches_independent_fresnel_fft() -> None:
-    xg, yg, radius, phi = _grid()
+    xg, _, radius, phi = _grid()
     wavelength = 1029.0e-9
     n_medium = 1.0
     k = 2.0 * np.pi * n_medium / wavelength
@@ -82,8 +105,6 @@ def test_bessel_gauss_analytic_propagation_matches_independent_fresnel_fft() -> 
         n_medium=n_medium,
     )
 
-    # Compare only where the finite beam carries meaningful power, avoiding a
-    # relative-error metric dominated by machine noise in the tails.
     mask = np.abs(analytic) >= 1.0e-5 * float(np.max(np.abs(analytic)))
     rel_l2 = float(np.linalg.norm((numeric - analytic)[mask]) / np.linalg.norm(analytic[mask]))
     assert rel_l2 < 2.0e-4
@@ -112,14 +133,77 @@ def test_finite_bg_ring_is_not_assumed_to_be_jprime_peak() -> None:
     finite_waist = 4.0e-6
     finite = bessel_gauss_ring_radius_m(ell, kr, finite_waist)
     pure = ring_radius_from_jprime_zero_m(ell, kr)
-    # Gaussian apodization pulls the finite-energy maximum inward.
     assert finite < pure
     assert (pure - finite) / pure > 1.0e-3
 
-    # In the weak-apodization limit the finite BG peak must converge to the
-    # infinite-Bessel J'_ell reference.
     almost_flat = bessel_gauss_ring_radius_m(ell, kr, 2.0e-3)
     assert abs(almost_flat - pure) / pure < 2.0e-5
+
+
+def test_exact_asm_propagates_fft_bin_plane_wave_with_correct_kz_phase() -> None:
+    n = 192
+    dx = 2.0e-6
+    wavelength = 1029.0e-9
+    z = 8.0e-3
+    grid = make_xy_grid(n, dx)
+    fx = 9.0 / (n * dx)
+    fy = -6.0 / (n * dx)
+    initial = np.exp(1j * 2.0 * np.pi * (fx * grid["X"] + fy * grid["Y"]))
+    propagated = angular_spectrum_propagate_bl(
+        initial,
+        grid,
+        wavelength,
+        z,
+        n_medium=1.0,
+        bandlimit=False,
+        include_evanescent=False,
+    )
+    k = 2.0 * np.pi / wavelength
+    kx = 2.0 * np.pi * fx
+    ky = 2.0 * np.pi * fy
+    kz = math.sqrt(k * k - kx * kx - ky * ky)
+    expected = initial * np.exp(1j * kz * z)
+    rel_l2 = float(np.linalg.norm(propagated - expected) / np.linalg.norm(expected))
+    assert rel_l2 < 2.0e-12
+
+
+def test_unfiltered_asm_conserves_discrete_power_for_propagating_spectrum() -> None:
+    n = 192
+    dx = 2.0e-6
+    wavelength = 1029.0e-9
+    grid = make_xy_grid(n, dx)
+    sigma = 35.0e-6
+    initial = np.exp(-(grid["R"] ** 2) / sigma**2).astype(complex)
+    propagated = angular_spectrum_propagate_bl(
+        initial,
+        grid,
+        wavelength,
+        5.0e-3,
+        n_medium=1.0,
+        bandlimit=False,
+        include_evanescent=False,
+    )
+    p0 = discrete_power(initial, dx)
+    p1 = discrete_power(propagated, dx)
+    assert abs(p1 - p0) / p0 < 2.0e-12
+
+
+def test_two_matsushima_mask_helpers_are_identical_in_air() -> None:
+    n = 128
+    dx = 2.0e-6
+    wavelength = 1029.0e-9
+    z = 4.0e-3
+    grid = make_xy_grid(n, dx)
+    standalone = matsushima_bandlimit_mask(
+        grid["FX"],
+        grid["FY"],
+        wavelength_m=wavelength,
+        z_m=z,
+        N=n,
+        dx_m=dx,
+    )
+    engine = bandlimit_mask_matsushima(grid, wavelength, z, n_medium=1.0)
+    assert np.array_equal(standalone, engine)
 
 
 def test_exact_snell_axicon_kr_matches_independent_digital_twin_reference() -> None:
@@ -163,3 +247,22 @@ def test_axicon_angle_convention_obeys_snell_law() -> None:
     lhs = n_ax * math.sin(gamma)
     rhs = n_ext * math.sin(gamma + theta)
     assert math.isclose(lhs, rhs, rel_tol=2.0e-14, abs_tol=2.0e-14)
+
+
+def test_lossless_fresnel_coefficients_obey_energy_conservation() -> None:
+    n1 = 1.0
+    n2 = 1.45
+    for theta_deg in (0.0, 20.0, 50.0):
+        coeff = fresnel_coefficients(n1, n2, math.radians(theta_deg))
+        assert abs(float(coeff["R_s"]) + float(coeff["T_s"]) - 1.0) < 2.0e-13
+        assert abs(float(coeff["R_p"]) + float(coeff["T_p"]) - 1.0) < 2.0e-13
+        assert float(coeff["snell_residual"]) < 2.0e-15
+
+
+def test_fresnel_p_reflection_vanishes_at_brewster_angle_for_lossless_dielectric() -> None:
+    n1 = 1.0
+    n2 = 1.45
+    theta_b = math.atan(n2 / n1)
+    coeff = fresnel_coefficients(n1, n2, theta_b)
+    assert abs(complex(coeff["r_p"])) < 2.0e-14
+    assert abs(float(coeff["R_p"])) < 5.0e-28
