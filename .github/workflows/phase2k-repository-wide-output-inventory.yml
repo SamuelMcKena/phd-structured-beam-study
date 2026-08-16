@@ -1,0 +1,42 @@
+name: Phase 2K repository-wide output inventory
+
+on:
+  push:
+    branches:
+      - phase2k-mathematical-physics-output-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  inventory-all-git-branches-and-actions-artifacts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch every remote branch
+        run: |
+          git fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
+
+      - name: Inventory generated artifacts across all branches
+        run: |
+          python tools/phase2k_all_branch_output_inventory.py
+
+      - name: Inventory every GitHub Actions artifact
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          python tools/phase2k_github_artifact_inventory.py
+
+      - name: Upload repository-wide provenance inventory
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2k-repository-wide-output-inventory
+          path: outputs/validation/phase2k_truth_audit/
+          if-no-files-found: error
+          compression-level: 9
