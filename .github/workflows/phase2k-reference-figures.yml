@@ -27,7 +27,7 @@ jobs:
       - name: Prove Phase 2K mathematical core before rendering
         run: |
           python -m pip install pytest==9.0.3 pandas==3.0.3 pillow==12.1.0
-          python -m pytest tests/test_phase2k_mathematical_truth.py -q
+          python -m pytest tests/test_phase2k_mathematical_truth.py tests/test_phase2k_fourier_truth.py -q
       - name: Build reference figures
         run: |
           python tools/phase2k_build_reference_figures.py
