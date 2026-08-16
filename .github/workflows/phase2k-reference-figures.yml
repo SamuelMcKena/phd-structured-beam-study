@@ -1,0 +1,40 @@
+name: Phase 2K truth reference figures
+
+on:
+  push:
+    branches:
+      - phase2k-mathematical-physics-output-audit
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-reference-figures:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Install numerical dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy==2.4.1 scipy==1.17.0 matplotlib==3.10.8
+      - name: Prove Phase 2K mathematical core before rendering
+        run: |
+          python -m pip install pytest==9.0.3 pandas==3.0.3 pillow==12.1.0
+          python -m pytest tests/test_phase2k_mathematical_truth.py -q
+      - name: Build reference figures
+        run: |
+          python tools/phase2k_build_reference_figures.py
+      - name: Upload reference evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase2k-mathematical-reference-figures
+          path: outputs/validation/phase2k_reference_figures/
+          if-no-files-found: error
+          compression-level: 9
