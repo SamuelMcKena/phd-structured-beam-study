@@ -34,11 +34,11 @@ jobs:
 
       - name: Compile changed physics and audit code
         run: |
-          python -m compileall -q vbb_study tools tests/test_phase2k_mathematical_truth.py
+          python -m compileall -q vbb_study tools tests/test_phase2k_mathematical_truth.py tests/test_phase2k_fourier_truth.py
 
       - name: Phase 2K analytic/reference truth tests
         run: |
-          python -m pytest tests/test_phase2k_mathematical_truth.py -q
+          python -m pytest tests/test_phase2k_mathematical_truth.py tests/test_phase2k_fourier_truth.py -q
 
       - name: Existing repaired-physics compatibility checks
         run: |
