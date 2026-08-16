@@ -31,6 +31,7 @@ from vbb_study.equations.scalar_bessel import (
     ring_radius_from_jprime_zero_m,
     transverse_wavevector_from_axicon,
 )
+from vbb_study.equations.vector_debye import DebyeConfig, debye_focus_plane
 from vbb_study.equations.vector_fresnel_interface import fresnel_coefficients
 
 
@@ -49,6 +50,23 @@ def _grid(n: int = 384, dx_m: float = 0.35e-6):
     x = (np.arange(n, dtype=float) - n // 2) * float(dx_m)
     xg, yg = np.meshgrid(x, x)
     return xg, yg, np.hypot(xg, yg), np.arctan2(yg, xg)
+
+
+def _debye_symmetry_fixture() -> tuple[np.ndarray, np.ndarray, np.ndarray, DebyeConfig]:
+    pupil_radius = 1.5e-3
+    pupil_axis = np.linspace(-pupil_radius, pupil_radius, 129)
+    X, Y = np.meshgrid(pupil_axis, pupil_axis, indexing="xy")
+    config = DebyeConfig(
+        wavelength_m=1029.0e-9,
+        refractive_index=1.0,
+        numerical_aperture=0.35,
+        focal_length_m=4.0e-3,
+        pupil_radius_m=pupil_radius,
+        quadrature_order_r=48,
+        quadrature_order_phi=192,
+        max_output_points=16,
+    )
+    return pupil_axis, X, Y, config
 
 
 def test_inverse_design_uses_exact_j0_first_zero_and_round_trips() -> None:
@@ -266,3 +284,51 @@ def test_fresnel_p_reflection_vanishes_at_brewster_angle_for_lossless_dielectric
     coeff = fresnel_coefficients(n1, n2, theta_b)
     assert abs(complex(coeff["r_p"])) < 2.0e-14
     assert abs(float(coeff["R_p"])) < 5.0e-28
+
+
+def test_vector_debye_uniform_x_polarisation_has_expected_on_axis_symmetry() -> None:
+    pupil_axis, X, _, config = _debye_symmetry_fixture()
+    output_axis = np.asarray([-0.15e-6, 0.0, 0.15e-6])
+    result = debye_focus_plane(
+        np.ones_like(X, dtype=np.complex128),
+        np.zeros_like(X, dtype=np.complex128),
+        pupil_axis,
+        pupil_axis,
+        output_axis,
+        output_axis,
+        0.0,
+        config,
+    )
+    center = 1
+    ex = complex(result.Ex[center, center])
+    ey = complex(result.Ey[center, center])
+    ez = complex(result.Ez[center, center])
+    assert abs(ex) > 0.0
+    assert abs(ey) / abs(ex) < 1.0e-12
+    assert abs(ez) / abs(ex) < 1.0e-12
+    assert float(result.metadata["vector_transversality_residual"]) < 1.0e-12
+
+
+def test_vector_debye_radial_polarisation_produces_longitudinal_on_axis_field() -> None:
+    pupil_axis, X, Y, config = _debye_symmetry_fixture()
+    output_axis = np.asarray([-0.15e-6, 0.0, 0.15e-6])
+    radius = np.hypot(X, Y)
+    ex_pupil = np.divide(X, radius, out=np.zeros_like(X), where=radius > 0.0).astype(np.complex128)
+    ey_pupil = np.divide(Y, radius, out=np.zeros_like(Y), where=radius > 0.0).astype(np.complex128)
+    result = debye_focus_plane(
+        ex_pupil,
+        ey_pupil,
+        pupil_axis,
+        pupil_axis,
+        output_axis,
+        output_axis,
+        0.0,
+        config,
+    )
+    center = 1
+    ex = complex(result.Ex[center, center])
+    ey = complex(result.Ey[center, center])
+    ez = complex(result.Ez[center, center])
+    assert abs(ez) > 0.0
+    assert (abs(ex) + abs(ey)) / abs(ez) < 1.0e-11
+    assert float(result.metadata["vector_transversality_residual"]) < 1.0e-12
