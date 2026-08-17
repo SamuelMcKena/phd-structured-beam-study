@@ -39,11 +39,19 @@ Raw `.bmg` acquisitions and generated `outputs/` are intentionally excluded from
 Git because they are large and reproducible. Lightweight derived metrics and the
 current uncalibrated correction proposal are retained with the source.
 
-The structured-beam repository additionally carries a complete frozen figure
-snapshot under `figures/`. It contains every PNG, PDF, SVG, and interactive HTML
-export produced during this analysis, while large numerical NPZ/NPY work arrays
-remain excluded. The original output hierarchy is preserved below that directory
-so figures can be traced back to their generating analysis stage.
+### Curated figure set
+
+The clean repository intentionally does **not** retain every historical rendering.
+The current figure set is under:
+
+`figures/current_q20/`
+
+It contains the newest realigned q=20 outputs together with the comprehensive
+all-z validation, phase-error-recreation, single-mask inverse-forward tests,
+measured beam-axis diagnostics, closed-loop gain-selection results and current
+SLM2 previews. Earlier `pre_realign` duplicates and the first root-level
+post-correction figures were removed from the clean figure tree because newer
+versions supersede them.
 
 The correction mesh and SLM mask are **model predictions**, not post-correction
 camera measurements. Files prefixed `UNCALIBRATED_DO_NOT_APPLY` must not be sent
