@@ -1,9 +1,0 @@
-stage_order,stage,incremental_transmission,cumulative_transmission,pulse_energy_uJ
-0,Input pulse,1.0,1.0,20.0
-1,Pre-SLM optics,1.0,1.0,20.0
-2,SLM reflectivity,0.75,0.75,15.0
-3,First-order efficiency,0.45,0.3375,6.75
-4,Relay transmission,0.9,0.30375,6.075
-5,Focusing transmission,0.9,0.27337500000000003,5.467500000000001
-6,Sample surface,0.96,0.26244,5.2488
-7,User transmission,1.0,0.26244,5.2488

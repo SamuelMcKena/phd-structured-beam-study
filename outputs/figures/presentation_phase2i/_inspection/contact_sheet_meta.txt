@@ -1,3 +1,0 @@
-bytes=152241
-base64_chars=202988
-chunks=7

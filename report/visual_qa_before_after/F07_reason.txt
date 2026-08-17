@@ -1,1 +1,0 @@
-profiles/metrics moved out of the hero into a readable dedicated figure

@@ -1,119 +1,54 @@
-# Vortex-Bessel Numerical and Lab-Realistic Study
+# Structured-Beam PhD Study — clean working tree
 
-`Publication_Study` is the evidence repository for a structured-beam programme built around a
-PHAROS-class ultrafast laser, dual phase-only SLM routing, Bessel and vortex-Bessel propagation,
-vector focusing, and later experimental calibration. The first report supported by this repository
-is the vortex-Bessel numerical and lab-realistic study. Hexagonal-vector and experimental-validation
-reports remain separate follow-on products.
+This branch is a clean, current working tree for the structured-beam PhD codebase. It is built from the Phase 2K mathematical/physics audit and then integrates the current experimental axicon-aberration correction study.
 
-This repository separates analytic targets, nominal fixed-bench predictions, diagnostics, and
-calibration-dependent claims. Passing software tests establishes numerical/software contracts; it
-does not by itself establish experimental validity.
+## Scientific status
 
-## Canonical Cases
+The repository deliberately separates four levels of evidence:
 
-| ID | Meaning | Canonical role |
-|---|---|---|
-| `G0` | Charge-zero Gaussian control | Propagation, scale, and focusing control |
-| `B0` | Charge-zero bright-core Bessel beam | Scalar Bessel reference |
-| `V1` | Charge-one vortex Bessel beam | Primary vortex case |
-| `V3` | Charge-three vortex Bessel beam | Higher-charge vortex comparison |
-| `H1` | Continuous vector hexagonal field | Separate hexagonal-vector report branch |
+1. **Analytic / numerical reference** — equations and independent numerical checks used to validate solvers.
+2. **Nominal optical-system prediction** — simulations of the dual-SLM, 4F and physical-axicon route before complete bench calibration.
+3. **Measured experimental evidence** — camera/BeamGage data and quantities derived directly from those measurements.
+4. **Hardware-validated correction** — requires calibrated camera-to-SLM mapping, SLM LUT/phase stroke, beam footprint/parity and a new post-correction z-scan that passes the experimental acceptance gates.
 
-G0, B0, V1, and V3 are the scope of the first report. H1 remains in the code and regression suite but
-is not used to turn the vortex report into a hexagonal-beam report.
+The current aberration-correction phase maps are **model predictions**, not post-correction camera measurements.
 
-## Authoritative Physics Stages
+## Canonical source layout
 
-| Stage | Outcome | Report meaning |
-|---|---|---|
-| Phase 1 | `PHASE1-B` | Corrected vortex preservation, wavelength-bearing Fourier geometry, 5% power gate, and explicit mapping modes |
-| Phase 1R | `PHASE1R-B` | Reconciled affected artifacts; recovered converged rows and retained blocked historical diagnostics |
-| Phase 2A | `PHASE2A-B` | Canonical `fixed_physical_optics` hardware binding, five controlled route variants, and unified energy ledger; absolute claims remain calibration-limited |
-| Phase 2B | `PHASE2B-A` | Publication-resolution native diagnostics and transverse intensity surfaces with interpolation used only for display |
-| Phase 2C | `PHASE2C-B` | Independent vector Debye and vector Fresnel benchmark; scalar morphology is bounded, while vortex peak detail and components use the vector reference |
+- `vbb_study/` — authoritative beam models, propagation, optical-route and digital-twin source.
+- `notebooks/` — curated analysis notebooks by topic; quicklook/export-only notebooks are omitted.
+- `notebooks/experimental/axicon_aberration_correction/` — current measured q=20 z-scan reconstruction and correction work.
+- `reference_kernels/` — independent/reference numerical kernels.
+- `tests/` — numerical, physics-contract and regression tests.
+- `tools/` — reproducibility, validation and audit utilities.
+- `calibration/` — calibration contracts/templates and bench-calibration support.
+- `docs/` — theory, conventions, limitations, calibration and reporting documentation.
+- `references/` — literature/reference material used by the codebase.
+- `outputs/validation/` — governed validation records only; bulk historical generated outputs are excluded from this clean tree.
 
-Phase 2D adds solver governance and a calibration bridge. It does not alter the accepted Phase 2C
-physics and does not unlock real calibrated dimensions or fluence without laboratory measurements.
+## Figure policy
 
-## Validated Contracts
+The clean tree does not keep every historical render. For the current q=20 aberration-correction study, figures are curated under:
 
-- Physical-axicon vortex routing preserves the requested winding by default. Full conjugation that
-  removes a nonzero vortex requires an explicit diagnostic acknowledgement.
-- Report-facing hardware predictions use `fixed_physical_optics`; historical target-matched inverse
-  design must remain labelled as such.
-- Quantitative propagation is blocked when numerical plane-power drift exceeds `0.05`.
-- Selected first-order efficiency appears exactly once in each energy ledger.
-- Scalar FFT remains a fast screening route. Quantitative vortex peak location, longitudinal field,
-  and component claims use the vector Debye reference.
-- Accepted numerical outputs are not silently overwritten.
+`notebooks/experimental/axicon_aberration_correction/figures/current_q20/`
 
-## Supported Numerical Claims
+That directory favours the newest realigned, comprehensive-validation, single-mask, phase-error-recreation and closed-loop outputs. Pre-realignment duplicates and the earliest root-level correction plots are intentionally omitted.
 
-The repository supports analytic/control definitions; fixed-bench ideal, realistic, mild-error and
-degraded route comparisons; topology/winding checks; native ring, dark-core and side-lobe metrics;
-nominal axial behaviour; numerical convergence; SLM/filtering semantics; relative energy ledgers;
-and bounded scalar-versus-vector objective/interface comparisons. The exact claim-to-evidence mapping
-is in `docs/reporting/VORTEX_CLAIM_TO_EVIDENCE.csv`.
+Older non-aberration figure families are not promoted here merely because they exist. Phase 2K requires their generating paths to satisfy the relevant analytic/reference, independent numerical, convergence and hardware-provenance gates before they are treated as current scientific evidence.
 
-## Calibration-Required Claims
+## Reproducibility
 
-Absolute sample dimensions, absolute focal fluence, hardware-calibrated SLM phase fidelity, measured
-camera/objective scale, measured per-stage transmission, and experimental agreement remain blocked.
-The current material model is linear optical propagation only. Nonlinear response, pulse
-accumulation, thermal response, ablation, and material modification are not predicted.
+Install the report environment with `requirements-report.txt`; the experimental q=20 correction package also has its own local `requirements.txt`.
 
-## Repository Map
-
-- `vbb_study/`: active physics and digital-twin source
-- `tests/`: numerical, governance, and non-regression tests
-- `tools/`: runners, validators, and audit utilities
-- `outputs/validation/`: governed machine-readable results and freeze manifests
-- `outputs/figures/`: generated figures; report-selected ignored figures require explicit force-add
-- `calibration/templates/`: editable measurement templates, not laboratory data
-- `docs/reporting/`: report scope, evidence, figure plan, and reproducibility record
-- `archive/` and root-level legacy notebooks/ZIPs: historical or duplicate material, not canonical
-
-See `docs/reporting/REPOSITORY_MAP.md` for the complete audit and
-`docs/reporting/VORTEX_REPORT_EVIDENCE_INDEX.md` for report navigation.
-
-## Environment
-
-Python `3.13` is the supported interpreter family. Install the report environment with:
+Run core checks with pytest and compileall, e.g.:
 
 ```powershell
-C:\PhD\.venv2\Scripts\python.exe -m pip install -r requirements-report.txt
+python -m pytest tests -q
+python -m compileall -q vbb_study tools tests
 ```
 
-Mandatory and optional packages are separated in `requirements-report.txt`. Installed package and
-Python versions are also recorded in the freeze manifest.
+The experimental axicon-correction package contains additional controller tests and explicit hardware-readiness blockers.
 
-## Tests
+## Provenance
 
-Focused report checks:
-
-```powershell
-C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase1_critical_physics_repairs.py -q
-C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase1r_reconciliation.py -q
-C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2a_canonical_lab_realism.py -q
-C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2b_visual_diagnostics.py -q
-C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_phase2c_objective_interface.py -q
-C:\PhD\.venv2\Scripts\python.exe -m pytest tests/test_slm2_preserve_vortex.py tests/test_slm2_preserve_vortex_end_to_end.py -q
-```
-
-Collection and compilation:
-
-```powershell
-C:\PhD\.venv2\Scripts\python.exe -m pytest --collect-only tests -q
-C:\PhD\.venv2\Scripts\python.exe -m compileall -q vbb_study tools tests
-git diff --check
-```
-
-Tests verify software and numerical contracts only. They do not replace measurement or calibration.
-
-## Report Freeze
-
-The current vortex evidence freeze is under `outputs/validation/report_freeze/`. It records selected
-evidence paths and SHA-256 hashes without copying large artifacts. The standalone export should omit
-temporary directories, duplicate root notebooks, bulk ZIP archives, and files over GitHub's size
-limit.
+See `CLEANROOM_PROVENANCE.md` for the source branches, integration strategy and claim boundaries used to build this clean working tree.

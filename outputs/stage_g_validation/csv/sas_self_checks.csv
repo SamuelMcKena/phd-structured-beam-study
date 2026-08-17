@@ -1,7 +1,0 @@
-check,pass,value,metric
-sas_z_limit_valid,True,0.09569738456200044,z_over_limit
-sas_output_grid_metadata,True,0.5,output_dx_um
-sas_full_power_conservation,True,0.9999999999930902,full_power_ratio
-sas_retained_window_fraction,True,0.9999999986828663,retained_fraction
-sas_bl_asm_intensity_overlap,True,0.04896325106115569,relative_l2
-sas_invalid_distance_guard,True,1.05,z_over_limit

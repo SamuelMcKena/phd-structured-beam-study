@@ -1,1 +1,0 @@
-SAS and BL-ASM intensity comparison for the default vortex Bessel case at z=120 um. The BL-ASM field is resampled onto the SAS output grid; the right panel shows the absolute difference between normalised intensities.

@@ -1,7 +1,0 @@
-control_id,route_id,best_z_m,best_h6,best_order6_over_order0,best_wall_continuity,best_core_darkness,best_wall_power_fraction,best_sidelobe_fraction,useful_axial_length_m,mean_output_overlap_to_canonical,kr_surface_m_inv,route_family,complex_overlap,normalized_rms_error,normalized_max_error,stokes_rms_error,angle_rms_rad,power_ratio,model_status,hexagon_acceptance_pass,wall_continuity,wall_continuity_pass,order6_over_order0,control_status
-radial,control_radial,0.0001125,3.3557427538921825e-05,0.0015269183556361242,1.0,0.2802225649356842,0.5983722124599578,0.40162778754004225,0.0,1.0,1603333.3333333333,,,,,,,,,,,,,
-azimuthal,control_azimuthal,0.0001125,0.0010765544753004442,0.002338974715520163,0.9652777777777778,0.12331950664520264,0.17855347880714217,0.8214465211928579,0.0,1.0,1603333.3333333333,,,,,,,,,,,,,
-linear_x,control_linear_x,0.0,0.07616480270157329,0.35227811016481825,0.09027777777777778,369.64569091796875,1.1389399624085148e-06,0.9999988610600375,0.0,1.0,1603333.3333333333,,,,,,,,,,,,,
-wrong_serial_phase,wrong_serial_phase,,,,,,,,,,,serial_dual_slm,0.5000000000000001,1.0,1.0,1.4142135623730947,0.7853981633974484,0.9999999999999996,optical_prediction,,,,,
-wrong_carrier_sign,wrong_carrier_sign,,,,,,,,,,,serial_dual_slm,0.000503182910396287,1.3670497647181081,1.7269523069903407,1.3685689240059806,0.9423616486710853,0.8697636072283286,optical_prediction,,,,,
-six_lobe_lattice,,,,,,,,,,,,,,,,,,,,False,0.1625,False,0.9532203174343618,must_fail_hollow_wall_continuity

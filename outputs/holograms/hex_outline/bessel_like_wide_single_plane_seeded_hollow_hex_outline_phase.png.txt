@@ -1,1 +1,0 @@
-Publication study figure `bessel_like_wide_single_plane_seeded_hollow_hex_outline_phase.png` (bessel like wide single plane seeded hollow hex outline phase). Axes, colorbars, display scaling, and units are shown in the figure or the corresponding notebook section.

@@ -1,6 +1,0 @@
-family,value,route_id,route_family,complex_overlap,normalized_rms_error,normalized_max_error,stokes_rms_error,angle_rms_rad,power_ratio,model_status
-tiles_per_sector,1.0,patterned_hwp_mosaic,patterned_hwp,0.9551736513383766,0.299420602703367,0.4957635714251829,0.5856069670015449,0.3020005716815562,1.0,optical_prediction
-tiles_per_sector,2.0,patterned_hwp_mosaic,patterned_hwp,0.9888685293859468,0.14920771169114175,0.24163280995097405,0.29425627025568996,0.15055040964400374,1.0,optical_prediction
-tiles_per_sector,4.0,patterned_hwp_mosaic,patterned_hwp,0.9971065225759681,0.07607203722830111,0.13080625846028598,0.15296911071457417,0.07597334582322808,1.0,optical_prediction
-tiles_per_sector,8.0,patterned_hwp_mosaic,patterned_hwp,0.9992664345533907,0.03830314469098769,0.06543816564355222,0.07755609854475078,0.037875874874561295,1.0,optical_prediction
-tiles_per_sector,16.0,patterned_hwp_mosaic,patterned_hwp,0.9998114009378944,0.01942158912683454,0.03272346325297372,0.039926116681158495,0.018980254475301703,1.0,optical_prediction

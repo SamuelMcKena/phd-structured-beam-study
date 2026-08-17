@@ -1,1 +1,0 @@
-Threshold-contour feature proxy for ell3_core3_L150. The white contour is the incubated threshold 0.803 J/cm^2; the XZ panel uses plane-normalized centerline fluence, not a calibrated deposited-energy law.

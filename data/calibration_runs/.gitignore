@@ -1,5 +1,0 @@
-# ignore generated raw calibration data; keep scaffolding
-*
-!.gitignore
-!.gitkeep
-!README.md

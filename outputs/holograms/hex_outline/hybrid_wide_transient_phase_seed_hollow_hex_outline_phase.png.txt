@@ -1,1 +1,0 @@
-Publication study figure `hybrid_wide_transient_phase_seed_hollow_hex_outline_phase.png` (hybrid wide transient phase seed hollow hex outline phase). Axes, colorbars, display scaling, and units are shown in the figure or the corresponding notebook section.

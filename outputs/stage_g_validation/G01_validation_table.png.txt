@@ -1,1 +1,0 @@
-Validation pass/fail table. 21/21 checks pass. Green: pass. Red: fail. See PHYSICS_AUDIT.md for validation notes.
