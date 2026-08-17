@@ -39,6 +39,12 @@ Raw `.bmg` acquisitions and generated `outputs/` are intentionally excluded from
 Git because they are large and reproducible. Lightweight derived metrics and the
 current uncalibrated correction proposal are retained with the source.
 
+The structured-beam repository additionally carries a complete frozen figure
+snapshot under `figures/`. It contains every PNG, PDF, SVG, and interactive HTML
+export produced during this analysis, while large numerical NPZ/NPY work arrays
+remain excluded. The original output hierarchy is preserved below that directory
+so figures can be traced back to their generating analysis stage.
+
 The correction mesh and SLM mask are **model predictions**, not post-correction
 camera measurements. Files prefixed `UNCALIBRATED_DO_NOT_APPLY` must not be sent
 to hardware until the SLM phase LUT, beam footprint, parity/rotation, and
