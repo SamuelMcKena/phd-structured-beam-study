@@ -1,0 +1,40 @@
+{
+  "fixed_physical_window_mm": 10.0,
+  "relay_grid_n": 512,
+  "note": "The 10-mm relay/source window is fixed while the post-iris axicon grid is refined. The relay grid is unchanged, so this isolates conical-phase and propagation sampling.",
+  "rows": [
+    {
+      "N": 1536,
+      "dx_um": 6.510416666666667,
+      "samples_per_effective_radial_period": 1.9992013007628704,
+      "retained_spectral_power": 1.0,
+      "mean_corr_to_finest": 0.7451742896164598,
+      "mean_rmse_to_finest": 0.08631137512222418
+    },
+    {
+      "N": 2048,
+      "dx_um": 4.8828125,
+      "samples_per_effective_radial_period": 2.665601734350494,
+      "retained_spectral_power": 0.999999893100512,
+      "mean_corr_to_finest": 0.9107991384347397,
+      "mean_rmse_to_finest": 0.048560750499371606
+    },
+    {
+      "N": 3072,
+      "dx_um": 3.2552083333333335,
+      "samples_per_effective_radial_period": 3.998402601525741,
+      "retained_spectral_power": 0.9999998438969318,
+      "mean_corr_to_finest": 0.981273271521473,
+      "mean_rmse_to_finest": 0.022945148754448554
+    },
+    {
+      "N": 4096,
+      "dx_um": 2.44140625,
+      "samples_per_effective_radial_period": 5.331203468700988,
+      "retained_spectral_power": 0.9999998226187098,
+      "mean_corr_to_finest": 1.0,
+      "mean_rmse_to_finest": 0.0
+    }
+  ],
+  "quantitative_high_angle_claim_allowed": true
+}

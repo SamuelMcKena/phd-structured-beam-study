@@ -1,0 +1,16 @@
+{
+  "study": "direct Miao Eq3 q20 modal contract",
+  "q": 20,
+  "k_perp_truth_m_inv": 99000.0,
+  "k_perp_recovered_m_inv": 98921.69162930707,
+  "k_perp_fractional_error": 0.0007909936433629488,
+  "fit_cost": 0.00022048540490818606,
+  "fit_corr": 0.9998461465910243,
+  "fit_nrmse": 0.014576314804826233,
+  "selected_residual_order_max": 16,
+  "branch": "direct",
+  "branch_score_direct": 0.9999990240283537,
+  "branch_score_conjugate": -0.8197940024311124,
+  "retrieved_input_amplitude_rmse": 0.000244433988221638,
+  "retrieved_input_phase_rms_rad": 0.008047102378817832
+}

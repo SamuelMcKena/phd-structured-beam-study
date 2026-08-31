@@ -77,10 +77,15 @@ class SystemErrorConfig:
 
 
 def _ell(case_id: str) -> int:
-    try:
-        return {"B0": 0, "V1": 1, "V3": 3}[case_id]
-    except KeyError as exc:
-        raise ValueError(f"unsupported scalar vortex case {case_id!r}") from exc
+    """Return the integer vortex charge encoded by a scalar case identifier."""
+    if case_id == "B0":
+        return 0
+    if case_id.startswith("V") and len(case_id) > 1:
+        try:
+            return int(case_id[1:])
+        except ValueError as exc:
+            raise ValueError(f"invalid scalar vortex case {case_id!r}") from exc
+    raise ValueError(f"unsupported scalar vortex case {case_id!r}")
 
 
 def axicon_sag_m(
@@ -358,4 +363,141 @@ def build_system_route(
                 "high_angle_refractive_tilt": "full vector surface refraction still required for absolute claims",
             },
         },
+    }
+
+
+def fourier_resample_fixed_window(field: np.ndarray, output_n: int) -> np.ndarray:
+    """Band-limit resample a square field without changing its physical window.
+
+    The explicit 4F relay needs a window wide enough to contain the displaced
+    selected order, whereas a high-angle axicon needs a substantially finer
+    transverse step.  Treating those as one grid caused the q=20 route either
+    to clip the order or to alias the conical phase.  Fourier zero-padding is
+    the appropriate handoff because the selected-order iris has already made
+    the relay output band limited.
+    """
+    source = np.asarray(field, dtype=np.complex128)
+    if source.ndim != 2 or source.shape[0] != source.shape[1]:
+        raise ValueError("field must be a square 2D array")
+    input_n = int(source.shape[0])
+    output_n = int(output_n)
+    if output_n < input_n:
+        raise ValueError("output_n must be at least the input grid size")
+    if output_n == input_n:
+        return source.copy()
+    spectrum = np.fft.fftshift(np.fft.fft2(source))
+    # ``make_xy_grid`` uses cell-centred coordinates.  Refining N therefore
+    # changes the first coordinate from -L/2+dx_in/2 to -L/2+dx_out/2.
+    # Account for that fractional-input-pixel origin shift before zero padding.
+    delta_samples = 0.5 * (float(input_n) / output_n - 1.0)
+    frequency_cycles_per_sample = np.fft.fftshift(np.fft.fftfreq(input_n, d=1.0))
+    fy, fx = np.meshgrid(frequency_cycles_per_sample, frequency_cycles_per_sample, indexing="ij")
+    spectrum *= np.exp(1j * TWOPI * delta_samples * (fx + fy))
+    padded = np.zeros((output_n, output_n), dtype=np.complex128)
+    start = (output_n - input_n) // 2
+    padded[start:start + input_n, start:start + input_n] = spectrum
+    return np.fft.ifft2(np.fft.ifftshift(padded)) * (float(output_n) / input_n) ** 2
+
+
+def build_multirate_system_route(
+    case_id: str,
+    *,
+    relay_grid_n: int,
+    propagation_grid_n: int,
+    config: SystemErrorConfig = SystemErrorConfig(),
+    window_m: float = DEFAULT_WINDOW_M,
+    slm1_phase_lut_rad: np.ndarray | None = None,
+    slm2_phase_lut_rad: np.ndarray | None = None,
+    slm1_static_phase_map_rad: np.ndarray | None = None,
+    slm2_static_phase_map_rad: np.ndarray | None = None,
+    lens1_opd_map_m: np.ndarray | None = None,
+    lens2_opd_map_m: np.ndarray | None = None,
+    axicon_surface_height_error_m: np.ndarray | None = None,
+    axicon_input_phase_map_rad: np.ndarray | None = None,
+) -> dict[str, Any]:
+    """Build the relay on a wide grid and the axicon on a finer fixed window.
+
+    This is a scalar effective-channel route.  In particular, ``V20`` can
+    represent the measured bench convention ``ell_SLM1=+10``,
+    ``ell_SLM2=-10``, effective ``q=20`` for intensity morphology, but it is
+    not a replacement for the sequential two-polarisation Jones calculation.
+    """
+    relay_grid_n = int(relay_grid_n)
+    propagation_grid_n = int(propagation_grid_n)
+    if propagation_grid_n < relay_grid_n:
+        raise ValueError("propagation_grid_n must be >= relay_grid_n")
+    if tuple(map(float, config.axicon.tilt_rad)) != (0.0, 0.0):
+        raise ValueError("multirate handoff currently requires a parallel axicon plane")
+    if axicon_surface_height_error_m is not None and np.asarray(axicon_surface_height_error_m).shape != (
+        propagation_grid_n, propagation_grid_n,
+    ):
+        raise ValueError("multirate axicon surface map must be supplied on the propagation grid")
+
+    relay_route = build_system_route(
+        case_id,
+        grid_n=relay_grid_n,
+        config=config,
+        window_m=float(window_m),
+        slm1_phase_lut_rad=slm1_phase_lut_rad,
+        slm2_phase_lut_rad=slm2_phase_lut_rad,
+        slm1_static_phase_map_rad=slm1_static_phase_map_rad,
+        slm2_static_phase_map_rad=slm2_static_phase_map_rad,
+        lens1_opd_map_m=lens1_opd_map_m,
+        lens2_opd_map_m=lens2_opd_map_m,
+        axicon_surface_height_error_m=None,
+    )
+    if propagation_grid_n == relay_grid_n:
+        fine_grid = relay_route["grid"]
+    else:
+        fine_grid = make_xy_grid(propagation_grid_n, float(window_m) / propagation_grid_n)
+    field_on_axicon = fourier_resample_fixed_window(
+        relay_route["post_4f_selected_order"], propagation_grid_n,
+    )
+    if axicon_input_phase_map_rad is not None:
+        input_phase = np.asarray(axicon_input_phase_map_rad, dtype=float)
+        if input_phase.shape != field_on_axicon.shape:
+            raise ValueError("axicon input phase map must match the propagation grid")
+        field_on_axicon = field_on_axicon * np.exp(1j * input_phase)
+        input_phase_status = "explicit_user_or_inverse_supplied"
+    else:
+        input_phase_status = "none"
+
+    manifest = canonical_hardware_manifest()
+    wavelength = float(hardware_value(manifest, "wavelength_m"))
+    n_ax = float(hardware_value(manifest, "axicon_refractive_index"))
+    n_ext = float(hardware_value(manifest, "axicon_external_medium_index"))
+    gamma0 = math.radians(float(hardware_value(manifest, "axicon_base_angle_deg")))
+    axicon_t, axicon_meta = physical_axicon_on_own_plane(
+        fine_grid,
+        wavelength_m=wavelength,
+        base_angle_rad=gamma0,
+        refractive_index=n_ax,
+        external_index=n_ext,
+        error=config.axicon,
+        surface_height_error_m=axicon_surface_height_error_m,
+    )
+    post_axicon = np.asarray(field_on_axicon * axicon_t, dtype=np.complex128)
+    radial_period_m = TWOPI / max(float(axicon_meta["exact_kr_m_inv"]), EPS)
+    metadata = {
+        **dict(relay_route["metadata"]),
+        "route_id": "vortex_explicit_system_error_multirate_route_v2",
+        "relay_grid_n": relay_grid_n,
+        "propagation_grid_n": propagation_grid_n,
+        "relay_dx_m": float(relay_route["grid"]["dx"]),
+        "propagation_dx_m": float(fine_grid["dx"]),
+        "selected_order_handoff": "fixed-window Fourier zero-padding after physical iris",
+        "axicon_input_phase_map_status": input_phase_status,
+        "samples_per_axicon_radial_phase_period": radial_period_m / float(fine_grid["dx"]),
+        "axicon": axicon_meta,
+        "scalar_effective_channel_scope": (
+            "V20 represents ell_SLM1=+10, ell_SLM2=-10, effective q=20 morphology; "
+            "sequential polarisation/Jones effects are not claimed"
+        ),
+    }
+    return {
+        "grid": fine_grid,
+        "field_on_axicon_plane": np.asarray(field_on_axicon, dtype=np.complex128),
+        "post_axicon": post_axicon,
+        "relay_route": relay_route,
+        "metadata": metadata,
     }

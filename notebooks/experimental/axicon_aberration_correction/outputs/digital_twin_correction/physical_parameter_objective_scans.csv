@@ -1,0 +1,16 @@
+parameter,value,units,objective,selected,relative_to_min
+4F iris radius scale,0.7,ratio,0.20843220112730057,False,0.1245091497350499
+4F iris radius scale,0.85,ratio,0.20544067524733517,False,0.10836961752507368
+4F iris radius scale,1.0,ratio,0.19029164527425513,False,0.026639334381661106
+4F iris radius scale,1.15,ratio,0.18535393969574201,True,0.0
+4F iris radius scale,1.3,ratio,0.18910404810456954,False,0.02023214836967213
+effective axicon lateral displacement,-500.0,um along measured walk direction,0.6521520439320104,False,0.9608240073132972
+effective axicon lateral displacement,-250.0,um along measured walk direction,0.9400028181544675,False,1.8263042490312191
+effective axicon lateral displacement,0.0,um along measured walk direction,0.33259080952684944,True,0.0
+effective axicon lateral displacement,250.0,um along measured walk direction,0.7887870019420639,False,1.3716440122449822
+effective axicon lateral displacement,500.0,um along measured walk direction,0.49154764978089005,False,0.47793515545476395
+competing input-beam displacement,-500.0,um along measured walk direction,0.7194649983850122,False,1.1632137081855567
+competing input-beam displacement,-250.0,um along measured walk direction,0.5631424723938186,False,0.6931991391913588
+competing input-beam displacement,0.0,um along measured walk direction,0.33259080952684944,True,0.0
+competing input-beam displacement,250.0,um along measured walk direction,0.43620738467009185,False,0.31154371129692215
+competing input-beam displacement,500.0,um along measured walk direction,0.5973484389273205,False,0.7960461378266006

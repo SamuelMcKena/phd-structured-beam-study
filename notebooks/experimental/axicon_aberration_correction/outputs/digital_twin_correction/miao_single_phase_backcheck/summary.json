@@ -1,0 +1,23 @@
+{
+  "test": "one transverse residual phase, one common propagation model",
+  "planes": 18,
+  "q_target_retained_in_ideal_field": 20,
+  "target_qtheta_in_residual": false,
+  "independent_longitudinal_correction_phase": false,
+  "kr_rad_per_um": 0.4896781594027835,
+  "absolute_z_at_relative_zero_mm_fitted_from_ideal_only": 18.75,
+  "sampled_input_annulus_radius_mm": [
+    0.14093209281647717,
+    1.5099867087479695
+  ],
+  "median_measured_vs_ideal_corr": 0.8213739345185631,
+  "median_measured_vs_error_model_corr": 0.2772619396059406,
+  "error_model_correlation_gain_over_ideal": -0.5441119949126225,
+  "median_measured_vs_ideal_rmse": 0.08683875836109717,
+  "median_measured_vs_error_model_rmse": 0.1480822810974184,
+  "error_model_rmse_reduction_from_ideal": -0.06124352273632122,
+  "supports_retrieved_phase_as_cause_of_measured_distortion": false,
+  "corrected_model_interpretation": "model closure only: the same retrieved residual is exactly conjugated at the input plane",
+  "hardware_ready": false,
+  "remaining_calibration": "absolute input/SLM annulus radius, relay magnification, rotation, parity, beam footprint and phase LUT; then low-gain application plus a new measured z-stack"
+}

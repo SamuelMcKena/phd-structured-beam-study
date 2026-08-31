@@ -1,0 +1,1011 @@
+{
+  "data": {
+    "directory": "C:\\PhD\\Code\\LabStuff\\Axicon_AberrationCorrection\\z-scan 2 1010",
+    "frames": 72,
+    "planes": 18,
+    "pixel_pitch_um": 5.5,
+    "z_relative_mm": [
+      -17.0,
+      -16.0,
+      -15.0,
+      -14.0,
+      -13.0,
+      -12.0,
+      -11.0,
+      -10.0,
+      -9.0,
+      -8.0,
+      -7.0,
+      -6.0,
+      -5.0,
+      -4.0,
+      -3.0,
+      -2.0,
+      -1.0,
+      0.0
+    ],
+    "z_hexapod_mm": [
+      -11.0,
+      -10.0,
+      -9.0,
+      -8.0,
+      -7.0,
+      -6.0,
+      -5.0,
+      -4.0,
+      -3.0,
+      -2.0,
+      -1.0,
+      0.0,
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0
+    ]
+  },
+  "representative_plane": {
+    "rule": "predeclared z nearest -10 mm, independent of correction performance",
+    "z_relative_mm": -10.0
+  },
+  "effective_axicon": {
+    "measured_effective_k_perp_m_inv": 482741.41419101483,
+    "effective_internal_base_angle_deg": 9.737680176102252,
+    "effective_scale_relative_to_repository_2deg_assumption": 4.868840088051126,
+    "corresponding_surface_apex_angle_deg": 160.52463964779548,
+    "corresponding_full_cone_departure_deg": 19.475360352204504,
+    "manufacturer_nominal_text": "20 degrees",
+    "manufacturer_convention_resolved": false,
+    "interpretation": "The measured k_perp implies a 9.738 deg internal base angle in the repository convention. Its 19.475 deg full cone departure is numerically close to a nominal '20 deg' label, but no local part number/datasheet was found, so this remains an inference, not a conversion."
+  },
+  "measured_k_perp_calibration": {
+    "robust_k_perp_m_inv": 482741.41419101483,
+    "robust_mad_m_inv": 6873.7710451962,
+    "planes_used": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17
+    ],
+    "method": "per-plane azimuthal radial fit around measured core; robust median across good-SNR planes",
+    "miao_median_m_inv": 530168.422208334
+  },
+  "trajectory": {
+    "x_slope_mrad": 0.8343653250769533,
+    "y_slope_mrad": -5.352425180598655,
+    "slope_magnitude_mrad": 5.41706754707723,
+    "end_to_end_x_um": 16.50000000000002,
+    "end_to_end_y_um": -93.49999999999983,
+    "linear_rms_x_um": 1.7364917023492676,
+    "linear_rms_y_um": 2.477099563028448,
+    "quadratic_rms_x_um": 1.637454696555161,
+    "quadratic_rms_y_um": 2.4706586419619376,
+    "camera_stage_runout_separated": false
+  },
+  "nominal_morphology_gate": {
+    "mean_radial_profile_correlation": 0.9129257290362772,
+    "median_absolute_ring_radius_error_um": 1.5,
+    "maximum_nominal_dark_core_to_ring": 0.043624310049532905,
+    "source_winding": {
+      "radius_0p70_mm": -7.000000000000001,
+      "radius_1p05_mm": 20.000000000000004,
+      "radius_1p40_mm": 20.0
+    },
+    "source_winding_pass": true,
+    "samples_per_axicon_radial_phase_period": 2.6630137715016424,
+    "nominal_morphology_gate_pass": true,
+    "acceptance": {
+      "mean_radial_profile_correlation_min": 0.5,
+      "median_absolute_ring_radius_error_um_max": 10.0,
+      "maximum_nominal_dark_core_to_ring_max": 0.55,
+      "source_winding_tolerance_turns": 0.25
+    }
+  },
+  "physical_screening": {
+    "4f_iris_radius": {
+      "selected": 1.15,
+      "objective": 0.18535393969574201,
+      "minimum_on_search_boundary": false,
+      "values_within_5pct_of_minimum": [
+        1.0,
+        1.15,
+        1.3
+      ],
+      "units": "ratio",
+      "objective_definition": "RMSE between centered azimuthally averaged, plane-normalized radial intensity profiles over z"
+    },
+    "effective_axicon_lateral_displacement": {
+      "selected": 0.0,
+      "objective": 0.33259080952684944,
+      "minimum_on_search_boundary": false,
+      "values_within_5pct_of_minimum": [
+        0.0
+      ],
+      "units": "um along measured walk direction",
+      "objective_definition": "RMSE of plane-normalized intensity-centroid trajectory over z",
+      "camera_stage_runout_confounded": true
+    },
+    "competing_beam_displacement": {
+      "selected": 0.0,
+      "objective": 0.33259080952684944,
+      "minimum_on_search_boundary": false,
+      "values_within_5pct_of_minimum": [
+        0.0
+      ]
+    },
+    "identifiability_warning": "These are scalar-route hypothesis-screening values. The camera optical axis versus stage z, input Gaussian radius, and high-angle vector response are not calibrated. A selected boundary or a near-equal competing beam-displacement loss prevents a hardware adjustment claim."
+  },
+  "miao": {
+    "method": "Miao-style stack-aware k_perp branch + adaptive complex Bessel modal retrieval",
+    "planes": 18,
+    "repeats_per_plane": 4,
+    "sensor_shape_yx": [
+      2048,
+      2048
+    ],
+    "programmed_q": 20,
+    "programmed_vortex_in_correction": false,
+    "plane_to_plane_beam_recentering": false,
+    "within_plane_repeat_jitter_registration": true,
+    "camera_optical_axis_calibrated": false,
+    "camera_axis_source": "median observed beam-core diagnostic axis",
+    "retrieval_axis_yx_px_by_z_in_crop": [
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ],
+      [
+        384.5,
+        384.0
+      ]
+    ],
+    "global_k_perp_used_only_as_seed_m_inv": 489678.1594027835,
+    "k_perp_path_reliable": false,
+    "max_independent_adjacent_k_perp_fractional_jump": 0.21119732683864784,
+    "max_adjacent_k_perp_fractional_jump": 0.014419775691715446,
+    "median_adjacent_k_perp_fractional_jump": 0.003125361731298828,
+    "global_vs_independent_radial_cost_increase": -0.25080121561663854,
+    "mean_independent_fit_correlation": 0.8257478077528044,
+    "mean_global_fit_correlation": 0.821780013912931,
+    "mean_independent_fit_nrmse": 0.48901380592960375,
+    "mean_global_fit_nrmse": 0.4892599437370078,
+    "independent_planes_at_max_modal_order": 2,
+    "global_planes_at_max_modal_order": 4,
+    "k_perp_path_stability": 0.7083333333333333,
+    "k_perp_path_min_branch_stability": 0.0,
+    "k_perp_regularisation": {
+      "lambda_first": 0.0,
+      "lambda_second": 30.0,
+      "selection_status": "explicit_tradeoff_gate_passed"
+    },
+    "nominal_k_perp_calibrated": false,
+    "absolute_z_calibrated": false,
+    "slm2_conjugacy_confirmed": false,
+    "hardware_ready": false,
+    "model_comparison": {
+      "interpretation": "phase-only corrected intensity is a per-plane retrieval prediction, not a post-SLM measurement",
+      "ideal_definition": "local analytic q=20 Bessel-Gauss intensity at each globally selected k_perp; not a calibrated nominal propagation target",
+      "normalization": "each plane and each model independently normalized to peak intensity",
+      "mean_measured_vs_local_ideal_corr": 0.36120231616335724,
+      "mean_predicted_corrected_vs_local_ideal_corr": 0.9683972679578656,
+      "mean_modal_fit_vs_measured_corr": 0.8121557971755358
+    },
+    "status": "GLOBAL_K_PERP_PATH_UNRELIABLE",
+    "hardware_blockers": [
+      "measure z_at_relative_zero_from_axicon_mm before radial phase assembly",
+      "supply the intended/calibrated k_perp_nominal_m_inv before a correction trial",
+      "measure camera optical axis versus z-stage position; median beam core is diagnostic only",
+      "global k_perp(z) branch failed numerical fit/stability reliability gates",
+      "resolve the conjugate/180-degree branch with an independent reference",
+      "confirm whether SLM2 is conjugate to the reconstructed input plane",
+      "calibrate the applicable input-plane/SLM2 transform and 1030-nm LUT"
+    ]
+  },
+  "miao_single_phase_backcheck": {
+    "test": "one transverse residual phase, one common propagation model",
+    "planes": 18,
+    "q_target_retained_in_ideal_field": 20,
+    "target_qtheta_in_residual": false,
+    "independent_longitudinal_correction_phase": false,
+    "kr_rad_per_um": 0.4896781594027835,
+    "absolute_z_at_relative_zero_mm_fitted_from_ideal_only": 18.75,
+    "sampled_input_annulus_radius_mm": [
+      0.14093209281647717,
+      1.5099867087479695
+    ],
+    "median_measured_vs_ideal_corr": 0.8213739345185631,
+    "median_measured_vs_error_model_corr": 0.2772619396059406,
+    "error_model_correlation_gain_over_ideal": -0.5441119949126225,
+    "median_measured_vs_ideal_rmse": 0.08683875836109717,
+    "median_measured_vs_error_model_rmse": 0.1480822810974184,
+    "error_model_rmse_reduction_from_ideal": -0.06124352273632122,
+    "supports_retrieved_phase_as_cause_of_measured_distortion": false,
+    "corrected_model_interpretation": "model closure only: the same retrieved residual is exactly conjugated at the input plane",
+    "hardware_ready": false,
+    "remaining_calibration": "absolute input/SLM annulus radius, relay magnification, rotation, parity, beam footprint and phase LUT; then low-gain application plus a new measured z-stack"
+  },
+  "miao_input_plane_mapping": {
+    "source": "C:\\PhD\\Code\\Publication_Study\\notebooks\\experimental\\axicon_aberration_correction\\outputs\\digital_twin_correction\\miao_single_phase_backcheck\\single_transverse_phase_stacks.npz",
+    "source_plane": "Miao reconstructed input/axicon reference plane",
+    "target_plane": "digital-twin axicon input plane",
+    "mapping": "same physical metres; wrapped complex-phasor interpolation",
+    "source_dx_um": 5.5,
+    "source_shape": [
+      1024,
+      1024
+    ],
+    "source_absolute_z_model_mm": [
+      1.75,
+      2.75,
+      3.75,
+      4.75,
+      5.75,
+      6.75,
+      7.75,
+      8.75,
+      9.75,
+      10.75,
+      11.75,
+      12.75,
+      13.75,
+      14.75,
+      15.75,
+      16.75,
+      17.75,
+      18.75
+    ],
+    "not_slm2_hardware_map": true
+  },
+  "full_route_residual": {
+    "fit": {
+      "modes": [
+        1,
+        2
+      ],
+      "coefficients_rad": [
+        0.09999999999999998,
+        0.0,
+        -0.7,
+        0.0
+      ],
+      "objective": 0.6793840344908075,
+      "success": true,
+      "message": "bounded two-pass coordinate screen",
+      "iterations": 2,
+      "evaluations": [
+        {
+          "coefficients_rad": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7038052168100567
+        },
+        {
+          "coefficients_rad": [
+            -1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.70438245562583
+        },
+        {
+          "coefficients_rad": [
+            -0.5,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7036611412671904
+        },
+        {
+          "coefficients_rad": [
+            0.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7038052168100567
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7021844055361692
+        },
+        {
+          "coefficients_rad": [
+            1.0,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.704039404635889
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            -1.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7089913230745966
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            -0.5,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7049901455466986
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7021844055361692
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.5,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7054752307382021
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            1.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7176780987952642
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            -1.0,
+            0.0
+          ],
+          "objective": 0.6832232055264565
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6804401221021448
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            0.0,
+            0.0
+          ],
+          "objective": 0.7021844055361692
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            0.5,
+            0.0
+          ],
+          "objective": 0.7301071098906079
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            1.0,
+            0.0
+          ],
+          "objective": 0.7271933755314912
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            -0.5,
+            -1.0
+          ],
+          "objective": 0.7114704975244235
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            -0.5,
+            -0.5
+          ],
+          "objective": 0.6914625216064679
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6804401221021448
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            -0.5,
+            0.5
+          ],
+          "objective": 0.6924609343301161
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            -0.5,
+            1.0
+          ],
+          "objective": 0.7055796364760308
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6795035259073657
+        },
+        {
+          "coefficients_rad": [
+            0.3,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6798022408199219
+        },
+        {
+          "coefficients_rad": [
+            0.5,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6804401221021448
+        },
+        {
+          "coefficients_rad": [
+            0.7,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.681620107004471
+        },
+        {
+          "coefficients_rad": [
+            0.9,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6833450971877901
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            -0.4,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6827730432337136
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            -0.2,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6801516583029074
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6795035259073657
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.2,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6812323797547726
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.4,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6849514763473517
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.9,
+            0.0
+          ],
+          "objective": 0.6823560095567645
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.7,
+            0.0
+          ],
+          "objective": 0.6793840344908075
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.5,
+            0.0
+          ],
+          "objective": 0.6795035259073657
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.3,
+            0.0
+          ],
+          "objective": 0.6854375928307094
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.09999999999999998,
+            0.0
+          ],
+          "objective": 0.6969703036653853
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.7,
+            -0.4
+          ],
+          "objective": 0.6863906687111231
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.7,
+            -0.2
+          ],
+          "objective": 0.6814836604407747
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.7,
+            0.0
+          ],
+          "objective": 0.6793840344908075
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.7,
+            0.2
+          ],
+          "objective": 0.6803218101878662
+        },
+        {
+          "coefficients_rad": [
+            0.09999999999999998,
+            0.0,
+            -0.7,
+            0.4
+          ],
+          "objective": 0.6838488018364023
+        }
+      ]
+    },
+    "phase_plane": "numerical SLM2 relay grid; additive residual only; programmed effective q=20 and carrier are preserved",
+    "train_before": {
+      "indices": [
+        0,
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16
+      ],
+      "mean_pearson_r": 0.420889512469142,
+      "mean_rmse": 0.12467844916231474,
+      "per_plane_pearson_r": [
+        0.1892834120675509,
+        0.3493493126490391,
+        0.4123247828475666,
+        0.5452329039230909,
+        0.8452443506519742,
+        0.447179325348607,
+        0.44495344354022776,
+        0.27010818867602987,
+        0.28432989251819224
+      ],
+      "per_plane_rmse": [
+        0.13737956176873428,
+        0.11769978766274283,
+        0.11278022400769862,
+        0.10073466141930189,
+        0.07060694245249738,
+        0.10659903135277835,
+        0.14661302083437303,
+        0.15373199601964396,
+        0.1759608169430623
+      ]
+    },
+    "train_after": {
+      "indices": [
+        0,
+        2,
+        4,
+        6,
+        8,
+        10,
+        12,
+        14,
+        16
+      ],
+      "mean_pearson_r": 0.43957385116676817,
+      "mean_rmse": 0.11874553063195419,
+      "per_plane_pearson_r": [
+        0.2209473858097316,
+        0.3329419935456665,
+        0.4029168631959498,
+        0.5972753391801099,
+        0.8217397621764488,
+        0.6079465034474832,
+        0.3570296515927691,
+        0.34200938282355975,
+        0.2733577787291949
+      ],
+      "per_plane_rmse": [
+        0.12367877730801197,
+        0.11405289617211015,
+        0.10520243024010943,
+        0.09361508888227786,
+        0.06556168421864328,
+        0.0977555889554528,
+        0.1385277400601284,
+        0.17026248815092335,
+        0.16005308169993032
+      ]
+    },
+    "heldout_before": {
+      "indices": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17
+      ],
+      "mean_pearson_r": 0.41914586322579317,
+      "mean_rmse": 0.1280546136610744,
+      "per_plane_pearson_r": [
+        0.2388275544567107,
+        0.41758533912337364,
+        0.4069416009216677,
+        0.7805832641163806,
+        0.6516676634395003,
+        0.46169912603954466,
+        0.4390171202042454,
+        0.15738147663355445,
+        0.21860962409716103
+      ],
+      "per_plane_rmse": [
+        0.13140619210114743,
+        0.1187380099533485,
+        0.11743799156511654,
+        0.07578283075824656,
+        0.08089964707448286,
+        0.11819330829292002,
+        0.14997601185900708,
+        0.15944674054372543,
+        0.2006107908016752
+      ]
+    },
+    "heldout_after": {
+      "indices": [
+        1,
+        3,
+        5,
+        7,
+        9,
+        11,
+        13,
+        15,
+        17
+      ],
+      "mean_pearson_r": 0.42293831374243845,
+      "mean_rmse": 0.1246095992518163,
+      "per_plane_pearson_r": [
+        0.2743627243272323,
+        0.38575056880317815,
+        0.4871168996697928,
+        0.7513717719184463,
+        0.651895567474491,
+        0.48825371981091364,
+        0.3540248762344742,
+        0.30397049380484864,
+        0.10969820163856922
+      ],
+      "per_plane_rmse": [
+        0.12326899978264297,
+        0.11355463435429793,
+        0.09680913500837325,
+        0.07721902109896728,
+        0.08615878170911469,
+        0.11968265045948444,
+        0.14737920551292114,
+        0.17196113113217798,
+        0.1854528342083673
+      ]
+    },
+    "heldout_improved_both_metrics": true,
+    "status": "SCREENING_PREDICTION_ONLY"
+  },
+  "sampling": {
+    "fixed_physical_window_mm": 10.0,
+    "relay_grid_n": 512,
+    "note": "The 10-mm relay/source window is fixed while the post-iris axicon grid is refined. The relay grid is unchanged, so this isolates conical-phase and propagation sampling.",
+    "rows": [
+      {
+        "N": 1536,
+        "dx_um": 6.510416666666667,
+        "samples_per_effective_radial_period": 1.9992013007628704,
+        "retained_spectral_power": 1.0,
+        "mean_corr_to_finest": 0.7451742896164598,
+        "mean_rmse_to_finest": 0.08631137512222418
+      },
+      {
+        "N": 2048,
+        "dx_um": 4.8828125,
+        "samples_per_effective_radial_period": 2.665601734350494,
+        "retained_spectral_power": 0.999999893100512,
+        "mean_corr_to_finest": 0.9107991384347397,
+        "mean_rmse_to_finest": 0.048560750499371606
+      },
+      {
+        "N": 3072,
+        "dx_um": 3.2552083333333335,
+        "samples_per_effective_radial_period": 3.998402601525741,
+        "retained_spectral_power": 0.9999998438969318,
+        "mean_corr_to_finest": 0.981273271521473,
+        "mean_rmse_to_finest": 0.022945148754448554
+      },
+      {
+        "N": 4096,
+        "dx_um": 2.44140625,
+        "samples_per_effective_radial_period": 5.331203468700988,
+        "retained_spectral_power": 0.9999998226187098,
+        "mean_corr_to_finest": 1.0,
+        "mean_rmse_to_finest": 0.0
+      }
+    ],
+    "quantitative_high_angle_claim_allowed": true
+  },
+  "full_route_validation": {
+    "decision": "MODEL_SCREENING_SUPPORTED_HARDWARE_BLOCKED",
+    "mean_error_reconstruction_pearson_r": 0.35744000707386725,
+    "mean_error_reconstruction_nrmse": 0.1541339031321253,
+    "correlation_gain_over_ideal_error_simulation": 0.02407273140533034,
+    "rmse_reduction_over_ideal_error_simulation": 0.0035500185569798115,
+    "heldout_improved_both_metrics": true,
+    "sampling_3072_to_4096_converged": true,
+    "reason": "nominal route is physically coherent; residual support remains a low-gain model screen and hardware use is blocked"
+  },
+  "model_absolute_z": {
+    "relative_zero_absolute_mm": 48.0,
+    "full_route_registration": {
+      "selected_relative_zero_absolute_mm": 48.0,
+      "objective_definition": "RMSE of centered azimuthally averaged radial morphology over all measured z planes",
+      "values_within_5pct_of_minimum_mm": [
+        42.0,
+        46.0,
+        48.0
+      ],
+      "minimum_on_search_boundary": false,
+      "status": "model-bound weak registration; independent distance measurement still required"
+    },
+    "analytical_conical_gaussian_registration_mm": 18.75,
+    "status": "model-bound registration; not a measured axicon distance"
+  },
+  "hardware_ready": false,
+  "hardware_blockers": [
+    "independent camera optical axis versus z-stage position",
+    "absolute axicon-to-camera z reference",
+    "measured input Gaussian radius",
+    "manufacturer axicon angle convention/part number and vector response",
+    "SLM2 conjugacy and native scale/centre/rotation/parity",
+    "SLM2 1030-nm phase LUT",
+    "independent direct/conjugate branch test",
+    "new post-correction 18x4 BMG acquisition"
+  ],
+  "method_summary_metrics": [
+    {
+      "method": "Calibrated physical baseline",
+      "mean_pearson_r": 0.8831583124712133,
+      "median_pearson_r": 0.9831501383176386,
+      "mean_nrmse": 0.04100189960627973,
+      "median_nrmse": 0.03337090987577865,
+      "median_ring_cv": 0.16676185590405912,
+      "maximum_dark_core_ratio": 0.02265252419705652
+    },
+    {
+      "method": "Complete digital-twin correction prediction",
+      "mean_pearson_r": 0.8831583124712133,
+      "median_pearson_r": 0.9831501383176386,
+      "mean_nrmse": 0.04100189960627973,
+      "median_nrmse": 0.03337090987577865,
+      "median_ring_cv": 0.16676185590405912,
+      "maximum_dark_core_ratio": 0.02265252419705652
+    },
+    {
+      "method": "Ideal finite-energy target",
+      "mean_pearson_r": 1.0,
+      "median_pearson_r": 1.0,
+      "mean_nrmse": 0.0,
+      "median_nrmse": 0.0,
+      "median_ring_cv": 0.15949769598754757,
+      "maximum_dark_core_ratio": 0.07149097587856913
+    },
+    {
+      "method": "Measured BMG",
+      "mean_pearson_r": 0.3333672756473079,
+      "median_pearson_r": 0.29744219377650755,
+      "mean_nrmse": 0.15768392169714196,
+      "median_nrmse": 0.15611601736274205,
+      "median_ring_cv": 0.33768424617325177,
+      "maximum_dark_core_ratio": 0.13457202674920452
+    },
+    {
+      "method": "Miao-only corrected (same twin)",
+      "mean_pearson_r": 0.9785660844871342,
+      "median_pearson_r": 0.9894708832867114,
+      "mean_nrmse": 0.019695513046550272,
+      "median_nrmse": 0.016801822970514614,
+      "median_ring_cv": 0.16500671094161273,
+      "maximum_dark_core_ratio": 0.098473920793061
+    },
+    {
+      "method": "Physical fit + Miao corrected",
+      "mean_pearson_r": 0.8696409772276197,
+      "median_pearson_r": 0.9715766299761017,
+      "mean_nrmse": 0.04569372006959334,
+      "median_nrmse": 0.034787125738409606,
+      "median_ring_cv": 0.17541293895878396,
+      "maximum_dark_core_ratio": 0.037779046297661927
+    }
+  ]
+}

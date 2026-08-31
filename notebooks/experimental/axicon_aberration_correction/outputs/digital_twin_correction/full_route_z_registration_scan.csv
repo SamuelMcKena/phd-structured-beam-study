@@ -1,0 +1,12 @@
+parameter,value,units,objective,selected,relative_to_min
+absolute z at relative zero,30.0,mm,0.23154412559790052,False,0.27716309903754954
+absolute z at relative zero,32.0,mm,0.20341566619905307,False,0.12201068355640454
+absolute z at relative zero,34.0,mm,0.20868678407141902,False,0.15108538894950985
+absolute z at relative zero,36.0,mm,0.2011987465059257,False,0.10978248291309001
+absolute z at relative zero,38.0,mm,0.2009724709901156,False,0.10853438068522259
+absolute z at relative zero,40.0,mm,0.1957977215886677,False,0.0799912295030023
+absolute z at relative zero,42.0,mm,0.18716305043156392,False,0.03236366242178068
+absolute z at relative zero,44.0,mm,0.1905460006020326,False,0.05102351445840081
+absolute z at relative zero,46.0,mm,0.18563555385679156,False,0.023938217577659016
+absolute z at relative zero,48.0,mm,0.18129565892750002,True,0.0
+absolute z at relative zero,50.0,mm,0.1942277508938018,False,0.07133150370397612

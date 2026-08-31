@@ -1,0 +1,130 @@
+{
+  "method": "Miao-style stack-aware k_perp branch + adaptive complex Bessel modal retrieval",
+  "planes": 18,
+  "repeats_per_plane": 4,
+  "sensor_shape_yx": [
+    2048,
+    2048
+  ],
+  "programmed_q": 20,
+  "programmed_vortex_in_correction": false,
+  "plane_to_plane_beam_recentering": false,
+  "within_plane_repeat_jitter_registration": true,
+  "camera_optical_axis_calibrated": false,
+  "camera_axis_source": "median observed beam-core diagnostic axis",
+  "retrieval_axis_yx_px_by_z_in_crop": [
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ],
+    [
+      384.5,
+      384.0
+    ]
+  ],
+  "global_k_perp_used_only_as_seed_m_inv": 489678.1594027835,
+  "k_perp_path_reliable": false,
+  "max_independent_adjacent_k_perp_fractional_jump": 0.21119732683864784,
+  "max_adjacent_k_perp_fractional_jump": 0.014419775691715446,
+  "median_adjacent_k_perp_fractional_jump": 0.003125361731298828,
+  "global_vs_independent_radial_cost_increase": -0.25080121561663854,
+  "mean_independent_fit_correlation": 0.8257478077528044,
+  "mean_global_fit_correlation": 0.821780013912931,
+  "mean_independent_fit_nrmse": 0.48901380592960375,
+  "mean_global_fit_nrmse": 0.4892599437370078,
+  "independent_planes_at_max_modal_order": 2,
+  "global_planes_at_max_modal_order": 4,
+  "k_perp_path_stability": 0.7083333333333333,
+  "k_perp_path_min_branch_stability": 0.0,
+  "k_perp_regularisation": {
+    "lambda_first": 0.0,
+    "lambda_second": 30.0,
+    "selection_status": "explicit_tradeoff_gate_passed"
+  },
+  "nominal_k_perp_calibrated": false,
+  "absolute_z_calibrated": false,
+  "slm2_conjugacy_confirmed": false,
+  "hardware_ready": false,
+  "model_comparison": {
+    "interpretation": "phase-only corrected intensity is a per-plane retrieval prediction, not a post-SLM measurement",
+    "ideal_definition": "local analytic q=20 Bessel-Gauss intensity at each globally selected k_perp; not a calibrated nominal propagation target",
+    "normalization": "each plane and each model independently normalized to peak intensity",
+    "mean_measured_vs_local_ideal_corr": 0.36120231616335724,
+    "mean_predicted_corrected_vs_local_ideal_corr": 0.9683972679578656,
+    "mean_modal_fit_vs_measured_corr": 0.8121557971755358
+  },
+  "status": "GLOBAL_K_PERP_PATH_UNRELIABLE",
+  "hardware_blockers": [
+    "measure z_at_relative_zero_from_axicon_mm before radial phase assembly",
+    "supply the intended/calibrated k_perp_nominal_m_inv before a correction trial",
+    "measure camera optical axis versus z-stage position; median beam core is diagnostic only",
+    "global k_perp(z) branch failed numerical fit/stability reliability gates",
+    "resolve the conjugate/180-degree branch with an independent reference",
+    "confirm whether SLM2 is conjugate to the reconstructed input plane",
+    "calibrate the applicable input-plane/SLM2 transform and 1030-nm LUT"
+  ]
+}

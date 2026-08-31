@@ -1,0 +1,19 @@
+{
+  "mean_radial_profile_correlation": 0.9129257290362772,
+  "median_absolute_ring_radius_error_um": 1.5,
+  "maximum_nominal_dark_core_to_ring": 0.043624310049532905,
+  "source_winding": {
+    "radius_0p70_mm": -7.000000000000001,
+    "radius_1p05_mm": 20.000000000000004,
+    "radius_1p40_mm": 20.0
+  },
+  "source_winding_pass": true,
+  "samples_per_axicon_radial_phase_period": 2.6630137715016424,
+  "nominal_morphology_gate_pass": true,
+  "acceptance": {
+    "mean_radial_profile_correlation_min": 0.5,
+    "median_absolute_ring_radius_error_um_max": 10.0,
+    "maximum_nominal_dark_core_to_ring_max": 0.55,
+    "source_winding_tolerance_turns": 0.25
+  }
+}

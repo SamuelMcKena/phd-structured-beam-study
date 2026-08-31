@@ -1,0 +1,8 @@
+{
+  "interpretation": "phase-only corrected intensity is a per-plane retrieval prediction, not a post-SLM measurement",
+  "ideal_definition": "local analytic q=20 Bessel-Gauss intensity at each globally selected k_perp; not a calibrated nominal propagation target",
+  "normalization": "each plane and each model independently normalized to peak intensity",
+  "mean_measured_vs_local_ideal_corr": 0.36120231616335724,
+  "mean_predicted_corrected_vs_local_ideal_corr": 0.9683972679578656,
+  "mean_modal_fit_vs_measured_corr": 0.8121557971755358
+}

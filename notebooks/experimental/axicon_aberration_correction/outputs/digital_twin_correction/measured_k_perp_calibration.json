@@ -1,0 +1,26 @@
+{
+  "robust_k_perp_m_inv": 482741.41419101483,
+  "robust_mad_m_inv": 6873.7710451962,
+  "planes_used": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17
+  ],
+  "method": "per-plane azimuthal radial fit around measured core; robust median across good-SNR planes",
+  "miao_median_m_inv": 530168.422208334
+}

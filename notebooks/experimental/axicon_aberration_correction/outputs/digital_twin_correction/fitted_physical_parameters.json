@@ -1,0 +1,34 @@
+{
+  "4f_iris_radius": {
+    "selected": 1.15,
+    "objective": 0.18535393969574201,
+    "minimum_on_search_boundary": false,
+    "values_within_5pct_of_minimum": [
+      1.0,
+      1.15,
+      1.3
+    ],
+    "units": "ratio",
+    "objective_definition": "RMSE between centered azimuthally averaged, plane-normalized radial intensity profiles over z"
+  },
+  "effective_axicon_lateral_displacement": {
+    "selected": 0.0,
+    "objective": 0.33259080952684944,
+    "minimum_on_search_boundary": false,
+    "values_within_5pct_of_minimum": [
+      0.0
+    ],
+    "units": "um along measured walk direction",
+    "objective_definition": "RMSE of plane-normalized intensity-centroid trajectory over z",
+    "camera_stage_runout_confounded": true
+  },
+  "competing_beam_displacement": {
+    "selected": 0.0,
+    "objective": 0.33259080952684944,
+    "minimum_on_search_boundary": false,
+    "values_within_5pct_of_minimum": [
+      0.0
+    ]
+  },
+  "identifiability_warning": "These are scalar-route hypothesis-screening values. The camera optical axis versus stage z, input Gaussian radius, and high-angle vector response are not calibrated. A selected boundary or a near-equal competing beam-displacement loss prevents a hardware adjustment claim."
+}

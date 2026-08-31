@@ -1,0 +1,38 @@
+{
+  "study": "Miao q20 synthetic contract validation",
+  "phase_truth": "0.42 cos2theta + 0.24 sin3theta + 0.12 cos5theta at axicon input",
+  "fit_z_mm": [
+    28.0,
+    138.0
+  ],
+  "retrieval": {
+    "branch": "unresolved",
+    "branch_score_direct": -0.09117405749275473,
+    "branch_score_conjugate": -0.09273311714242555,
+    "valid_grid_fraction": 0.20724868774414062,
+    "median_plane_fit_corr": 0.8491735810632954,
+    "median_plane_fit_nrmse": 0.520859614322751,
+    "median_k_perp_m_inv": 98921.48238535812,
+    "median_mode_order": 10.0,
+    "rho_min_mm": 0.465786140285823,
+    "rho_max_mm": 2.1044509483124525
+  },
+  "phase_rms_to_exact_conjugate_rad": 0.7894065142918487,
+  "phase_rms_if_sign_reversed_rad": 0.9813871366717482,
+  "aberrated": {
+    "mean_pearson_r": 0.9707196620271983,
+    "mean_nrmse": 0.0369220624752443
+  },
+  "retrieved_correction": {
+    "mean_pearson_r": 0.8992706905915917,
+    "mean_nrmse": 0.08182921907142188
+  },
+  "oracle": {
+    "mean_pearson_r": 1.0,
+    "mean_nrmse": 1.1101400147069336e-16
+  },
+  "improvement": {
+    "pearson_r": -0.07144897143560658,
+    "nrmse": 0.044907156596177576
+  }
+}
