@@ -1,0 +1,41 @@
+{
+  "status": "model_internal_slm2_precompensation_seed_v2",
+  "source_branch": "agent/q20-observation-frame-fix",
+  "source_commit": "e6d510f60d83b2d061f0fd06001eb26a4c79ef29",
+  "source_workflow_run": 33448056722,
+  "source_artifact": "q20-detector-domain-slm2-closure-v2",
+  "basis_names": [
+    "r0_cos1", "r0_sin1", "r1_cos1", "r1_sin1",
+    "r0_cos2", "r0_sin2", "r1_cos2", "r1_sin2",
+    "r0_cos3", "r0_sin3", "r1_cos3", "r1_sin3",
+    "r0_cos4", "r0_sin4", "r1_cos4", "r1_sin4",
+    "r2_axisymmetric", "r4_axisymmetric"
+  ],
+  "coefficients_rad": [
+    0.008029457268084456, -0.05753956231001997,
+    -0.01712497829140967, -0.05413167757981542,
+    -0.6344739063171614, 0.4026474161693543,
+    0.6626175183793304, -0.48007642665084405,
+    -0.029419748158852774, 0.07069986982320682,
+    -0.056559485916038696, -0.037320723391360666,
+    -0.014379016252739636, 0.05249376944949655,
+    0.037252549416445596, -0.057733491728149476,
+    0.506983424671286, -0.17332470893878013
+  ],
+  "heldout_positive_error_vs_nominal": {
+    "mean_pearson_r": 0.9301569514565161,
+    "mean_nrmse": 0.053351125748144046,
+    "mean_radial_profile_corr": 0.9940432335296552,
+    "mean_sidelobe_profile_rmse": 0.020372262625745572,
+    "mean_opposite_peak_imbalance": 0.10839485280793236
+  },
+  "heldout_corrected_vs_nominal": {
+    "mean_pearson_r": 0.9536825885090016,
+    "mean_nrmse": 0.043684361754655586,
+    "mean_radial_profile_corr": 0.9985998741538398,
+    "mean_sidelobe_profile_rmse": 0.015089672589978814,
+    "mean_opposite_peak_imbalance": 0.1406738606805756
+  },
+  "closure_pass": false,
+  "reason_for_v3": "v2 restored overall and radial fidelity but worsened opposite-side principal-ring imbalance; v3 must put symmetry and radial-profile residuals directly into the inverse solve"
+}
