@@ -1,0 +1,45 @@
+{
+  "status": "model_inverse_candidate_not_hardware_calibrated",
+  "source_branch": "agent/q20-observation-frame-fix",
+  "source_commit": "9ae92b69ecfe5881a8cd4c1f2bfb1b74d673b60d",
+  "source_workflow_run": 33446689490,
+  "source_artifact": "q20-detector-aware-residual",
+  "comparison_frame": "measured affine beam/camera walk removed before optical residual fitting",
+  "detector_model": {
+    "pixel_pitch_um": 5.5,
+    "pixel_shape": "square",
+    "pixel_area_quadrature": "3x3 midpoint samples",
+    "additional_free_blur_fitted": false
+  },
+  "phase_plane": "selected-order field immediately before axicon",
+  "programmed_vortex_in_residual": false,
+  "angular_modes": [1, 2, 3],
+  "coefficient_order": ["cos1", "sin1", "cos2", "sin2", "cos3", "sin3"],
+  "coefficients_rad": [
+    -0.22449777606894833,
+    -0.7539155256601278,
+    -0.5064717876600906,
+    0.4976845457475839,
+    -0.13044132960345206,
+    -0.0040313216295064375
+  ],
+  "heldout_before": {
+    "mean_pearson_r": 0.7253304569442021,
+    "mean_nrmse": 0.11392412067478021
+  },
+  "heldout_positive_error_reconstruction": {
+    "mean_pearson_r": 0.7559224589864414,
+    "mean_nrmse": 0.10266383827020048,
+    "delta_r": 0.03059200204223933,
+    "delta_nrmse": -0.011260282404579727
+  },
+  "heldout_support_rule": "Pearson gain >= 0.02 and normalized RMSE reduction >= 0.003",
+  "heldout_support_pass": true,
+  "hardware_mapping_inferred": false,
+  "hardware_blockers": [
+    "SLM2 to axicon/input-plane coordinate transform is not bench-calibrated",
+    "SLM2 conjugacy/parity/rotation/scale are not independently measured",
+    "SLM2 1030-nm phase LUT/stroke is not calibrated",
+    "candidate has not yet been tested on a post-SLM measured z-stack"
+  ]
+}
