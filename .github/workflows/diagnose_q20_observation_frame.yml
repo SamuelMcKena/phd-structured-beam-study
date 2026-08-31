@@ -28,6 +28,9 @@ jobs:
       - name: Run real-BMG observation-frame diagnostic
         run: |
           python tools/diagnose_q20_observation_frame.py
+      - name: Re-score existing positive-error reconstructions in beam frame
+        run: |
+          python tools/diagnose_q20_beam_frame_closure.py
       - name: Upload diagnostic evidence
         uses: actions/upload-artifact@v4
         with:
