@@ -2,7 +2,7 @@
 
 The 4096 production check showed that the compact v2 phase correction gives the
 best intensity closure so far but changes the innermost winding contour from 20
-to 18.  The later full adjoint solve was worse.  This script therefore tests a
+to 18. The later full adjoint solve was worse. This script therefore tests a
 simple physically meaningful regularisation: scale the *same* v2 additive SLM2
 phase map by alpha, choose the best alpha that preserves q=20 on every tested
 contour, then validate that candidate on the converged N=4096 optical grid and
@@ -49,7 +49,9 @@ EPS = np.finfo(float).tiny
 SWEEP_N = 3072
 PROD_N = 4096
 AXIS_UM = np.linspace(-180.0, 180.0, 241)
-ALPHAS = np.asarray([0.0, 0.40, 0.60, 0.70, 0.80, 0.85, 0.90, 0.95, 1.00], dtype=float)
+# The coarse pass showed alpha=0.40 preserves q=20 while alpha=0.60 already
+# creates an 18-charge inner contour. Resolve that transition directly.
+ALPHAS = np.asarray([0.40, 0.45, 0.50, 0.52, 0.54, 0.56, 0.58, 0.60], dtype=float)
 WINDING_RADII_MM = (1.0, 1.1, 1.2, 1.3, 1.4, 1.5)
 THERMAL = "inferno"
 
@@ -219,8 +221,6 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     residual, cfg, wavelength, zrel, zabs, slm2 = load_problem()
 
-    # First pass at 3072: enough to remove the 2048 Cartesian aliasing while
-    # keeping a multi-candidate topology sweep tractable.
     nominal = build_multirate_system_route(
         f"V{Q}", relay_grid_n=RELAY_N, propagation_grid_n=SWEEP_N,
         window_m=FIT_WINDOW_M, config=cfg,
@@ -248,13 +248,9 @@ def main():
 
     passing = [s for s in sweep_summaries if s["topology_q20_all_contours"]]
     if not passing:
-        # Do not silently accept a topologically invalid mask.
         selected = min(sweep_summaries, key=lambda s: abs(s["alpha"]))
-        selection_status = "no_nonzero_topology_preserving_candidate"
+        selection_status = "no_topology_preserving_candidate_in_refined_range"
     else:
-        # Intensity fidelity is judged in the optical field first; detector
-        # agreement is a secondary tie-break because detector blur can hide
-        # real optical defects.
         selected = max(passing, key=lambda s: (s["mean_optical_r"], s["mean_detector_r"]))
         selection_status = "best_topology_preserving_optical_closure"
     alpha_star = float(selected["alpha"])
@@ -262,7 +258,6 @@ def main():
     del nominal, pnom, nom_opt, nom_det
     gc.collect()
 
-    # Full converged production validation of the selected strength.
     nominal4 = build_multirate_system_route(
         f"V{Q}", relay_grid_n=RELAY_N, propagation_grid_n=PROD_N,
         window_m=FIT_WINDOW_M, config=cfg,
@@ -303,8 +298,6 @@ def main():
     )
     (out / "q20_v2_strength_selected_summary.json").write_text(json.dumps(result, indent=2))
 
-    # One clean evidence figure: regularisation trade-off plus converged optical
-    # field and the camera prediction at z_rel=-10 mm.
     rep = int(np.argmin(abs(zrel + 10.0)))
     fig, axs = plt.subplots(2, 3, figsize=(15.5, 9.0), constrained_layout=True)
     good = sweep_df["topology_q20_all_contours"].astype(bool).to_numpy()
@@ -312,15 +305,25 @@ def main():
     axs[0, 0].plot(sweep_df.alpha, sweep_df.mean_detector_r, "s--", label="detector r")
     axs[0, 0].axvline(alpha_star, ls=":", lw=1.5, label=f"selected alpha={alpha_star:.2f}")
     if np.any(good):
-        axs[0, 0].scatter(sweep_df.alpha[good], sweep_df.mean_optical_r[good], s=65, facecolors="none", edgecolors="k", label="q=20 all contours")
-    axs[0, 0].set(xlabel="v2 correction strength alpha", ylabel="mean correlation", ylim=(0, 1.02), title="Correction-strength sweep")
-    axs[0, 0].grid(alpha=.25); axs[0, 0].legend(fontsize=8)
+        axs[0, 0].scatter(
+            sweep_df.alpha[good], sweep_df.mean_optical_r[good], s=65,
+            facecolors="none", edgecolors="k", label="q=20 all contours",
+        )
+    axs[0, 0].set(
+        xlabel="v2 correction strength alpha", ylabel="mean correlation",
+        ylim=(0, 1.02), title="Correction-strength sweep",
+    )
+    axs[0, 0].grid(alpha=.25)
+    axs[0, 0].legend(fontsize=8)
 
     axs[1, 0].plot(sweep_df.alpha, sweep_df.mean_optical_nrmse, "o-", label="optical NRMSE")
     axs[1, 0].plot(sweep_df.alpha, sweep_df.mean_detector_nrmse, "s--", label="detector NRMSE")
     axs[1, 0].axvline(alpha_star, ls=":", lw=1.5)
-    axs[1, 0].set(xlabel="v2 correction strength alpha", ylabel="mean NRMSE", title="Intensity error")
-    axs[1, 0].grid(alpha=.25); axs[1, 0].legend(fontsize=8)
+    axs[1, 0].set(
+        xlabel="v2 correction strength alpha", ylabel="mean NRMSE", title="Intensity error",
+    )
+    axs[1, 0].grid(alpha=.25)
+    axs[1, 0].legend(fontsize=8)
 
     ext = [AXIS_UM[0], AXIS_UM[-1], AXIS_UM[0], AXIS_UM[-1]]
     panels = [
@@ -332,13 +335,23 @@ def main():
         ax = axs[0, 1 + j] if j < 2 else axs[1, 2]
         ax.imshow(im, origin="lower", extent=ext, cmap=THERMAL, vmin=0, vmax=1)
         ax.set(title=title, xlabel="x (um)", ylabel="y (um)", aspect="equal")
-    rr, pn = radial(np.asarray(nom4_opt)[rep]); _, pc = radial(cor4_opt[rep]); _, pd = radial(cor4_det[rep])
+
+    rr, pn = radial(np.asarray(nom4_opt)[rep])
+    _, pc = radial(cor4_opt[rep])
+    _, pdet = radial(cor4_det[rep])
     axs[1, 1].plot(rr, pn, lw=1.7, label="nominal optical")
     axs[1, 1].plot(rr, pc, "--", lw=1.5, label="selected optical")
-    axs[1, 1].plot(rr, pd, ":", lw=1.5, label="predicted BeamGage")
-    axs[1, 1].set(xlim=(0, 140), xlabel="radius (um)", ylabel="azimuthal mean intensity", title="Representative radial profile")
-    axs[1, 1].grid(alpha=.25); axs[1, 1].legend(fontsize=8)
-    fig.suptitle("q=20 v2 SLM2 correction-strength regularisation: preserve topology before maximising closure")
+    axs[1, 1].plot(rr, pdet, ":", lw=1.5, label="predicted BeamGage")
+    axs[1, 1].set(
+        xlim=(0, 140), xlabel="radius (um)", ylabel="azimuthal mean intensity",
+        title="Representative radial profile",
+    )
+    axs[1, 1].grid(alpha=.25)
+    axs[1, 1].legend(fontsize=8)
+
+    fig.suptitle(
+        "q=20 v2 SLM2 correction-strength regularisation: preserve topology before maximising closure"
+    )
     fig.savefig(out / "26_q20_v2_topology_regularised_4096.png", dpi=600, bbox_inches="tight")
     fig.savefig(out / "26_q20_v2_topology_regularised_4096.pdf", bbox_inches="tight")
     plt.close(fig)
