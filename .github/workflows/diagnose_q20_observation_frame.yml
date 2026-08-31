@@ -1,0 +1,34 @@
+name: Diagnose q20 observation frame
+
+on:
+  push:
+    branches:
+      - agent/q20-observation-frame-fix
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install focused dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy pandas matplotlib pytest
+      - name: Test observation-frame utilities
+        run: |
+          pytest -q tests/test_observation_frame.py
+      - name: Run real-BMG observation-frame diagnostic
+        run: |
+          python tools/diagnose_q20_observation_frame.py
+      - name: Upload diagnostic evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: q20-observation-frame-diagnostic
+          path: outputs/validation/q20_observation_frame/
+          if-no-files-found: error
