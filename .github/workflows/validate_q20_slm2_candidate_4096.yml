@@ -1,0 +1,43 @@
+name: Validate q20 SLM2 candidate at 4096
+
+on:
+  push:
+    branches:
+      - agent/q20-observation-frame-fix
+    paths:
+      - 'tools/validate_q20_slm2_candidate_4096.py'
+      - 'notebooks/experimental/axicon_aberration_correction/candidates/q20_detector_aware_axicon_residual_candidate.json'
+      - 'notebooks/experimental/axicon_aberration_correction/candidates/q20_detector_domain_slm2_v2_candidate.json'
+      - '.github/workflows/validate_q20_slm2_candidate_4096.yml'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install numerical dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy pandas matplotlib pytest
+      - name: Compile and focused tests
+        run: |
+          python -m compileall -q vbb_study tools/validate_q20_slm2_candidate_4096.py
+          pytest -q tests/test_detector_response.py tests/test_vortex_explicit_system_extensions.py
+      - name: Run 4096 production validation
+        run: |
+          python tools/validate_q20_slm2_candidate_4096.py
+      - name: Upload 4096 validation evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: q20-slm2-4096-production-validation
+          path: outputs/validation/q20_slm2_4096_production/
+          if-no-files-found: error
