@@ -1,0 +1,49 @@
+{
+  "candidate_id": "q20_topology_regularised_slm2_v2_alpha_0p40",
+  "status": "model_space_candidate",
+  "source_algorithm": "v2 compact SLM2 phase correction with scalar strength regularisation",
+  "source_script": "tools/sweep_q20_v2_correction_strength.py",
+  "source_commit": "e1a85a1bcf44a6e55e6a422951699f810ff16e86",
+  "workflow_run_id": 33452587683,
+  "workflow_artifact_id": 9780371651,
+  "selected_strength_alpha": 0.4,
+  "selection_reason": "strongest tested correction in the refined sweep that retained q=20 on every winding contour; larger tested strengths improved intensity correlation but changed the innermost winding",
+  "production_validation": {
+    "grid_n": 4096,
+    "physical_window_m": 0.01,
+    "topology_q20_all_tested_contours": true,
+    "tested_winding_radii_mm": [1.0, 1.1, 1.2, 1.3, 1.4, 1.5],
+    "winding": [20.000000000000004, 20.000000000000004, 20.0, 20.000000000000004, 20.000000000000004, 20.000000000000004],
+    "mean_optical_pearson_r": 0.8340015467587102,
+    "mean_optical_nrmse": 0.07037561346844257,
+    "mean_predicted_beamgage_pearson_r": 0.9447754577748546,
+    "mean_predicted_beamgage_nrmse": 0.04180144679639665,
+    "mean_optical_x_mirror_rmse": 0.091140828813589,
+    "mean_optical_y_mirror_rmse": 0.11252804833358929
+  },
+  "comparison_to_unregularised_v2": {
+    "unregularised_alpha": 1.0,
+    "unregularised_4096_mean_optical_pearson_r": 0.883968705962425,
+    "unregularised_4096_mean_predicted_beamgage_pearson_r": 0.9556028583460096,
+    "unregularised_inner_winding_at_1p0_mm": 18.0,
+    "reason_rejected": "higher intensity closure but failed the q=20 topology check on the innermost tested contour"
+  },
+  "comparison_to_full_adjoint_phase_only": {
+    "adjoint_4096_mean_optical_pearson_r": 0.8336573993329923,
+    "adjoint_4096_mean_predicted_beamgage_pearson_r": 0.892002680059721,
+    "adjoint_inner_winding_at_1p0_mm": 14.0,
+    "reason_rejected": "worse optical/detector closure and stronger topological distortion than the regularised v2 candidate"
+  },
+  "interpretation": {
+    "optical_field": "The converged numerical field contains concentric q=20 Bessel/vortex rings.",
+    "camera_prediction": "The explicit 5.5 um BeamGage pixel response suppresses fine radial ring structure and can produce a visibly cross-like sampled appearance.",
+    "poster_use": "May be shown as model-space numerical correction validation. It must not be labelled as a measured post-correction BeamGage result."
+  },
+  "hardware_ready": false,
+  "hardware_blockers": [
+    "SLM2-to-axicon/input-plane conjugacy and coordinate transform are not independently bench calibrated",
+    "SLM2 parity, rotation, transverse scale and centre are not independently measured",
+    "SLM2 1030 nm grey-to-phase LUT / phase stroke is not calibrated",
+    "no new post-correction measured q=20 z-stack has yet been acquired for acceptance"
+  ]
+}
