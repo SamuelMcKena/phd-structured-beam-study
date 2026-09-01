@@ -1,0 +1,75 @@
+name: q20 sensorless ring metric v15
+
+on:
+  push:
+    branches: [agent/q20-observation-frame-fix]
+    paths:
+      - 'tools/q20_sensorless_ring_metric_v15.py'
+      - '.github/workflows/q20-sensorless-ring-metric-v15.yml'
+  workflow_dispatch:
+
+jobs:
+  metric-sanity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install minimal dependencies
+        run: python -m pip install --upgrade pip numpy pillow
+      - name: Verify metric prefers circular ring train
+        run: |
+          python - <<'PY'
+          import importlib.util
+          import json
+          import numpy as np
+          from pathlib import Path
+
+          path = Path('tools/q20_sensorless_ring_metric_v15.py')
+          spec = importlib.util.spec_from_file_location('metric', path)
+          metric = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(metric)
+
+          n = 512
+          yy, xx = np.indices((n, n), dtype=float)
+          c = (n - 1) / 2
+          x, y = xx - c, yy - c
+          r = np.hypot(x, y)
+          th = np.arctan2(y, x)
+
+          # Multi-ring intensity representative of an annular high-order beam.
+          ideal = sum(np.exp(-0.5 * ((r - r0) / 3.8) ** 2) * a
+                      for r0, a in [(72,1.0),(91,0.65),(111,0.42),(132,0.28)])
+          ideal /= ideal.max()
+
+          # Deliberate fourfold radius wobble + angular modulation (cross/fan proxy).
+          wobble = 8.0 * np.cos(4 * th) + 3.0 * np.cos(2 * th)
+          rd = r - wobble
+          distorted = sum(np.exp(-0.5 * ((rd - r0) / 3.8) ** 2) * a
+                          for r0, a in [(72,1.0),(91,0.65),(111,0.42),(132,0.28)])
+          distorted *= np.clip(1 + 0.45*np.cos(4*th) + 0.15*np.cos(2*th), 0.05, None)
+          distorted /= distorted.max()
+
+          mi = metric.ring_metrics(ideal, centre=(c,c))
+          md = metric.ring_metrics(distorted, centre=(c,c))
+          print(json.dumps({'ideal': mi, 'distorted': md}, indent=2))
+          assert mi['score'] < md['score'], (mi['score'], md['score'])
+          assert mi['aggregate']['m4'] < md['aggregate']['m4']
+          assert mi['aggregate']['radial_wobble_std_fraction'] < md['aggregate']['radial_wobble_std_fraction']
+
+          # Trial map API sanity: finite, bounded by requested modal amplitude.
+          phase = metric.annular_harmonic_phase((1080, 1920), 4, 0.4)
+          assert np.isfinite(phase).all()
+          assert np.max(np.abs(phase)) <= 0.4000001
+
+          out = Path('outputs/validation/q20_sensorless_ring_metric_v15')
+          out.mkdir(parents=True, exist_ok=True)
+          (out/'synthetic_metric_sanity.json').write_text(json.dumps({'ideal': mi, 'distorted': md}, indent=2))
+          np.save(out/'example_m4_annular_trial_phase_rad.npy', phase.astype(np.float32))
+          PY
+      - name: Upload metric evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: q20-sensorless-ring-metric-v15
+          path: outputs/validation/q20_sensorless_ring_metric_v15
