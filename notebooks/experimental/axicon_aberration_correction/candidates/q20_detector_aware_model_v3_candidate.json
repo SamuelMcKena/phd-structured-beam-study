@@ -1,0 +1,67 @@
+{
+  "status": "accepted_model_diagnostic_pending_v3b_boundary_check",
+  "study": "q20 detector-aware model v3: train-only beam/iris/z nuisance calibration plus compact complex residual",
+  "source_branch": "agent/q20-observation-frame-fix",
+  "source_commit": "3608e8e062df30e5786b392e495e58c785497347",
+  "workflow_run": 33459057936,
+  "artifact_id": 9782625014,
+  "artifact_name": "q20-detector-aware-model-v3",
+  "artifact_sha256": "ecd941b307f0399eef7c6ed402043d00c96cbc71058d3fd5e6bf1f84759531a8",
+  "data_split": {
+    "train_indices": [0, 2, 4, 6, 8, 10, 12, 14, 16],
+    "heldout_indices": [1, 3, 5, 7, 9, 11, 13, 15, 17],
+    "heldout_used_for_parameter_selection": false
+  },
+  "observation_frame": {
+    "affine_beam_camera_walk_removed_before_optical_fit": true,
+    "dy_dz_um_per_mm_approx": -5.35,
+    "dx_dz_um_per_mm_approx": 0.83
+  },
+  "detector_model": {
+    "pixel_pitch_um": 5.5,
+    "square_pixel_area_integration": true,
+    "midpoint_quadrature": "3x3",
+    "free_blur_fitted": false
+  },
+  "physical_nuisance": {
+    "selected_beam_radius_scale": 1.25,
+    "canonical_beam_radius_m": 0.002,
+    "selected_model_beam_radius_m": 0.0025,
+    "selected_iris_radius_scale": 1.05,
+    "selected_z0_mm": 34.5,
+    "beam_radius_optimum_was_upper_boundary_of_v3_scan": true,
+    "interpretation": "model-bound nuisance registration only; beam radius, iris radius and absolute z require independent bench calibration"
+  },
+  "heldout_metrics": {
+    "nominal_after_nuisance": {
+      "mean_pearson_r": 0.8742534269180683,
+      "mean_nrmse": 0.08484081112523129
+    },
+    "phase_only_residual": {
+      "mean_pearson_r": 0.9019256387819,
+      "mean_nrmse": 0.07282986720309641
+    },
+    "phase_plus_amplitude_diagnostic": {
+      "mean_pearson_r": 0.9142941424592992,
+      "mean_nrmse": 0.06657992865930705
+    }
+  },
+  "phase_plane": "selected-order field immediately before the axicon",
+  "phase_basis": ["defocus", "astig_cos", "astig_sin", "coma_cos", "coma_sin", "trefoil_cos", "trefoil_sin", "spherical"],
+  "phase_coefficients_rad": [-0.6055533884815489, -0.293597968701151, 0.494135900227254, 0.18447394442287696, -0.64, 0.03084809779457255, -0.0784789667940476, 0.64],
+  "amplitude_basis": ["dipole_cos", "dipole_sin", "quadrupole_cos", "quadrupole_sin"],
+  "log_amplitude_coefficients": [-0.10077073127804738, 0.0021688877249172287, -0.060331624969160454, 0.03602493317417273],
+  "amplitude_terms_are_phase_only_slm_correctable": false,
+  "miao_method_relation": {
+    "reference": "B. Miao, L. Feder, J. E. Shrock and H. M. Milchberg, Phase front retrieval and correction of Bessel beams, Opt. Express 30, 11360-11371 (2022), doi:10.1364/OE.454796",
+    "use": "intensity-only Bessel wavefront retrieval motivates compact low-order pupil phase coordinates; the present model additionally propagates through the explicit bench route and evaluates held-out z planes"
+  },
+  "hardware_ready": false,
+  "hardware_blockers": [
+    "SLM2-to-axicon/input-plane coordinate transform and conjugacy not independently calibrated",
+    "SLM2 parity, rotation, scale and centre not independently measured",
+    "SLM2 1030 nm grey-to-phase LUT/stroke not calibrated",
+    "no post-correction measured BeamGage z-stack"
+  ],
+  "poster_boundary": "Measured evidence stops at the pre-correction z-stack and inverse diagnosis. Any corrected field generated from this candidate must be labelled numerical prediction."
+}
