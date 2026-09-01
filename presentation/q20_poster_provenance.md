@@ -38,6 +38,20 @@ The observation-frame step removes only the unresolved affine beam/camera walk b
 
 The predicted detector-domain metric may be quoted as a metric, but the poster does not show a corrected BeamGage-looking image.
 
+## Comparison with Miao et al.
+
+The portrait poster explicitly compares this workflow with:
+
+B. Miao, L. Feder, J. E. Shrock and H. M. Milchberg, **"Phase front retrieval and correction of Bessel beams,"** *Optics Express* **30**, 11360-11371 (2022), doi:`10.1364/OE.454796`.
+
+The comparison is intentionally methodological rather than cosmetic:
+
+- Miao et al. fit an **analytic Bessel-mode expansion** to intensity profiles, infer `k_perp` and complex mode coefficients, use the stationary-phase relation to map each focal-plane `z` to an annulus on the input aperture, reconstruct the wavefront, decompose it into Zernike modes and apply the correction with a deformable mirror.
+- Their paper contains real measured post-correction evidence (including J0 and J16 experiments).
+- The present q=20 workflow keeps the intensity-only philosophy but embeds the inverse inside an **explicit bench-matched digital twin** containing the SLM2 carrier, finite 4F/+1 iris, refractive axicon, propagation and measured camera pixel response.
+- It also separates the diagnostic phase plane from the upstream actuator plane, uses train/held-out z planes for validation, and imposes a q=20 winding constraint on the model-space SLM2 correction candidate.
+- Unlike Miao et al., the present correction has **not yet been validated by a post-correction camera z-stack** and must not be presented as measured correction evidence.
+
 ## Hardware status
 
 This is **not yet a hardware-validated correction**. Remaining blockers recorded by the candidate are:
@@ -49,14 +63,23 @@ This is **not yet a hardware-validated correction**. Remaining blockers recorded
 
 ## Rebuild
 
-After extracting the two workflow artifacts locally:
+After extracting the two workflow artifacts locally, first build the shared poster assets:
 
 ```bash
 python presentation/build_q20_poster_assets.py \
   --detector-dir /path/to/q20-detector-aware-residual \
   --topology-dir /path/to/q20-v2-topology-regularised-4096
-
-node presentation/build_a0_q20_poster.js
 ```
 
-The PowerPoint is A0 landscape. Export it to PDF only after rendering and visually checking the slide.
+For the dense A0 portrait poster, then build its additional inverse panels and layout:
+
+```bash
+python presentation/build_q20_poster_portrait_assets.py \
+  --detector-dir /path/to/q20-detector-aware-residual
+
+node presentation/build_a0_q20_poster_portrait.js
+```
+
+The portrait builder expects the Publication Study figures under `Publication_Study/outputs/figures/publication_study` by default. Paths may be overridden with `POSTER_ASSET_DIR`, `PORTRAIT_ASSET_DIR`, `PUBLICATION_FIGURE_DIR`, and `POSTER_OUT`.
+
+The older `build_a0_q20_poster.js` remains the A0 landscape version. Export either PowerPoint to PDF only after rendering and visually checking the slide.
