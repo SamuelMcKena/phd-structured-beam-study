@@ -1,0 +1,53 @@
+name: Solve q20 IFTA circular correction v9
+
+on:
+  push:
+    branches:
+      - agent/q20-observation-frame-fix
+    paths:
+      - 'tools/solve_q20_slm2_ifta_circular_v9.py'
+      - '.github/workflows/solve_q20_slm2_ifta_circular_v9.yml'
+  workflow_dispatch:
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install numerical dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy pandas matplotlib pytest
+      - name: Compile and focused tests
+        run: |
+          python -m compileall -q vbb_study tools/solve_q20_slm2_ifta_circular_v9.py tools/solve_q20_slm2_iterative_circular_v8.py
+          pytest -q tests/test_detector_response.py tests/test_observation_frame.py tests/test_vortex_explicit_system_extensions.py
+      - name: Run finite-4F iterative Fourier correction
+        run: python tools/solve_q20_slm2_ifta_circular_v9.py
+      - name: Upload v9 correction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q20-slm2-ifta-circular-v9
+          path: outputs/validation/q20_slm2_ifta_circular_v9/
+          if-no-files-found: warn
+      - name: Enforce concentricity acceptance gate
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs/validation/q20_slm2_ifta_circular_v9/ifta_v9_summary.json')
+          if not p.exists(): raise SystemExit('v9 summary missing')
+          a=json.loads(p.read_text())['acceptance']
+          print(json.dumps(a,indent=2))
+          if not a['passes_concentricity_gate']: raise SystemExit('v9 did not pass the concentricity/topology gate')
+          PY
