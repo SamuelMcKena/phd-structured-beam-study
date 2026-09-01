@@ -30,6 +30,9 @@ jobs:
         run: |
           python -m compileall -q vbb_study tools/solve_q20_slm2_topology_guarded_multiplane_v11.py tools/solve_q20_slm2_multiplane_circular_v10.py
           pytest -q tests/test_detector_response.py tests/test_observation_frame.py tests/test_vortex_explicit_system_extensions.py tests/test_concentricity_metrics.py
+      - name: Prepare nested solver output directories
+        run: |
+          mkdir -p outputs/validation/q20_slm2_topology_guarded_multiplane_v11/v10_regenerated
       - name: Run topology-guarded multi-plane correction
         run: python tools/solve_q20_slm2_topology_guarded_multiplane_v11.py
       - name: Upload v11 correction evidence
