@@ -1,0 +1,30 @@
+{
+  "status": "frozen_correction_input_not_hardware_calibration",
+  "study": "Miao-initialised train-optimised q20 complex residual at selected-order field immediately before axicon",
+  "source_branch": "agent/q20-observation-frame-fix",
+  "source_detector_candidate": "q20_detector_aware_model_v3_candidate.json",
+  "source_crosscheck_workflow_run": 33505325295,
+  "data_split": {
+    "train_indices": [0, 2, 4, 6, 8, 10, 12, 14, 16],
+    "legacy_heldout_indices": [1, 3, 5, 7, 9, 11, 13, 15, 17],
+    "heldout_used_for_parameter_selection": false
+  },
+  "phase_plane": "selected-order field immediately before the axicon",
+  "phase_basis": ["defocus", "astig_cos", "astig_sin", "coma_cos", "coma_sin", "trefoil_cos", "trefoil_sin", "spherical"],
+  "phase_coefficients_rad": [-0.0178947142930665, -0.4043880380050487, 0.5428546327577777, 0.22916466767901136, -0.9, 0.036899686305019566, -0.022278230059042815, -0.054967638919225924],
+  "amplitude_basis": ["dipole_cos", "dipole_sin", "quadrupole_cos", "quadrupole_sin"],
+  "log_amplitude_coefficients": [-0.08879204908316041, 0.0005459322762258788, -0.07273152381213954, 0.04201023903584558],
+  "legacy_heldout_diagnostic_metrics": {
+    "mean_pearson_r": 0.9194169700665168,
+    "mean_nrmse": 0.06568060290990411
+  },
+  "miao_direction_crosscheck": {
+    "direction_pearson_r_vs_accepted_v3": 0.966626590529085,
+    "direction_cosine_similarity_vs_accepted_v3": 0.955165979385005,
+    "reference": "B. Miao et al., Opt. Express 30, 11360-11371 (2022), doi:10.1364/OE.454796"
+  },
+  "correction_use_policy": "Freeze these diagnostic coefficients during downstream SLM correction iterations. Do not re-fit them to correction validation or legacy-heldout planes.",
+  "amplitude_terms_are_directly_phase_only_slm_correctable": false,
+  "hardware_ready": false,
+  "evidence_boundary": "This is an intensity-supported model diagnostic and frozen numerical correction input; it is not a calibrated hardware aberration map or a corrected BeamGage measurement."
+}
