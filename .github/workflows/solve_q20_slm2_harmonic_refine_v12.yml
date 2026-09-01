@@ -1,0 +1,56 @@
+name: Solve q20 topology-safe harmonic refinement v12
+
+on:
+  push:
+    branches:
+      - agent/q20-observation-frame-fix
+    paths:
+      - 'tools/solve_q20_slm2_harmonic_refine_v12.py'
+      - '.github/workflows/solve_q20_slm2_harmonic_refine_v12.yml'
+  workflow_dispatch:
+
+jobs:
+  solve:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      MPLBACKEND: Agg
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+      - name: Install numerical dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install numpy scipy pandas matplotlib pytest
+      - name: Compile and focused tests
+        run: |
+          python -m compileall -q vbb_study tools/solve_q20_slm2_harmonic_refine_v12.py tools/solve_q20_slm2_topology_guarded_multiplane_v11.py tools/solve_q20_slm2_multiplane_circular_v10.py
+          pytest -q tests/test_detector_response.py tests/test_observation_frame.py tests/test_vortex_explicit_system_extensions.py tests/test_concentricity_metrics.py
+      - name: Run topology-safe harmonic refinement
+        run: python tools/solve_q20_slm2_harmonic_refine_v12.py
+      - name: Upload v12 correction evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: q20-slm2-harmonic-refine-v12
+          path: outputs/validation/q20_slm2_harmonic_refine_v12/
+          if-no-files-found: warn
+      - name: Enforce q20 and visible-concentricity gate
+        if: always()
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('outputs/validation/q20_slm2_harmonic_refine_v12/v12_summary.json')
+          if not p.exists():
+              raise SystemExit('v12 summary missing')
+          r=json.loads(p.read_text())
+          a=r.get('acceptance',{})
+          print(json.dumps(a,indent=2))
+          if not a.get('passes_concentricity_gate',False):
+              raise SystemExit('v12 did not pass q20 + multi-ring + explicit m=2/m=4 concentricity gates')
+          PY
