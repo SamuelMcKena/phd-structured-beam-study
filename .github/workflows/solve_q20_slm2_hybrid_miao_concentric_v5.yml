@@ -50,3 +50,5 @@ jobs:
           name: q20-slm2-hybrid-miao-concentric-v5
           path: outputs/validation/q20_slm2_hybrid_miao_concentric_v5/
           if-no-files-found: error
+
+# Triggered 2026-09-01 for concentric-ring acceptance audit.
