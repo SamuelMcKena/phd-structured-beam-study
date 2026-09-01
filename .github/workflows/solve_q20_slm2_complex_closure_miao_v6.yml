@@ -37,7 +37,10 @@ jobs:
       - name: Fit Miao-initialised bench-matched residual
         run: python tools/crosscheck_q20_miao_initializer.py
       - name: Solve complex-closure plus concentricity correction
-        run: python tools/solve_q20_slm2_complex_closure_miao_v6.py
+        run: |
+          python tools/solve_q20_slm2_complex_closure_miao_v6.py \
+            --candidate-json notebooks/experimental/axicon_aberration_correction/candidates/q20_detector_aware_model_v3_candidate.json \
+            --miao-dir outputs/validation/q20_miao_bessel_modal_benchmark
       - name: Upload v6 correction evidence
         uses: actions/upload-artifact@v4
         with:
