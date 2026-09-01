@@ -280,9 +280,6 @@ def build_system_route(
         lens2_opd_map_m=lens2_opd_map_m,
     )
     X = np.asarray(grid["X"], dtype=float)
-    # Two Fourier transforms in a unity-magnification 4F relay produce an image
-    # inversion.  Thus an input +G carrier appears as -G at the image plane.  In
-    # the selected-order beam frame the nominal carrier is removed with +G.
     selected_order = np.asarray(relay["output"], dtype=np.complex128) * np.exp(
         +1j * TWOPI * carrier * X
     )
@@ -367,15 +364,7 @@ def build_system_route(
 
 
 def fourier_resample_fixed_window(field: np.ndarray, output_n: int) -> np.ndarray:
-    """Band-limit resample a square field without changing its physical window.
-
-    The explicit 4F relay needs a window wide enough to contain the displaced
-    selected order, whereas a high-angle axicon needs a substantially finer
-    transverse step.  Treating those as one grid caused the q=20 route either
-    to clip the order or to alias the conical phase.  Fourier zero-padding is
-    the appropriate handoff because the selected-order iris has already made
-    the relay output band limited.
-    """
+    """Band-limit resample a square field without changing its physical window."""
     source = np.asarray(field, dtype=np.complex128)
     if source.ndim != 2 or source.shape[0] != source.shape[1]:
         raise ValueError("field must be a square 2D array")
@@ -386,9 +375,6 @@ def fourier_resample_fixed_window(field: np.ndarray, output_n: int) -> np.ndarra
     if output_n == input_n:
         return source.copy()
     spectrum = np.fft.fftshift(np.fft.fft2(source))
-    # ``make_xy_grid`` uses cell-centred coordinates.  Refining N therefore
-    # changes the first coordinate from -L/2+dx_in/2 to -L/2+dx_out/2.
-    # Account for that fractional-input-pixel origin shift before zero padding.
     delta_samples = 0.5 * (float(input_n) / output_n - 1.0)
     frequency_cycles_per_sample = np.fft.fftshift(np.fft.fftfreq(input_n, d=1.0))
     fy, fx = np.meshgrid(frequency_cycles_per_sample, frequency_cycles_per_sample, indexing="ij")
@@ -414,8 +400,15 @@ def build_multirate_system_route(
     lens2_opd_map_m: np.ndarray | None = None,
     axicon_surface_height_error_m: np.ndarray | None = None,
     axicon_input_phase_map_rad: np.ndarray | None = None,
+    axicon_input_amplitude_map: np.ndarray | None = None,
 ) -> dict[str, Any]:
     """Build the relay on a wide grid and the axicon on a finer fixed window.
+
+    ``axicon_input_phase_map_rad`` and ``axicon_input_amplitude_map`` are
+    explicit diagnostic/inverse hooks at the selected-order field immediately
+    before the physical axicon.  The amplitude hook exists so a fitted complex
+    nuisance can be propagated through a phase-only SLM correction study; it is
+    not itself interpreted as an SLM-actuated correction.
 
     This is a scalar effective-channel route.  In particular, ``V20`` can
     represent the measured bench convention ``ell_SLM1=+10``,
@@ -461,6 +454,16 @@ def build_multirate_system_route(
         input_phase_status = "explicit_user_or_inverse_supplied"
     else:
         input_phase_status = "none"
+    if axicon_input_amplitude_map is not None:
+        input_amplitude = np.asarray(axicon_input_amplitude_map, dtype=float)
+        if input_amplitude.shape != field_on_axicon.shape:
+            raise ValueError("axicon input amplitude map must match the propagation grid")
+        if not np.all(np.isfinite(input_amplitude)) or np.any(input_amplitude < 0.0):
+            raise ValueError("axicon input amplitude map must be finite and non-negative")
+        field_on_axicon = field_on_axicon * input_amplitude
+        input_amplitude_status = "explicit_diagnostic_nuisance"
+    else:
+        input_amplitude_status = "none"
 
     manifest = canonical_hardware_manifest()
     wavelength = float(hardware_value(manifest, "wavelength_m"))
@@ -487,6 +490,7 @@ def build_multirate_system_route(
         "propagation_dx_m": float(fine_grid["dx"]),
         "selected_order_handoff": "fixed-window Fourier zero-padding after physical iris",
         "axicon_input_phase_map_status": input_phase_status,
+        "axicon_input_amplitude_map_status": input_amplitude_status,
         "samples_per_axicon_radial_phase_period": radial_period_m / float(fine_grid["dx"]),
         "axicon": axicon_meta,
         "scalar_effective_channel_scope": (
