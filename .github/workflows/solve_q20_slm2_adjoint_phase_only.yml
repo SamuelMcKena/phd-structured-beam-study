@@ -41,3 +41,5 @@ jobs:
           name: q20-slm2-adjoint-phase-only
           path: outputs/validation/q20_slm2_adjoint_phase_only/
           if-no-files-found: error
+
+# Re-run 2026-09-01: compare visual annular concentricity against the newer q20 route work.
