@@ -24,9 +24,6 @@ jobs:
             'outputs/figures/presentation_phase2i/08_V1_real_error_fingerprints.png'
             'outputs/figures/presentation_phase2i/04_V1_axicon_decentre_fixed_lab.png'
             'outputs/figures/presentation_phase2i/05_V1_nonideal_tip_fixed_lab.png'
-            'outputs/figures/interface_correction/08_interface_ell3_ideal_uncorrected_corrected.png'
-            'outputs/figures/polygonal_hex_ring/11_polygonal_hex_ring_ideal_lab_xy_xz.png'
-            'outputs/figures/polarized_train/12_polarized_train_ideal_lab_xy_xz.png'
             'notebooks/experimental/axicon_aberration_correction/outputs/digital_twin_correction/01_measured_BMG_contact_sheet.png'
             'notebooks/experimental/axicon_aberration_correction/outputs/digital_twin_correction/02_measured_XZ_YZ_fixed_coordinates.png'
             'notebooks/experimental/axicon_aberration_correction/outputs/digital_twin_correction/03_measured_miao_digital_twin_target_comparison.png'
@@ -53,9 +50,6 @@ jobs:
             outputs/figures/presentation_phase2i/08_V1_real_error_fingerprints.png
             outputs/figures/presentation_phase2i/04_V1_axicon_decentre_fixed_lab.png
             outputs/figures/presentation_phase2i/05_V1_nonideal_tip_fixed_lab.png
-            outputs/figures/interface_correction/08_interface_ell3_ideal_uncorrected_corrected.png
-            outputs/figures/polygonal_hex_ring/11_polygonal_hex_ring_ideal_lab_xy_xz.png
-            outputs/figures/polarized_train/12_polarized_train_ideal_lab_xy_xz.png
             notebooks/experimental/axicon_aberration_correction/outputs/digital_twin_correction/01_measured_BMG_contact_sheet.png
             notebooks/experimental/axicon_aberration_correction/outputs/digital_twin_correction/02_measured_XZ_YZ_fixed_coordinates.png
             notebooks/experimental/axicon_aberration_correction/outputs/digital_twin_correction/03_measured_miao_digital_twin_target_comparison.png
