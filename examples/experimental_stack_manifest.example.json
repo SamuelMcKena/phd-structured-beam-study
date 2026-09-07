@@ -1,0 +1,25 @@
+{
+  "schema": "vbb-experimental-intensity-stack-v1",
+  "case_id": "V3",
+  "z_reference": "post_axicon_plane",
+  "coordinate_calibration": {
+    "pixel_pitch_m": [5.5e-06, 5.5e-06],
+    "array_centre_m": [0.0, 0.0],
+    "orientation": {
+      "transpose": false,
+      "flip_x": false,
+      "flip_y": false
+    }
+  },
+  "planes": [
+    {"z_m": 0.040, "path": "z_040mm.npy"},
+    {"z_m": 0.060, "path": "z_060mm.npy"},
+    {"z_m": 0.080, "path": "z_080mm.npy"}
+  ],
+  "metadata": {
+    "IMPORTANT": "All numerical values in this example are placeholders. Replace them with measured/calibrated camera and stage values before using real data.",
+    "camera_export": "record the actual export format and any camera-side processing here",
+    "exposure": "record exposure/gain settings here",
+    "beam_case_notes": "record SLM/axicon settings here"
+  }
+}
