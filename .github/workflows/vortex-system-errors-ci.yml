@@ -31,6 +31,7 @@ jobs:
             tests/test_vortex_system_errors.py \
             tests/test_vortex_explicit_system_extensions.py \
             tests/test_error_model_cleanup.py \
+            tests/test_phase2a_canonical_lab_realism.py \
             -q
       - name: Compile corrected physics modules
         run: |
@@ -59,17 +60,17 @@ jobs:
           python tools/run_vortex_system_error_suite.py \
             --cases B0 \
             --families beam_lateral_decentre_x fourf_iris_offset_x \
-            --grid-n 256 \
+            --grid-n 512 \
             --z-mm 60
       - name: Axicon-physics-v3 smoke
         run: |
           python tools/run_vortex_axicon_physics_suite_v3.py \
             --cases B0 \
             --families axicon_lateral_decentre_x \
-            --grid-n 256 \
+            --grid-n 512 \
             --z-mm 60
       - name: Visual-atlas canonical-route smoke
-        run: python tools/run_vortex_visual_atlas.py --grid-n 256 --cases B0 --z-mm 60
+        run: python tools/run_vortex_visual_atlas.py --grid-n 512 --cases B0 --z-mm 60
       - name: Upload smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
