@@ -50,14 +50,22 @@ jobs:
             vbb_study/digital_twin/vortex_physical_errors.py \
             tools/check_vortex_explicit_4f_parity.py \
             tools/run_vortex_system_error_suite.py \
+            tools/run_vortex_axicon_physics_suite_v3.py \
             tools/run_vortex_declared_aberration_suite.py
       - name: Nominal explicit-4F parity gate
         run: python tools/check_vortex_explicit_4f_parity.py --grid-n 512 --cases B0 V1 V3
-      - name: Small executable smoke sweep
+      - name: Generic system-error smoke sweep
         run: |
           python tools/run_vortex_system_error_suite.py \
             --cases B0 \
-            --families beam_lateral_decentre_x axicon_round_tip fourf_iris_offset_x \
+            --families beam_lateral_decentre_x fourf_iris_offset_x \
+            --grid-n 256 \
+            --z-mm 60
+      - name: Axicon-physics-v3 smoke
+        run: |
+          python tools/run_vortex_axicon_physics_suite_v3.py \
+            --cases B0 \
+            --families axicon_lateral_decentre_x \
             --grid-n 256 \
             --z-mm 60
       - name: Visual-atlas canonical-route smoke
@@ -70,5 +78,7 @@ jobs:
           path: |
             outputs/validation/vortex_system_errors
             outputs/figures/vortex_system_errors
+            outputs/validation/axicon_physics_v3
+            outputs/figures/axicon_physics_v3
             outputs/validation/vortex_visual_atlas
           if-no-files-found: warn
