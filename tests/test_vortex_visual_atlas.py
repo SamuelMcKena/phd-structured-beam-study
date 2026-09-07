@@ -16,12 +16,8 @@ from vbb_study.digital_twin.vortex_visual_atlas import (
 
 def test_expected_zernike_modes_are_registered() -> None:
     assert set(ZERNIKE_REGISTRY) == {
-        "defocus",
-        "astigmatism_x",
-        "astigmatism_y",
-        "coma_x",
-        "coma_y",
-        "spherical",
+        "defocus", "astigmatism_x", "astigmatism_y", "coma_x", "coma_y",
+        "trefoil_x", "trefoil_y", "quadrafoil_x", "quadrafoil_y", "spherical",
     }
 
 
@@ -51,13 +47,14 @@ def test_nonzero_coma_changes_phase_not_pointwise_amplitude() -> None:
     assert np.allclose(np.abs(source), np.abs(changed), rtol=1e-12, atol=1e-12)
 
 
-def test_nominal_atlas_source_uses_physical_error_route() -> None:
+def test_nominal_atlas_source_uses_canonical_system_route() -> None:
     source, grid, meta = build_atlas_source("V3", grid_n=256)
     assert source.shape == (256, 256)
     assert grid["N"] == 256
-    assert meta["route_id"] == "phase2e_physical_error_route"
+    assert meta["route_id"] == "vortex_explicit_system_error_route_v1"
     assert meta["input_angle_applied_plane"] == "before_SLM1"
     assert meta["additional_objective_pupil_application_count"] == 0
+    assert meta["atlas_evidence_status"] == "research_sensitivity_not_measured_validation"
 
 
 def test_physical_parameter_registries_have_nominal_reference_points() -> None:
@@ -86,8 +83,7 @@ def test_input_angle_and_axicon_tilt_are_distinct_physical_errors() -> None:
 def test_rounded_tip_is_explicit_manufacturing_model() -> None:
     sharp, _, sharp_meta = build_atlas_source("B0", grid_n=256)
     rounded, _, rounded_meta = build_atlas_source(
-        "B0",
-        grid_n=256,
+        "B0", grid_n=256,
         axicon_tip_model="hyperboloidal_round",
         axicon_rounding_parameter_m=5e-6,
     )
