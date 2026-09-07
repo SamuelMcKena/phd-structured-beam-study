@@ -1,6 +1,6 @@
 """Synthetic q=20 regression for faint hollow-core residuals.
 
-This is a matched-model numerical validation, not a laboratory validation.  It
+This is a matched-model numerical validation, not a laboratory validation. It
 uses the published Miao synthetic angular aberration at one representative
 annulus, retrieves complex Bessel-mode coefficients from intensity, resolves the
 intensity-only direct/conjugate branch using the known synthetic truth, applies
@@ -14,6 +14,7 @@ still requires independent branch resolution and the calibration gates in
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 
@@ -34,6 +35,7 @@ from vbb_study.correction.miao_retrieval import (
 
 TWOPI = 2.0 * np.pi
 EPS = 1e-15
+DEFAULT_OUTPUT = Path("outputs/validation/miao_correction/q20_hollow_core_metrics.json")
 
 
 def _circular_phase_rms(candidate: np.ndarray, truth: np.ndarray) -> float:
@@ -156,6 +158,7 @@ def run_validation() -> dict[str, object]:
     )
     metrics = {
         "status": "synthetic_matched_model_known_truth_branch_selection",
+        "laboratory_validation": False,
         "q": q,
         "k_perp_m_inv": k_perp,
         "rho_hat": rho_hat,
@@ -198,6 +201,8 @@ def run_validation() -> dict[str, object]:
 
 def main() -> None:
     metrics = run_validation()
+    DEFAULT_OUTPUT.parent.mkdir(parents=True, exist_ok=True)
+    DEFAULT_OUTPUT.write_text(json.dumps(metrics, indent=2) + "\n", encoding="utf-8")
     print(json.dumps(metrics, indent=2))
     if not metrics["pass"]:
         raise SystemExit("Miao q20 hollow-core regression failed: " + "; ".join(metrics["failures"]))
