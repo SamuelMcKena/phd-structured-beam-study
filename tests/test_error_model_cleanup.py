@@ -1,3 +1,5 @@
+import inspect
+
 import numpy as np
 import pytest
 from scipy import special
@@ -7,8 +9,11 @@ from vbb_study.correction.miao_forward_model import (
     primary_edge_mode_scope, published_synthetic_terms,
 )
 from vbb_study.correction.miao_diagnostics import (
-    first_bright_ring_radius, hollow_core_metrics, oracle_relative_field_error,
+    first_bright_ring_radius, hollow_core_metrics, hollow_core_residual_metrics,
+    oracle_relative_field_error,
 )
+from vbb_study.correction.miao_retrieval import fit_coefficients, fit_plane_adaptive
+from vbb_study.digital_twin.phase2a_contracts import error_injection_registry_rows
 from vbb_study.digital_twin.vortex_wavefront_errors import ZERNIKE_NAMES, unit_rms_zernike
 from vbb_study.digital_twin.legacy_error_policy import (
     assert_correction_evidence_allowed, module_policy,
@@ -63,8 +68,17 @@ def test_hollow_core_metric_detects_added_centre_light():
     bright = ideal + 0.03 * np.exp(-(R / 2.0) ** 2)
     m0 = hollow_core_metrics(ideal, x, y, q=q, k_perp=kp)
     m1 = hollow_core_metrics(bright, x, y, q=q, k_perp=kp)
+    residual = hollow_core_residual_metrics(ideal, bright, x, y, q=q, k_perp=kp)
     assert m1["centre_intensity_over_peak"] > m0["centre_intensity_over_peak"] + 0.02
     assert m1["inner_core_mean_over_peak"] > m0["inner_core_mean_over_peak"]
+    assert residual["inner_core_max_abs_residual_over_reference_peak"] > 0.02
+
+
+def test_default_miao_modal_fit_has_no_silent_regularisation():
+    fit_sig = inspect.signature(fit_coefficients)
+    plane_sig = inspect.signature(fit_plane_adaptive)
+    assert fit_sig.parameters["reg"].default == 0.0
+    assert plane_sig.parameters["coefficient_regularization"].default == 0.0
 
 
 def test_generic_zernike_basis_now_contains_miao_azimuthal_orders():
@@ -89,7 +103,32 @@ def test_canonical_system_route_is_allowed():
     assert_correction_evidence_allowed("vbb_study.digital_twin.vortex_system_route")
 
 
+def test_legacy_physical_error_api_is_wrapper_not_evidence_source():
+    row = module_policy("vbb_study.digital_twin.vortex_physical_errors")
+    assert row.status == "compatibility_restricted"
+    assert row.physical_claim_allowed
+    assert not row.correction_evidence_allowed
+    with pytest.raises(RuntimeError):
+        assert_correction_evidence_allowed("vbb_study.digital_twin.vortex_physical_errors")
+
+
 def test_component_plane_legacy_fill_factor_route_is_restricted():
     row = module_policy("vbb_study.digital_twin.component_plane_pipeline")
     assert row.status == "compatibility_restricted"
     assert not row.correction_evidence_allowed
+
+
+def test_phase2a_registry_no_longer_models_rigid_axicon_tilt_as_linear_ramp():
+    rows = {row["error_id"]: row for row in error_injection_registry_rows()}
+    tilt = rows["axicon_tilt"]
+    assert "vortex_rotated_plane" in tilt["module"]
+    assert "rotate" in tilt["mathematical_operator"].lower()
+    assert "linear phase ramp" not in tilt["mathematical_operator"].lower()
+    assert tilt["implementation_status"] == "calibration_limited"
+
+
+def test_phase2a_registry_keeps_sample_tilt_out_of_post_engine_diagnostics():
+    rows = {row["error_id"]: row for row in error_injection_registry_rows()}
+    sample = rows["sample_interface_tilt"]
+    assert "lab_perturbations" not in sample["module"]
+    assert "vector" in sample["supported_routes"].lower()
