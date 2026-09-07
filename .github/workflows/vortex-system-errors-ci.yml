@@ -2,7 +2,9 @@ name: vortex-system-errors-ci
 
 on:
   push:
-    branches: [phase2e-vortex-system-errors]
+    branches:
+      - phase2e-vortex-system-errors
+      - miao-error-vector-bessel-rebuild-2026-09-06
   workflow_dispatch:
 
 jobs:
@@ -17,7 +19,7 @@ jobs:
           cache: 'pip'
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
-      - name: Focused system-error tests
+      - name: Focused system-error and correction tests
         run: |
           python -m pytest \
             tests/test_vortex_error_reference_models.py \
@@ -26,16 +28,23 @@ jobs:
             tests/test_vortex_visual_atlas.py \
             tests/test_vortex_system_errors.py \
             tests/test_vortex_explicit_system_extensions.py \
+            tests/test_error_model_cleanup.py \
             -q
-      - name: Compile new physics modules
+      - name: Compile corrected physics modules
         run: |
           python -m compileall -q \
+            vbb_study/correction/miao_forward_model.py \
+            vbb_study/correction/miao_retrieval.py \
+            vbb_study/correction/miao_diagnostics.py \
+            vbb_study/digital_twin/legacy_error_policy.py \
             vbb_study/digital_twin/vortex_beam_slm_errors.py \
             vbb_study/digital_twin/vortex_explicit_4f.py \
             vbb_study/digital_twin/vortex_rotated_plane.py \
             vbb_study/digital_twin/vortex_system_route.py \
             vbb_study/digital_twin/vortex_system_error_sweeps.py \
             vbb_study/digital_twin/vortex_wavefront_errors.py \
+            vbb_study/digital_twin/vortex_visual_atlas.py \
+            vbb_study/digital_twin/vortex_error_research_figures.py \
             tools/check_vortex_explicit_4f_parity.py \
             tools/run_vortex_system_error_suite.py \
             tools/run_vortex_declared_aberration_suite.py
@@ -48,6 +57,8 @@ jobs:
             --families beam_lateral_decentre_x axicon_round_tip fourf_iris_offset_x \
             --grid-n 256 \
             --z-mm 60
+      - name: Visual-atlas canonical-route smoke
+        run: python tools/run_vortex_visual_atlas.py --grid-n 256 --cases B0 --z-mm 60
       - name: Upload smoke evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -56,4 +67,5 @@ jobs:
           path: |
             outputs/validation/vortex_system_errors
             outputs/figures/vortex_system_errors
+            outputs/validation/vortex_visual_atlas
           if-no-files-found: warn
