@@ -4,6 +4,15 @@ Reusable port of the mature experimental implementation. It follows the two-loop
 structure in B. Miao et al., Optics Express 30, 11360-11371 (2022): per-plane
 k_perp fitting, adaptive complex Bessel-mode fitting, stationary-phase annulus
 mapping, radial phase reconstruction and explicit hardware safety gates.
+
+The published modal fit minimises the measured-vs-model intensity mismatch.  An
+earlier port added an always-on L2 penalty to non-zero angular coefficients.
+That extra term is not part of the published objective and was found to bias a
+high-charge q=20 synthetic correction, leaving faint light inside the nominally
+hollow core.  The default is therefore now *unregularised*.  A non-zero
+``reg``/``coefficient_regularization`` remains available only as an explicitly
+opt-in numerical stabiliser and must be sensitivity-audited before it is used as
+correction evidence.
 """
 from __future__ import annotations
 
@@ -108,7 +117,16 @@ def _unpack(x: np.ndarray, m_values: np.ndarray) -> np.ndarray:
 
 def fit_coefficients(B: np.ndarray, measured: np.ndarray, weights: np.ndarray,
                      m_values: np.ndarray, maxiter: int = 160,
-                     reg: float = 2e-4) -> tuple[np.ndarray, float]:
+                     reg: float = 0.0) -> tuple[np.ndarray, float]:
+    """Fit complex modal coefficients to intensity data.
+
+    ``reg=0`` reproduces the unregularised published mismatch objective.  A
+    positive value adds the historical optional L2 stabiliser; because this can
+    attenuate real aberration coefficients and leave correction residuals it is
+    never enabled silently.
+    """
+    if float(reg) < 0.0:
+        raise ValueError("reg must be non-negative")
     y = _normalise(measured)
     w = np.asarray(weights, float)
     den = max(float(np.sum(w * y * y)), EPS)
@@ -130,10 +148,11 @@ def fit_coefficients(B: np.ndarray, measured: np.ndarray, weights: np.ndarray,
         gb = -4.0 * np.imag(z @ B) / den
         idx = np.arange(len(c)) != i0
         c0r = max(float(np.real(c[i0])), 1e-12)
-        reg_term = reg * float(np.sum(np.abs(c[idx]) ** 2)) / (c0r * c0r)
-        loss += reg_term
-        ga[idx] += 2.0 * reg * np.real(c[idx]) / (c0r * c0r)
-        gb[idx] += 2.0 * reg * np.imag(c[idx]) / (c0r * c0r)
+        reg_term = float(reg) * float(np.sum(np.abs(c[idx]) ** 2)) / (c0r * c0r)
+        if reg_term:
+            loss += reg_term
+            ga[idx] += 2.0 * float(reg) * np.real(c[idx]) / (c0r * c0r)
+            gb[idx] += 2.0 * float(reg) * np.imag(c[idx]) / (c0r * c0r)
         grad = np.empty_like(x)
         grad[0] = ga[i0] * c0r - 2.0 * reg_term
         k = 1
@@ -148,6 +167,8 @@ def fit_coefficients(B: np.ndarray, measured: np.ndarray, weights: np.ndarray,
         lambda x: fg(x)[0], x0, jac=lambda x: fg(x)[1], method="L-BFGS-B",
         options={"maxiter": int(maxiter), "ftol": 1e-12, "gtol": 1e-7, "maxls": 40},
     )
+    if not res.success and not np.isfinite(res.fun):
+        raise RuntimeError(f"modal coefficient optimisation failed: {res.message}")
     return _unpack(res.x, m_values), float(res.fun)
 
 
@@ -198,8 +219,15 @@ def fit_plane_adaptive(image: np.ndarray, z_index: int, z_relative_m: float,
                        order_step: int = 2, cost_threshold: float = 0.05,
                        min_fractional_improvement: float = 0.01,
                        rmax_um: float = 220.0, n_r: int = 48,
-                       n_theta: int = 96) -> PlaneRetrieval:
-    """Per-plane k_perp fit followed by increasing modal order."""
+                       n_theta: int = 96,
+                       coefficient_regularization: float = 0.0) -> PlaneRetrieval:
+    """Per-plane k_perp fit followed by increasing modal order.
+
+    ``coefficient_regularization`` is opt-in only; the default follows the
+    published unregularised intensity-mismatch fit.
+    """
+    if float(coefficient_regularization) < 0.0:
+        raise ValueError("coefficient_regularization must be non-negative")
     kp = optimise_k_perp_ideal_mode(
         image, center_yx, pixel_pitch_m, q, k_perp_seed_m_inv, rmax_um=rmax_um
     )
@@ -211,7 +239,9 @@ def fit_plane_adaptive(image: np.ndarray, z_index: int, z_relative_m: float,
     for order in range(2, int(max_aberration_order) + 1, int(order_step)):
         m_values = np.arange(-order, order + 1, dtype=int)
         B = modal_basis(q, m_values, kp, r, phi)
-        coeffs, cost = fit_coefficients(B, y, w, m_values)
+        coeffs, cost = fit_coefficients(
+            B, y, w, m_values, reg=float(coefficient_regularization)
+        )
         pred = _normalise(np.abs(B @ coeffs) ** 2)
         corr = float(np.corrcoef(yn, pred)[0, 1])
         nrmse = float(np.sqrt(np.mean((yn - pred) ** 2)) / max(float(np.sqrt(np.mean(yn ** 2))), EPS))
