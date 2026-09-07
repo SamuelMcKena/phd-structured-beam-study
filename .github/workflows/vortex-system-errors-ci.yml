@@ -11,6 +11,8 @@ jobs:
   physics-smoke:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      PYTHONPATH: .
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,6 +47,7 @@ jobs:
             vbb_study/digital_twin/vortex_wavefront_errors.py \
             vbb_study/digital_twin/vortex_visual_atlas.py \
             vbb_study/digital_twin/vortex_error_research_figures.py \
+            vbb_study/digital_twin/vortex_physical_errors.py \
             tools/check_vortex_explicit_4f_parity.py \
             tools/run_vortex_system_error_suite.py \
             tools/run_vortex_declared_aberration_suite.py
