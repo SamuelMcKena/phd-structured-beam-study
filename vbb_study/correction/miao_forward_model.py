@@ -1,18 +1,27 @@
-"""Forward models for Miao-compatible Bessel-beam aberration validation.
+"""Forward models and provenance rules for Miao-style Bessel-beam validation.
 
-A Miao-correctable synthetic error is a coherent phase error applied to the
-complex field before conical-wave/Bessel formation. Detector overlays,
-post-propagation intensity edits, amplitude clipping/vignetting, and incoherent
-backgrounds are separate error classes and must not be presented as if a
-phase-only Miao retrieval should remove them.
+The synthetic benchmark follows Miao et al., Optics Express 30, 11360-11371
+(2022), doi:10.1364/OE.454796.  Their Eq. (7) validation phase contains
+astigmatism, trefoil, quadrafoil *and spherical aberration*.  Do not delete the
+spherical term from anything labelled the published synthetic benchmark.
 
-Reference: B. Miao et al., Optics Express 30, 11360-11371 (2022),
-doi:10.1364/OE.454796.
+Important scope distinction
+---------------------------
+The retrieval formalism reconstructs radial and non-cylindrically-symmetric
+phase terms.  For the particular reflective axicons used experimentally, Miao
+et al. found that the dominant surface error near the aperture edge could be
+described by primary rho**m cos(m theta)/sin(m theta), m>1 terms.  That
+experiment-specific simplification must not be mislabelled as a universal
+restriction of the retrieval method.
+
+Detector overlays, post-intensity edits, amplitude clipping/vignetting and
+incoherent backgrounds remain separate error classes and cannot be presented as
+phase-only correction targets.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Literal
+from typing import Callable, Literal, Sequence
 
 import numpy as np
 from scipy import special
@@ -21,13 +30,14 @@ EPS = 1e-12
 TWOPI = 2.0 * np.pi
 
 ErrorClass = Literal[
-    "miao_correctable_phase",
+    "miao_phase_retrieval_candidate",
     "coherent_parasitic_field",
     "amplitude_or_clipping",
     "detector_or_post_intensity",
 ]
 
-MIAO_CORRECTABLE_ERROR_CLASSES: tuple[str, ...] = ("miao_correctable_phase",)
+# Backward-compatible name retained, but the value is deliberately more precise.
+MIAO_CORRECTABLE_ERROR_CLASSES: tuple[str, ...] = ("miao_phase_retrieval_candidate",)
 NON_MIAO_ERROR_CLASSES: tuple[str, ...] = (
     "coherent_parasitic_field",
     "amplitude_or_clipping",
@@ -37,7 +47,7 @@ NON_MIAO_ERROR_CLASSES: tuple[str, ...] = (
 
 @dataclass(frozen=True)
 class MiaoSyntheticAberration:
-    """Published synthetic phase mixture, optionally scaled as a whole."""
+    """Published synthetic phase mixture from Miao et al. Eq. (7), scaled as a whole."""
 
     scale: float = 1.0
     astigmatism_rad: float = 5.0
@@ -61,6 +71,22 @@ class MiaoSyntheticAberration:
         phase = self.phase(rho, theta)
         unit = np.exp(1j * phase)
         return np.angle(unit * np.exp(-1j * np.angle(np.mean(unit))))
+
+
+def published_synthetic_terms() -> tuple[str, ...]:
+    """Return the four aberration families explicitly present in Miao Eq. (7)."""
+    return ("astigmatism", "trefoil", "quadrafoil", "spherical")
+
+
+def primary_edge_mode_scope(m_values: Sequence[int]) -> bool:
+    """Whether harmonics match the experiment-specific primary m>1 simplification.
+
+    This is *not* a universal correctability test.  It only records the primary
+    azimuthal family used to describe the particular reflective-axicon surface
+    errors discussed by Miao et al.
+    """
+    m = np.asarray(tuple(m_values), dtype=int)
+    return bool(m.size and np.all(np.abs(m) > 1))
 
 
 def apply_phase_error(field: np.ndarray, phase_rad: np.ndarray) -> np.ndarray:
@@ -125,21 +151,14 @@ def miao_modal_basis(
 
 
 def synthesize_miao_focal_field(
-    *,
-    q: int,
-    k_perp: float,
-    x: np.ndarray,
-    y: np.ndarray,
+    *, q: int, k_perp: float, x: np.ndarray, y: np.ndarray,
     phase_function: Callable[[np.ndarray], np.ndarray] | None = None,
-    m_max: int = 36,
-    n_theta: int = 4096,
+    m_max: int = 36, n_theta: int = 4096,
 ) -> np.ndarray:
     """Synthesize a focal Bessel field from a coherent annular phase error."""
-    x = np.asarray(x, float)
-    y = np.asarray(y, float)
+    x = np.asarray(x, float); y = np.asarray(y, float)
     X, Y = np.meshgrid(x, y, indexing="xy")
-    r = np.hypot(X, Y)
-    phi = np.arctan2(Y, X)
+    r = np.hypot(X, Y); phi = np.arctan2(Y, X)
     m_values = np.arange(-int(m_max), int(m_max) + 1, dtype=int)
     theta = np.linspace(0.0, TWOPI, int(n_theta), endpoint=False)
     phase = np.zeros_like(theta) if phase_function is None else np.asarray(phase_function(theta), float)
@@ -149,15 +168,10 @@ def synthesize_miao_focal_field(
 
 
 def add_detector_ring_contamination(
-    intensity: np.ndarray,
-    x: np.ndarray,
-    y: np.ndarray,
-    *,
-    period: float = 3.6,
-    envelope_radius: float = 16.0,
-    amplitude: float = 0.28,
+    intensity: np.ndarray, x: np.ndarray, y: np.ndarray, *,
+    period: float = 3.6, envelope_radius: float = 16.0, amplitude: float = 0.28,
 ) -> np.ndarray:
-    """Unsupported post-intensity ring overlay for a negative control."""
+    """Unsupported post-intensity ring overlay for a deliberately negative control."""
     I = np.asarray(intensity, float)
     X, Y = np.meshgrid(np.asarray(x, float), np.asarray(y, float), indexing="xy")
     r = np.hypot(X, Y)
@@ -176,23 +190,21 @@ def recommended_radial_extent(q: int, k_perp: float, *, margin_orders: float = 8
 
 def sampling_window_report(x: np.ndarray, y: np.ndarray, *, q: int, k_perp: float,
                            margin_orders: float = 8.0) -> dict:
-    """Report whether the field of view is adequate for modal fitting."""
-    x = np.asarray(x, float)
-    y = np.asarray(y, float)
+    x = np.asarray(x, float); y = np.asarray(y, float)
     available = min(float(np.max(np.abs(x))), float(np.max(np.abs(y))))
     recommended = recommended_radial_extent(q, k_perp, margin_orders=margin_orders)
     return {
         "available_half_width": available,
         "recommended_half_width": recommended,
         "adequate": bool(available >= recommended),
-        "q": int(q),
-        "k_perp": float(k_perp),
+        "q": int(q), "k_perp": float(k_perp),
         "criterion": "half-width >= (|q| + margin_orders)/|k_perp|",
     }
 
 
 def classify_error(*, changes_complex_phase: bool, changes_amplitude: bool = False,
                    coherent_extra_field: bool = False, applied_after_intensity: bool = False) -> ErrorClass:
+    """Classify by physical operator; do not infer success from the word 'phase'."""
     if applied_after_intensity:
         return "detector_or_post_intensity"
     if coherent_extra_field:
@@ -200,14 +212,14 @@ def classify_error(*, changes_complex_phase: bool, changes_amplitude: bool = Fal
     if changes_amplitude:
         return "amplitude_or_clipping"
     if changes_complex_phase:
-        return "miao_correctable_phase"
+        return "miao_phase_retrieval_candidate"
     raise ValueError("error description does not identify a supported class")
 
 
 __all__ = [
     "ErrorClass", "MIAO_CORRECTABLE_ERROR_CLASSES", "NON_MIAO_ERROR_CLASSES",
-    "MiaoSyntheticAberration", "apply_phase_error", "phase_on_normalised_pupil",
-    "fourier_coefficients_from_annular_phase", "miao_modal_basis",
-    "synthesize_miao_focal_field", "add_detector_ring_contamination",
+    "MiaoSyntheticAberration", "published_synthetic_terms", "primary_edge_mode_scope",
+    "apply_phase_error", "phase_on_normalised_pupil", "fourier_coefficients_from_annular_phase",
+    "miao_modal_basis", "synthesize_miao_focal_field", "add_detector_ring_contamination",
     "recommended_radial_extent", "sampling_window_report", "classify_error",
 ]
