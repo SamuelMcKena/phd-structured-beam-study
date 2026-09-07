@@ -49,10 +49,13 @@ jobs:
             vbb_study/digital_twin/vortex_visual_atlas.py \
             vbb_study/digital_twin/vortex_error_research_figures.py \
             vbb_study/digital_twin/vortex_physical_errors.py \
+            scripts/validate_miao_hollow_core.py \
             tools/check_vortex_explicit_4f_parity.py \
             tools/run_vortex_system_error_suite.py \
             tools/run_vortex_axicon_physics_suite_v3.py \
             tools/run_vortex_declared_aberration_suite.py
+      - name: Miao q20 hollow-core regression gate
+        run: python scripts/validate_miao_hollow_core.py
       - name: Nominal explicit-4F parity gate
         run: python tools/check_vortex_explicit_4f_parity.py --grid-n 512 --cases B0 V1 V3
       - name: Generic system-error smoke sweep
