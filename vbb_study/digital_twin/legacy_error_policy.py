@@ -1,7 +1,7 @@
 """Authoritative evidence policy for legacy structured-beam error simulations.
 
 A historical module is never promoted to physical or correction evidence merely
-because its filename names a physical error.  This registry records whether its
+because its filename names a physical error. This registry records whether its
 operator is canonical, calibration-limited, compatibility-only, diagnostic,
 redirected, or reference-only.
 """
@@ -28,7 +28,7 @@ class LegacyErrorModule:
 
 LEGACY_ERROR_MODULES: tuple[LegacyErrorModule, ...] = (
     LegacyErrorModule("vbb_study.digital_twin.vortex_system_route", "canonical_physical", True, True, "self", "Integrated Gaussian -> SLM1 -> SLM2/carrier -> explicit 4F/iris -> axicon route; errors act at declared optical planes."),
-    LegacyErrorModule("vbb_study.digital_twin.vortex_system_error_sweeps", "canonical_physical", True, True, "vbb_study.digital_twin.vortex_system_route", "Sensitivity values are explicitly non-measured and builders use the integrated physical route."),
+    LegacyErrorModule("vbb_study.digital_twin.vortex_system_error_sweeps", "compatibility_restricted", True, False, "authorised generic runner + tools/run_vortex_axicon_physics_suite_v3.py", "Registry contains historical sweep definitions; current runners gate axicon families into axicon-physics-v3. Direct registry use is not correction evidence."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_visual_atlas", "calibration_limited", True, False, "vbb_study.digital_twin.vortex_system_route", "Atlas now routes physical errors through the canonical system model and generic Zernikes through the declared-plane OPD basis; outputs remain uncalibrated sensitivity diagnostics."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_visual_atlas_figures", "calibration_limited", True, False, "vbb_study.digital_twin.vortex_visual_atlas", "Renderer consumes the canonical-route atlas but is not measured correction validation."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_error_research_figures", "calibration_limited", True, False, "vbb_study.digital_twin.vortex_system_route", "Input-pointing figures have been redirected to the canonical system route; LCOS angular response and bench geometry still require calibration."),
@@ -38,15 +38,15 @@ LEGACY_ERROR_MODULES: tuple[LegacyErrorModule, ...] = (
     LegacyErrorModule("vbb_study.digital_twin.vortex_rotated_plane", "calibration_limited", True, True, "self", "Scalar rotated-angular-spectrum utility; not a full vector Snell/Fresnel surface solver."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_rotated_plane_baseband", "reference_only", False, False, "vbb_study.digital_twin.vortex_rotated_plane", "Numerical reference helper, not a standalone bench model."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_error_reference_models", "reference_only", False, False, "self", "Analytic/literature validation targets only."),
-    LegacyErrorModule("vbb_study.digital_twin.vortex_physical_errors", "deprecated_redirect", False, False, "vbb_study.digital_twin.vortex_system_route", "Older route prototype; its small-angle thin-element axicon-tilt approximation is superseded by explicit rotated-plane propagation."),
+    LegacyErrorModule("vbb_study.digital_twin.vortex_physical_errors", "compatibility_restricted", True, False, "vbb_study.digital_twin.vortex_system_route", "Historical public API now delegates routed simulations to vortex_system_route. Standalone rigid-tilt transmission is refused because tilt requires propagation to/from the tilted optic plane. Use the canonical route directly for evidence provenance."),
     LegacyErrorModule("vbb_study.digital_twin.component_plane_pipeline", "compatibility_restricted", True, False, "vbb_study.digital_twin.vortex_system_route", "Many errors are correctly pre-propagation, but the legacy fill-factor control is uniform sqrt(FF) throughput only and the route lacks explicit 4F planes for several controls."),
     LegacyErrorModule("vbb_study.digital_twin.lab_perturbations", "diagnostic_only", False, False, "vbb_study.digital_twin.vortex_system_route", "Explicit post-engine diagnostic layer for many stack transforms; never causal propagation or correction evidence."),
     LegacyErrorModule("vbb_study.digital_twin.lab_realism_controls", "compatibility_restricted", False, False, "vbb_study.digital_twin.vortex_system_error_sweeps", "UI/control compatibility definitions; evidence must come from the routed implementation."),
     LegacyErrorModule("vbb_study.digital_twin.phase2b_visual_cases", "diagnostic_only", False, False, "vbb_study.digital_twin.vortex_system_route", "Visual-case layer is not an authoritative physical forward model."),
     LegacyErrorModule("vbb_study.digital_twin.phase2b_visual_diagnostics", "diagnostic_only", False, False, "vbb_study.digital_twin.vortex_system_route", "Display diagnostics remain post-propagation evidence only."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_wavefront_errors", "canonical_physical", True, True, "self", "Declared-plane generic OPD maps through quadrafoil; not named-optic surrogates unless measured/derived for that optic."),
-    LegacyErrorModule("vbb_study.digital_twin.vortex_axicon_tip_reference", "reference_only", False, False, "vbb_study.digital_twin.vortex_system_route", "Rounded-tip benchmark only."),
-    LegacyErrorModule("vbb_study.digital_twin.vortex_round_tip_reference", "reference_only", False, False, "vbb_study.digital_twin.vortex_system_route", "Legacy rounded-tip reference only."),
+    LegacyErrorModule("vbb_study.digital_twin.vortex_axicon_tip_reference", "reference_only", False, False, "tools/run_vortex_axicon_physics_suite_v3.py", "Rounded-tip analytic/resolution benchmark only; propagated tip studies use axicon-physics-v3."),
+    LegacyErrorModule("vbb_study.digital_twin.vortex_round_tip_reference", "reference_only", False, False, "tools/run_vortex_axicon_physics_suite_v3.py", "Legacy rounded-tip reference only."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_axicon_oblique_reference", "reference_only", False, False, "vbb_study.digital_twin.vortex_system_route", "Oblique-incidence literature/reference contract only."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_axicon_oblique_wave", "deprecated_redirect", False, False, "vbb_study.digital_twin.vortex_system_route", "Special-purpose oblique-wave implementation superseded by the integrated route plus independent reference checks."),
     LegacyErrorModule("vbb_study.digital_twin.vortex_refractive_axicon", "deprecated_redirect", False, False, "vbb_study.digital_twin.vortex_system_route", "Older scalar refractive-axicon route retained for regression/reference comparison."),
