@@ -80,6 +80,7 @@ jobs:
         with:
           name: vortex-system-errors-smoke
           path: |
+            outputs/validation/miao_correction
             outputs/validation/vortex_system_errors
             outputs/figures/vortex_system_errors
             outputs/validation/axicon_physics_v3
