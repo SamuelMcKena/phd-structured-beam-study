@@ -1,0 +1,66 @@
+name: Phase 3 Zemax cross-validation bridge
+
+on:
+  push:
+    branches:
+      - phase3-zemax-cross-validation
+    paths:
+      - "vbb_study/integrations/zemax/**"
+      - "tools/*zemax*"
+      - "tools/export_phase3_python_reference.py"
+      - "tests/test_zemax_*"
+      - "docs/phase3_zemax/**"
+      - "requirements-zemax.txt"
+      - "pytest.ini"
+      - ".github/workflows/phase3-zemax-cross-validation.yml"
+  workflow_dispatch:
+
+jobs:
+  repository-tests-without-zemax:
+    name: Python 3.13 repository tests (no OpticStudio)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install frozen report/test dependencies
+        run: python -m pip install -r requirements-report.txt
+      - name: Compile repository
+        run: python -m compileall -q vbb_study tools tests
+      - name: Run test suite without live Zemax marker
+        run: python -m pytest tests -q -m "not zemax"
+
+  zospy-import-on-windows:
+    name: ZOSPy 2.1.5 import and graceful no-OpticStudio preflight
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install core and optional Zemax dependencies
+        run: python -m pip install -r requirements-report.txt -r requirements-zemax.txt
+      - name: Prove ZOSPy imports on Python 3.13
+        run: python -c "import importlib.metadata as m; import zospy; print('ZOSPy', m.version('zospy'), 'imported successfully')"
+      - name: Run optional-import tests
+        run: python -m pytest tests/test_zemax_optional_import.py tests/test_zemax_models.py tests/test_zemax_no_install_behavior.py -q
+      - name: Check graceful preflight without assuming OpticStudio on GitHub runner
+        shell: pwsh
+        run: |
+          python tools/check_zemax_environment.py --no-connect
+          $code = $LASTEXITCODE
+          if ($code -eq 0) {
+            Write-Host "OpticStudio/ZOS-API unexpectedly available on runner; preflight passed."
+            exit 0
+          }
+          if ($code -eq 3 -or $code -eq 4) {
+            Write-Host "Expected GitHub-hosted-runner state: ZOSPy imports, but live OpticStudio/ZOS-API or licence is unavailable."
+            exit 0
+          }
+          Write-Error "Unexpected Zemax preflight exit code: $code"
+          exit $code
