@@ -1,0 +1,46 @@
+name: Phase 3B bench-calibrated broadband twin
+
+on:
+  push:
+    branches:
+      - phase3b-bench-calibrated-broadband-twin
+    paths:
+      - "vbb_study/equations/dispersion.py"
+      - "vbb_study/equations/calibrated_objective.py"
+      - "vbb_study/equations/vector_surface_refraction.py"
+      - "vbb_study/equations/__init__.py"
+      - "vbb_study/digital_twin/broadband_propagation.py"
+      - "vbb_study/digital_twin/phase3b_bench_broadband.py"
+      - "vbb_study/calibration/detector_transfer.py"
+      - "vbb_study/calibration/full_field_uncertainty.py"
+      - "vbb_study/calibration/__init__.py"
+      - "tests/test_phase3b_broadband_twin.py"
+      - "docs/phase3b/**"
+      - "docs/04_model_limitations.md"
+      - "config/phase3b_bench_calibrated.example.json"
+      - ".github/workflows/phase3b-broadband-twin.yml"
+  workflow_dispatch:
+
+jobs:
+  phase3b-regression:
+    name: Python 3.13 Phase 3B physics and calibration regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+      - name: Install repository test dependencies
+        run: python -m pip install -r requirements-report.txt
+      - name: Compile Phase 3B and dependent packages
+        run: python -m compileall -q vbb_study tests/test_phase3b_broadband_twin.py
+      - name: Check Phase 3B branch diff whitespace
+        run: git diff --check origin/phase3-zemax-cross-validation...HEAD
+      - name: Run Phase 3B regression tests
+        run: python -m pytest tests/test_phase3b_broadband_twin.py -q
+      - name: Re-run vector objective and calibration bridge regressions
+        run: python -m pytest tests/test_phase2c_objective_interface.py tests/test_phase2d_calibration_bridge.py -q
