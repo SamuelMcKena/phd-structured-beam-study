@@ -26,12 +26,7 @@ class ZemaxAvailability:
 
     @property
     def ready(self) -> bool:
-        return bool(
-            self.zospy_installed
-            and self.zosapi_loadable
-            and self.license_available
-            and self.standalone_connection_available
-        )
+        return bool(self.zospy_installed and self.zosapi_loadable and self.license_available and self.standalone_connection_available)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -69,7 +64,7 @@ class PopRequest:
     polarization: bool = False
     beam_type: str = "GaussianWaist"
     beam_file: str = ""
-    beam_parameters: dict[str, float] | None = None
+    beam_parameters_m: dict[str, float] | None = None
     save_output_beam: bool = False
     output_beam_file: str = ""
     save_beam_at_all_surfaces: bool = False
@@ -179,19 +174,7 @@ class FieldPlane:
         return np.asarray(self.intensity, dtype=float)
 
     def copy_with(self, **changes: Any) -> "FieldPlane":
-        values = {
-            "x_m": self.x_m,
-            "y_m": self.y_m,
-            "wavelength_m": self.wavelength_m,
-            "Ex": self.Ex,
-            "Ey": self.Ey,
-            "Ez": self.Ez,
-            "intensity": self.intensity,
-            "phase": self.phase,
-            "plane_name": self.plane_name,
-            "source_solver": self.source_solver,
-            "metadata": dict(self.metadata),
-        }
+        values = {"x_m": self.x_m, "y_m": self.y_m, "wavelength_m": self.wavelength_m, "Ex": self.Ex, "Ey": self.Ey, "Ez": self.Ez, "intensity": self.intensity, "phase": self.phase, "plane_name": self.plane_name, "source_solver": self.source_solver, "metadata": dict(self.metadata)}
         values.update(changes)
         return FieldPlane(**values)
 
