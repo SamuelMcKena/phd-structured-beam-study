@@ -1,0 +1,10 @@
+{
+  "input_plane": 1,
+  "after_slm1": null,
+  "fourier_plane": null,
+  "spatial_filter": null,
+  "after_slm2": null,
+  "after_axicon": null,
+  "objective_entrance": null,
+  "sample_surface": null
+}
