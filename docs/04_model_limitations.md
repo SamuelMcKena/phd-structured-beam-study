@@ -2,7 +2,7 @@
 
 This document records the current limits of the simulation framework. It replaces
 older statements that described only the historical scalar route and therefore
-understated later Phase 2C, Phase 3A and Phase 3B capabilities.
+understated later Phase 2C, Phase 2H, Phase 3A and Phase 3B capabilities.
 
 The core rule is unchanged: a feature being implemented in code does **not** make
 it experimentally validated, and a sensitivity value does not become a measured
@@ -18,6 +18,8 @@ The repository now contains several solver levels with different authority:
   morphology;
 - vector angular-spectrum propagation where vector free-space propagation is
   required;
+- the Phase 2H common-eikonal vector two-surface refractive axicon model for
+  the implemented flat-first macroscopic misaligned/tilted axicon geometry;
 - vector Debye/Richards-Wolf focusing for quantitative high-NA focal/vector
   observables;
 - vector spectral Fresnel transmission for planar dielectric interfaces;
@@ -85,32 +87,46 @@ lens decentre, finite apertures, user-supplied OPD maps, iris offset/radius and
 rigid lens-plane tilt through rotated angular-spectrum mapping.
 
 The principal remaining limitation is that L1/L2 are still thin/paraxial lens
-models. Strongly tilted or thick lenses require surface-by-surface refractive
-modelling or the independent OpticStudio prescription backend.
+models. Strongly tilted or thick multi-element lenses require a dedicated
+surface-by-surface prescription treatment; the Phase 3A OpticStudio backend is
+the current independent prescription-dependent route for those cases.
 
 ---
 
 ## 5. Refractive axicon
 
-The current axicon research branch includes:
+There are two distinct axicon fidelity levels and they must not be conflated.
+
+The scalar/source-scale research branch includes:
 
 - exact normal-incidence Snell cone angle rather than only the shallow-cone
   approximation;
 - lateral beam/apex decentre;
-- rigid tilted-plane propagation;
+- rotated-plane tilt sensitivity;
 - finite clear aperture when supplied;
 - base-angle and refractive-index variation;
 - rounded/hyperboloidal and flat/blunt apex defects;
 - optional measured surface-height error map.
 
-Phase 3B adds an exact local vector Snell/Fresnel surface-boundary primitive for
-arbitrary surface normals.
+For quantitative non-zero rigid axicon tilt in the currently implemented
+flat-first macroscopic geometry, **Phase 2H is the authoritative in-repository
+route**. It represents two real dielectric surfaces, performs exact vector Snell
+refraction at the entrance and conical exit surfaces, solves the actual ray/cone
+intersection, includes finite glass optical path and reconstructs a common-eikonal
+vector boundary field on a fixed laboratory plane before vector propagation.
+The calibrated bench route explicitly refuses to substitute the older rotated
+thin-phase surrogate for this case.
 
-What is **not yet complete** is a general vector wave-field remapper through the
-actual two-surface curved/thick axicon geometry. Therefore large axicon tilt,
-strong oblique incidence or absolute thick-element vector predictions are not
-claimed from the scalar rotated-plane axicon model alone. Those cases require a
-future curved-surface wave solver or independent OpticStudio cross-validation.
+Phase 3B additionally exposes a generic arbitrary-normal local vector
+Snell/Fresnel boundary primitive for reuse outside the axicon-specific Phase 2H
+implementation. It does not replace the Phase 2H solver.
+
+The remaining limitation is that Phase 2H is a **vector geometrical-optics /
+eikonal boundary-field model**, not a full-volume FDTD/FEM electromagnetic
+solution throughout the glass. Its common-eikonal and geometric validity gates
+therefore remain part of the claim boundary. Unsupported surface ordering,
+microscopic apex physics beyond the model resolution, or regimes outside those
+gates must not be silently extrapolated.
 
 ---
 
@@ -131,7 +147,8 @@ Gaussian spectrum is available only as a labelled numerical control.
 
 The code includes a named fused-silica Malitson Sellmeier model. Other glasses
 must be explicitly identified or supplied. A single constant refractive index is
-allowed only as a labelled non-dispersive comparison model.
+allowed only as a labelled non-dispersive comparison model and is not sufficient
+for a calibrated broadband-dispersion claim.
 
 ---
 
