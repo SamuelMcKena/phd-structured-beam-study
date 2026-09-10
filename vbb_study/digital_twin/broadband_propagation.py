@@ -1,9 +1,9 @@
 """Broadband linear-optics orchestration for the bench-calibrated digital twin.
 
-This module does not invent a new propagation solver.  It repeatedly calls a
+This module does not invent a new propagation solver. It repeatedly calls a
 user-supplied single-wavelength field solver and combines the returned fields
-with an explicitly supplied optical spectrum.  Slow camera/beam-profiler
-observables are formed as the incoherent spectral sum of intensities.  Coherent
+with an explicitly supplied optical spectrum. Slow camera/beam-profiler
+observables are formed as the incoherent spectral sum of intensities. Coherent
 time-domain reconstruction is available only when complex spectral phase is
 supplied or deliberately declared zero.
 
@@ -12,8 +12,9 @@ The intended use is:
     measured spectrum -> one-wavelength canonical optical route -> spectral
     field stack -> detector-integrated intensity and optional temporal field.
 
-All wavelength values are SI metres and all spectral weights are pulse-energy
-fractions after normalisation.
+All wavelength values are SI metres. ``Spectrum.energy_weights`` are integrated
+energy fractions assigned to the discrete spectral samples, not raw spectral-
+density point values.
 """
 
 from __future__ import annotations
@@ -28,6 +29,20 @@ import numpy as np
 EPS = np.finfo(float).tiny
 C0 = 299_792_458.0
 TWOPI = 2.0 * np.pi
+
+
+def _quadrature_cell_widths(axis: np.ndarray) -> np.ndarray:
+    """Return trapezoidal point weights for a strictly increasing 1-D axis."""
+
+    values = np.asarray(axis, dtype=float)
+    if values.ndim != 1 or values.size < 2 or np.any(~np.isfinite(values)) or np.any(np.diff(values) <= 0.0):
+        raise ValueError("quadrature axis must be finite, 1-D and strictly increasing")
+    widths = np.empty_like(values)
+    widths[0] = 0.5 * (values[1] - values[0])
+    widths[-1] = 0.5 * (values[-1] - values[-2])
+    if values.size > 2:
+        widths[1:-1] = 0.5 * (values[2:] - values[:-2])
+    return widths
 
 
 @dataclass(frozen=True)
@@ -132,21 +147,60 @@ def spectrum_from_arrays(
     spectral_phase_rad: Sequence[float] | None = None,
     metadata: Mapping[str, Any] | None = None,
 ) -> Spectrum:
+    """Build a spectrum from already-integrated discrete energy weights."""
+
     return Spectrum(
         wavelengths_m=np.asarray(wavelengths_m, dtype=float),
         energy_weights=np.asarray(spectral_energy, dtype=float),
         spectral_phase_rad=None if spectral_phase_rad is None else np.asarray(spectral_phase_rad, dtype=float),
-        metadata=dict(metadata or {}),
+        metadata={"spectral_value_interpretation": "integrated_discrete_energy_weights", **dict(metadata or {})},
     ).validated()
 
 
+def spectrum_from_wavelength_density(
+    wavelengths_m: Sequence[float],
+    spectral_density: Sequence[float],
+    *,
+    spectral_phase_rad: Sequence[float] | None = None,
+    metadata: Mapping[str, Any] | None = None,
+) -> Spectrum:
+    """Integrate a sampled spectral density over wavelength before normalising.
+
+    The absolute density unit may be per metre, per nanometre, detector counts
+    per nanometre, or another constant-scaled wavelength-density unit because
+    only relative pulse-energy fractions are formed. Non-uniform wavelength
+    spacing is handled by trapezoidal quadrature point weights.
+    """
+
+    wl = np.asarray(wavelengths_m, dtype=float)
+    density = np.asarray(spectral_density, dtype=float)
+    if wl.ndim != 1 or density.shape != wl.shape or wl.size < 2:
+        raise ValueError("spectral density requires matching 1-D arrays with at least two samples")
+    if np.any(~np.isfinite(density)) or np.any(density < 0.0):
+        raise ValueError("spectral density must be finite and non-negative")
+    widths = _quadrature_cell_widths(wl)
+    integrated = density * widths
+    return spectrum_from_arrays(
+        wl,
+        integrated,
+        spectral_phase_rad=spectral_phase_rad,
+        metadata={
+            "spectral_value_interpretation": "wavelength_density_integrated_by_trapezoidal_point_weights",
+            "wavelength_grid_nonuniform": bool(not np.allclose(np.diff(wl), np.diff(wl)[0], rtol=1e-9, atol=0.0)),
+            **dict(metadata or {}),
+        },
+    )
+
+
 def load_spectrum_csv(path: str | Path) -> Spectrum:
-    """Load measured spectrum CSV with strict column names.
+    """Load measured spectrum CSV with strict, physically distinct columns.
 
     Accepted wavelength columns are ``wavelength_m`` or ``wavelength_nm``.
-    Energy may be provided as ``energy_weight`` or ``spectral_intensity``.
-    Optional ``spectral_phase_rad`` is preserved.  No wavelength or phase is
-    guessed from filename metadata.
+    ``energy_weight`` means an already-integrated per-sample energy weight.
+    ``spectral_intensity`` means sampled spectral density versus wavelength and
+    is integrated with wavelength-cell widths before normalisation. Optional
+    ``spectral_phase_rad`` is preserved. No wavelength or phase is guessed from
+    filename metadata.
     """
 
     array = np.genfromtxt(Path(path), delimiter=",", names=True, dtype=float, encoding="utf-8-sig")
@@ -154,25 +208,23 @@ def load_spectrum_csv(path: str | Path) -> Spectrum:
         raise ValueError("spectrum CSV is empty or has no header")
     names = set(array.dtype.names)
     if "wavelength_m" in names:
-        wl = np.asarray(array["wavelength_m"], dtype=float)
+        wl = np.atleast_1d(np.asarray(array["wavelength_m"], dtype=float))
     elif "wavelength_nm" in names:
-        wl = np.asarray(array["wavelength_nm"], dtype=float) * 1.0e-9
+        wl = np.atleast_1d(np.asarray(array["wavelength_nm"], dtype=float)) * 1.0e-9
     else:
         raise ValueError("spectrum CSV requires wavelength_m or wavelength_nm")
-    if "energy_weight" in names:
-        weight = np.asarray(array["energy_weight"], dtype=float)
-    elif "spectral_intensity" in names:
-        weight = np.asarray(array["spectral_intensity"], dtype=float)
-    else:
-        raise ValueError("spectrum CSV requires energy_weight or spectral_intensity")
-    phase = np.asarray(array["spectral_phase_rad"], dtype=float) if "spectral_phase_rad" in names else None
+    phase = np.atleast_1d(np.asarray(array["spectral_phase_rad"], dtype=float)) if "spectral_phase_rad" in names else None
     order = np.argsort(wl)
-    return spectrum_from_arrays(
-        wl[order],
-        weight[order],
-        spectral_phase_rad=None if phase is None else phase[order],
-        metadata={"source": str(Path(path)), "data_classification": "supplied_spectrum"},
-    )
+    wl = wl[order]
+    phase = None if phase is None else phase[order]
+    source_meta = {"source": str(Path(path)), "data_classification": "supplied_spectrum"}
+    if "energy_weight" in names:
+        weight = np.atleast_1d(np.asarray(array["energy_weight"], dtype=float))[order]
+        return spectrum_from_arrays(wl, weight, spectral_phase_rad=phase, metadata=source_meta)
+    if "spectral_intensity" in names:
+        density = np.atleast_1d(np.asarray(array["spectral_intensity"], dtype=float))[order]
+        return spectrum_from_wavelength_density(wl, density, spectral_phase_rad=phase, metadata=source_meta)
+    raise ValueError("spectrum CSV requires energy_weight or spectral_intensity")
 
 
 def gaussian_transform_limited_spectrum(
@@ -185,8 +237,8 @@ def gaussian_transform_limited_spectrum(
     """Return a transform-limited Gaussian *planning* spectrum.
 
     This is provided for numerical controls, not as a substitute for the
-    measured PHAROS spectrum.  The Gaussian time-bandwidth product 0.441 is
-    used for intensity FWHM in frequency.
+    measured PHAROS spectrum. The Gaussian time-bandwidth product 0.441 is used
+    for intensity FWHM in frequency.
     """
 
     if central_wavelength_m <= 0.0 or intensity_fwhm_s <= 0.0:
@@ -199,19 +251,22 @@ def gaussian_transform_limited_spectrum(
     nu = np.linspace(nu0 - sigma_span * sigma_nu, nu0 + sigma_span * sigma_nu, int(samples))
     if np.any(nu <= 0.0):
         raise ValueError("requested Gaussian spectrum reaches non-positive optical frequency")
-    weights_nu = np.exp(-0.5 * ((nu - nu0) / sigma_nu) ** 2)
+    density_nu = np.exp(-0.5 * ((nu - nu0) / sigma_nu) ** 2)
+    # nu is uniform, therefore each point's trapezoidal integration weight is
+    # proportional to density_nu except the physically half-weighted endpoints.
+    nu_widths = _quadrature_cell_widths(nu)
+    integrated_energy = density_nu * nu_widths
     wl = C0 / nu
     order = np.argsort(wl)
-    # Convert density in frequency to sampled energy weights.  On the discrete
-    # grid, dnu spacing is constant, so weights_nu can be normalised directly.
     return spectrum_from_arrays(
         wl[order],
-        weights_nu[order],
-        spectral_phase_rad=np.zeros_like(wl),
+        integrated_energy[order],
+        spectral_phase_rad=np.zeros_like(wl)[order],
         metadata={
             "source": "transform_limited_gaussian_control",
             "measured_spectrum": False,
             "time_bandwidth_product": 0.441,
+            "spectral_density_domain": "frequency",
         },
     )
 
@@ -271,7 +326,7 @@ def propagate_broadband(
         spectral_centroid_x_m=np.asarray(cx, dtype=float),
         spectral_centroid_y_m=np.asarray(cy, dtype=float),
         metadata={
-            "combination_rule": "incoherent_energy_weighted_intensity_sum_for_slow_detector",
+            "combination_rule": "incoherent_integrated_energy_weighted_intensity_sum_for_slow_detector",
             "spectral_samples": int(spec.wavelengths_m.size),
             "central_wavelength_m": spec.central_wavelength_m,
             "temporal_material_response_modelled": False,
@@ -303,6 +358,15 @@ def apply_polynomial_spectral_phase(
     ).validated()
 
 
+def _angular_frequency_widths(wavelengths_m: np.ndarray) -> np.ndarray:
+    omega = TWOPI * C0 / np.asarray(wavelengths_m, dtype=float)
+    order = np.argsort(omega)
+    widths_sorted = _quadrature_cell_widths(omega[order])
+    widths = np.empty_like(widths_sorted)
+    widths[order] = widths_sorted
+    return widths
+
+
 def temporal_field_at_pixel(
     result: BroadbandResult,
     *,
@@ -312,11 +376,15 @@ def temporal_field_at_pixel(
     component: str = "Ex",
     require_measured_or_declared_phase: bool = True,
 ) -> np.ndarray:
-    """Reconstruct relative complex temporal field at one spatial sample.
+    """Reconstruct a relative coherent temporal field at one spatial sample.
 
-    The spectral energy weights are converted to amplitude weights by square
-    root.  This result is a relative coherent waveform; absolute electric-field
-    calibration requires independently measured pulse energy and beam area.
+    Discrete energy fractions are converted back to an angular-frequency
+    spectral amplitude using the local frequency-cell widths. The quadrature
+    coefficient is therefore proportional to ``sqrt(E_i * delta_omega_i)``,
+    not simply ``sqrt(E_i)``. A global normalisation is applied because this is
+    a relative waveform. Absolute electric-field calibration requires measured
+    pulse energy, spatial normalisation and a solver with an absolute field
+    prefactor.
     """
 
     spec = result.spectrum.validated()
@@ -326,6 +394,8 @@ def temporal_field_at_pixel(
     t = np.asarray(time_s, dtype=float)
     if t.ndim != 1 or np.any(~np.isfinite(t)):
         raise ValueError("time_s must be a finite 1-D axis")
+    if not (0 <= int(iy) < result.y_m.size and 0 <= int(ix) < result.x_m.size):
+        raise IndexError("requested temporal-field pixel is outside the broadband grid")
     amplitudes: list[complex] = []
     for field in result.fields:
         if component == "Ex":
@@ -337,7 +407,10 @@ def temporal_field_at_pixel(
         else:
             raise ValueError(f"component {component!r} is unavailable")
         amplitudes.append(complex(value))
-    a = np.asarray(amplitudes, dtype=np.complex128) * np.sqrt(spec.energy_weights) * np.exp(1j * phase)
+    delta_omega = _angular_frequency_widths(spec.wavelengths_m)
+    quadrature_amplitude = np.sqrt(spec.energy_weights * delta_omega)
+    quadrature_amplitude /= max(float(np.linalg.norm(quadrature_amplitude)), EPS)
+    a = np.asarray(amplitudes, dtype=np.complex128) * quadrature_amplitude * np.exp(1j * phase)
     omega = TWOPI * C0 / spec.wavelengths_m
     return np.sum(a[:, None] * np.exp(-1j * omega[:, None] * t[None, :]), axis=0)
 
@@ -351,5 +424,6 @@ __all__ = [
     "load_spectrum_csv",
     "propagate_broadband",
     "spectrum_from_arrays",
+    "spectrum_from_wavelength_density",
     "temporal_field_at_pixel",
 ]
