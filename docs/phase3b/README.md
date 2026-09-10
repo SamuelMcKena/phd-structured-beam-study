@@ -16,7 +16,7 @@ measured input beam + SLM calibration
         |
 explicit physical 4F relay
         |
-material-defined dispersive axicon
+dispersive axicon + Phase 2H two-surface vector/eikonal route when required
         |
 per-wavelength free-space propagation
         |
@@ -61,13 +61,35 @@ full-field Monte Carlo uncertainty
   - returns pixelwise mean, standard deviation and confidence limits;
   - forbids hidden output-grid registration.
 - `vbb_study/equations/vector_surface_refraction.py`
-  - exact local vector Snell/Fresnel boundary condition at an arbitrary surface
-    normal;
-  - this is a boundary primitive, **not** a complete curved-surface wave solver.
+  - generic exact local vector Snell/Fresnel boundary condition at an arbitrary
+    surface normal;
+  - reusable boundary primitive only; it does not replace the established
+    Phase 2H axicon solver.
 - `vbb_study/digital_twin/phase3b_bench_broadband.py`
   - binds calibration bundle, spectrum, dispersive material state, measured
     pupil assets and detector assets around an existing single-wavelength
     optical route.
+
+## Existing Phase 2H axicon authority
+
+Phase 3B deliberately reuses, rather than duplicates, the established Phase 2H
+refractive-axicon machinery. The Phase 2H route represents the macroscopic
+plano-conical axicon with **two real dielectric surfaces**, exact vector Snell
+refraction at both surfaces, exact ray/cone intersection, finite glass path, and
+a common-eikonal vector boundary field on a fixed laboratory plane. That field
+can then be propagated by vector ASM and handed to the Debye branch.
+
+For the currently implemented flat-first macroscopic axicon geometry, Phase 2H
+is therefore the authoritative in-repository route for non-zero rigid axicon
+tilt. The older scalar rotated-thin-phase axicon approximation must not be used
+as quantitative evidence for that case.
+
+The remaining boundary is narrower than the earlier roadmap implied: Phase 2H
+is a **vector geometrical-optics/eikonal boundary-field model**, not a full-volume
+FDTD/FEM solution of the electromagnetic field inside the glass. Its own
+validity/common-eikonal gates still apply. General thick multi-element lens
+surface modelling is also not supplied by Phase 2H; OpticStudio remains the
+independent prescription-dependent route for those components.
 
 ## Spectrum CSV contract
 
@@ -130,17 +152,6 @@ M(x,y)\mathbf{E}_\mathrm{pupil}(x,y,\lambda).
 
 `T_A` is amplitude transmission, OPD is in metres, and `M` is a supplied valid
 pupil mask. Map resizing or fit-to-image registration is not performed.
-
-## Surface-by-surface optics boundary
-
-Phase 3B adds the exact local vector Snell/Fresnel boundary primitive needed for
-surface-by-surface refractive modelling. It does **not** yet provide a general
-wave-field remapper between arbitrary curved surfaces. Therefore large tilted
-thick-lens or fully vectorial misaligned-axicon claims still require either a
-future curved-surface wave solver or the independent OpticStudio prescription
-backend introduced in Phase 3A.
-
-This is a deliberate accuracy boundary, not a missing warning.
 
 ## Material-response boundary
 
