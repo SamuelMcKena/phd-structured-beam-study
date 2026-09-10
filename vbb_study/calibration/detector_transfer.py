@@ -1,14 +1,16 @@
 """Measured detector-response operators for simulation-to-camera prediction.
 
-This module converts an ideal optical intensity plane into the intensity that a
-real beam profiler/camera would report *before* pixel-coordinate comparison.
-Only supplied calibration data are applied: a measured PSF may blur the plane,
-a measured relative response map may modulate it, and an explicitly supplied
-background may be added.  Nothing is inferred by optimising against the target
-image.
+This module keeps three detector stages separate:
 
-The detector model remains linear in intensity.  Saturation is represented only
-when a detector saturation level is explicitly supplied.
+1. ``optical_response_intensity``: optical intensity after measured PSF and
+   relative-response effects, before additive background or saturation. This is
+   the correct simulated quantity to compare against a background-subtracted
+   camera image while masking saturated measured pixels.
+2. ``raw_unsaturated_intensity``: predicted raw detector signal after supplied
+   additive background but before saturation.
+3. ``intensity``: final predicted raw detector signal after explicit saturation.
+
+Nothing is inferred by optimising against the target image.
 """
 
 from __future__ import annotations
@@ -55,9 +57,16 @@ class DetectorTransferCalibration:
 @dataclass(frozen=True)
 class DetectorTransferResult:
     intensity: np.ndarray
-    unsaturated_intensity: np.ndarray
+    optical_response_intensity: np.ndarray
+    raw_unsaturated_intensity: np.ndarray
     saturated_mask: np.ndarray
     metadata: Mapping[str, Any]
+
+    @property
+    def unsaturated_intensity(self) -> np.ndarray:
+        """Backward-compatible alias for the raw pre-saturation detector signal."""
+
+        return self.raw_unsaturated_intensity
 
 
 def apply_detector_transfer(
@@ -84,11 +93,13 @@ def apply_detector_transfer(
         out *= np.asarray(calibration.relative_response, dtype=float)
         applied.append("measured_relative_response_map")
 
+    optical_response = np.asarray(out, dtype=float).copy()
+
     if calibration.additive_background is not None:
         out = out + np.asarray(calibration.additive_background, dtype=float)
         applied.append("supplied_additive_background")
 
-    unsaturated = np.asarray(out, dtype=float)
+    raw_unsaturated = np.asarray(out, dtype=float).copy()
     if calibration.saturation_level is None:
         saturated = np.zeros_like(out, dtype=bool)
     else:
@@ -99,12 +110,15 @@ def apply_detector_transfer(
 
     return DetectorTransferResult(
         intensity=np.asarray(out, dtype=float),
-        unsaturated_intensity=unsaturated,
+        optical_response_intensity=optical_response,
+        raw_unsaturated_intensity=raw_unsaturated,
         saturated_mask=saturated,
         metadata={
             "source": calibration.source,
             "applied_calibrations": applied,
             "automatic_fit_to_measurement": False,
+            "comparison_stage": "optical_response_intensity_before_background_and_saturation",
+            "raw_prediction_stage": "intensity_after_background_and_saturation",
             "linear_detector_model_before_saturation": True,
             "saturated_fraction": float(np.mean(saturated)),
             **dict(calibration.metadata),
