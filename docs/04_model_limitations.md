@@ -1,152 +1,273 @@
-# Model Limitations
+# Model Limitations — Current Solver State
 
-This document records the known limits of the simulation models used in this
-study.  Read this before interpreting any quantitative result.
+This document records the current limits of the simulation framework. It replaces
+older statements that described only the historical scalar route and therefore
+understated later Phase 2C, Phase 3A and Phase 3B capabilities.
 
----
-
-## 1. Scalar Paraxial Approximation
-
-All propagation in the main study uses the **scalar paraxial approximation**:
-
-- Polarisation state is not tracked (single scalar complex amplitude).
-- The paraxial approximation requires the cone half-angle `gamma` to be
-  small (< ~15°).  Results near this limit should be treated with caution.
-- No vectorial focusing, no tight-focus corrections, no back-aperture
-  polarisation mixing.
-
-**When this matters:** For high-NA objectives (NA > 0.5) or very large axicon
-angles the scalar results will underestimate the focal-volume distortion and
-overestimate z-invariance.
+The core rule is unchanged: a feature being implemented in code does **not** make
+it experimentally validated, and a sensitivity value does not become a measured
+bench parameter unless laboratory or manufacturer evidence supplies it.
 
 ---
 
-## 2. Angular Spectrum Method (ASM / BL-ASM)
+## 1. Solver hierarchy
 
-Propagation uses the band-limited angular spectrum method (BL-ASM,
-Matsushima 2009).  Key limitations:
+The repository now contains several solver levels with different authority:
 
-- The field is sampled on a finite numerical grid.  Sampling must satisfy
-  the BL-ASM bandlimit for the propagation distance and pixel pitch.
-- Grid truncation introduces edge artefacts; check that the beam never
-  approaches the grid boundary.
-- Evanescent components are excluded by design.
+- scalar FFT / angular-spectrum propagation for screening and source-scale
+  morphology;
+- vector angular-spectrum propagation where vector free-space propagation is
+  required;
+- vector Debye/Richards-Wolf focusing for quantitative high-NA focal/vector
+  observables;
+- vector spectral Fresnel transmission for planar dielectric interfaces;
+- optional OpticStudio POP integration as an independent prescription-dependent
+  cross-validation backend;
+- Phase 3B broadband orchestration that reruns the selected single-wavelength
+  optical route across an explicit spectrum.
 
-Check validity flags reported in `vbb_study.vbb_validation`.
-
----
-
-## 3. SLM Holographic Axicon Route
-
-The holographic axicon is modelled as:
-
-- Phase-only SLM with 8-bit greyscale quantisation.
-- First-order filtering in a 4f relay: the filter passes the desired
-  diffraction order and rejects the DC and higher orders.
-- Blaze carrier grating is included for order separation.
-
-**Not modelled:**
-- SLM pixel fill-factor diffraction loss.
-- SLM temporal phase flicker.
-- Alignment errors in the 4f relay.
-- Non-flat SLM surface distortion.
-- Temporal pulse distortion through the SLM.
+The solver policy in `vbb_study/solver_policy.py` remains authoritative for which
+solver is eligible for a claim.
 
 ---
 
-## 4. Physical Axicon Route
+## 2. Angular-spectrum propagation
 
-The physical axicon is modelled as:
+The free-space propagation routes use sampled angular-spectrum methods. Their
+limits are numerical rather than conceptual:
 
-- Ideal conical phase with no aberrations.
-- Mask separation to separate the conical field from the Gaussian envelope.
-- Surface roughness, tip rounding, and material dispersion are not modelled.
+- finite field of view and finite spatial sampling;
+- band-limit / aliasing constraints at each propagation distance;
+- truncation if the field reaches the computational boundary;
+- interpolation error for rotated-plane spectral transforms;
+- evanescent handling depends on the selected propagation route.
 
----
-
-## 5. Objective and Pupil
-
-- The objective is modelled as an ideal lens with a hard pupil aperture.
-- Pupil radius is derived from the NA and tube-lens focal length.
-- Aberrations (spherical, coma, field curvature) are not modelled unless
-  Zernike coefficients are explicitly supplied.
+Grid-convergence and power bookkeeping therefore remain required for quantitative
+results.
 
 ---
 
-## 6. Interface / Sample Correction
+## 3. SLM model
 
-- The air–sample interface applies a planar phase step for the refractive
-  index change.
-- **No refraction of the cone wavevector direction** is implemented (first-
-  order plane-wave approximation).
-- Interface aberration correction is labelled **ideal** unless experimentally
-  measured Zernike coefficients are supplied.
-- For focusing deep in sample the scalar model neglects spherical aberration
-  from the refractive-index mismatch.
+The current SLM implementation **does** include:
 
----
+- finite active area;
+- physical pixel pitch;
+- phase pixelation;
+- phase quantisation;
+- blaze/carrier phase;
+- several fill-factor models;
+- coherent unmodulated dead-space / zero-order handling;
+- hooks for panel-specific phase LUTs and static phase maps in the calibrated
+  digital-twin paths;
+- registration and fringing/crosstalk sensitivity machinery in the system-error
+  branch.
 
-## 7. Vector Jones Model
+Remaining limitations are calibration-driven:
 
-The vector Jones model (`vbb_study.vbb_vector`) builds polarised fields by
-combining scalar-propagated components with Jones vectors.  Limitations:
-
-- The scalar propagation does not account for polarisation-dependent
-  reflection at the SLM or at interfaces.
-- True radial/azimuthal vector beams require a spatially varying polarisation
-  element (vortex retarder, segmented waveplate, or q-plate).
-  **The current Case-1 lab setup does not produce true radial/azimuthal
-  beams.** See `docs/04_actual_lab_vector_case1.md`.
-
----
-
-## 8. Material Response Proxy
-
-All material outputs are **planning proxies**:
-
-- Fluence and incubation calculations use literature threshold values for
-  Cr:ZnSe unless experiment-calibrated values are supplied.
-- Threshold-crossing maps show *where the fluence exceeds the threshold*,
-  not *where the material is actually modified*.
-- The incubation law `F_th(N) = F_th(1) * N^(S-1)` is applied with
-  literature coefficients; calibration has not been performed for this
-  system/sample combination.
-- XZ line-fluence maps are non-energy-conserving visualisation proxies.
-  They are useful for spatial planning but do not represent actual
-  energy deposition.
-
-See `docs/03_materials_application.md` for the full proxy warning.
+- the actual SLM1/SLM2 grey-to-phase LUT at the bench wavelength, incidence and
+  polarisation must be measured;
+- spatial phase nonuniformity/flatness must come from a measured map for an
+  absolute bench claim;
+- fringing-field parameters remain a surrogate until fitted to panel data;
+- temporal LCOS phase flicker is not yet a measured dynamic model.
 
 ---
 
-## 9. Hexagonal and Polygonal Beams
+## 4. Explicit 4F relay
 
-- Hexagonal patterns that look good in the focal plane are **not
-  automatically z-stable** propagating channels.
-- Do not claim a hexagonal beam is a propagation-invariant Bessel-like
-  structure unless the strict Bessel region and accepted propagation depth
-  metrics demonstrate it.
-- Phase-only approximations (using only the phase of the target field) are
-  clearly less accurate than complex-amplitude targets; both are implemented
-  but must not be reported interchangeably.
+The research route now contains an explicit physical 4F path:
 
----
+`object -> L1 -> Fourier-plane iris -> L2 -> output`
 
-## 10. Discrete N-fold Beams
+It supports physical propagation distances, lens despace, focal-length error,
+lens decentre, finite apertures, user-supplied OPD maps, iris offset/radius and
+rigid lens-plane tilt through rotated angular-spectrum mapping.
 
-- A discrete N-fold superposition of plane waves has a finite interference
-  field that is only approximately periodic in z.
-- The accepted depth depends on the number of plane waves and their angular
-  separation.  The wider the angular cone the shorter the interference zone.
-- Side-lobe level is a function of N; low-N beams have significant side lobes.
+The principal remaining limitation is that L1/L2 are still thin/paraxial lens
+models. Strongly tilted or thick lenses require surface-by-surface refractive
+modelling or the independent OpticStudio prescription backend.
 
 ---
 
-## 11. What Is Not a Limitation of This Study
+## 5. Refractive axicon
 
-The following are **intentional scope choices**, not model deficiencies:
+The current axicon research branch includes:
 
-- No temporal pulse dynamics: this is a CW-equivalent beam-shaping study.
-- No nonlinear optics: the study is linear optics only.
-- No thermal or mechanical response: material response is threshold-only proxy.
-- No detector/camera model: outputs assume ideal field measurement.
+- exact normal-incidence Snell cone angle rather than only the shallow-cone
+  approximation;
+- lateral beam/apex decentre;
+- rigid tilted-plane propagation;
+- finite clear aperture when supplied;
+- base-angle and refractive-index variation;
+- rounded/hyperboloidal and flat/blunt apex defects;
+- optional measured surface-height error map.
+
+Phase 3B adds an exact local vector Snell/Fresnel surface-boundary primitive for
+arbitrary surface normals.
+
+What is **not yet complete** is a general vector wave-field remapper through the
+actual two-surface curved/thick axicon geometry. Therefore large axicon tilt,
+strong oblique incidence or absolute thick-element vector predictions are not
+claimed from the scalar rotated-plane axicon model alone. Those cases require a
+future curved-surface wave solver or independent OpticStudio cross-validation.
+
+---
+
+## 6. Wavelength dependence and femtosecond bandwidth
+
+Phase 3B adds broadband linear-optics support:
+
+- measured spectrum CSV ingestion;
+- per-wavelength rerunning of an existing optical route;
+- wavelength-dependent refractive index through explicit material models;
+- slow-detector spectral intensity integration;
+- optional spectral phase with GDD/TOD;
+- optional relative coherent temporal-field reconstruction.
+
+This does **not** automatically make every run broadband-calibrated. A measured
+laser spectrum is required for a measured-spectrum claim. A transform-limited
+Gaussian spectrum is available only as a labelled numerical control.
+
+The code includes a named fused-silica Malitson Sellmeier model. Other glasses
+must be explicitly identified or supplied. A single constant refractive index is
+allowed only as a labelled non-dispersive comparison model.
+
+---
+
+## 7. Objective and vector focusing
+
+The quantitative focal solver is vector Debye/Richards-Wolf and produces
+`Ex`, `Ey` and `Ez`. It assumes an aplanatic sine-condition objective unless
+additional measured pupil information is supplied.
+
+Phase 3B can apply a measured objective pupil amplitude-transmission map, OPD map
+and validity mask before the vector Debye calculation.
+
+Remaining limitations:
+
+- the objective is not automatically a full manufacturer prescription;
+- measured pupil maps must be registered externally and supplied on the declared
+  simulation grid;
+- strong objective misalignment or thick multi-element surface effects are not
+  replaced by arbitrary Zernikes;
+- the omitted absolute Debye prefactor means the Debye field remains a relative
+  vector reference unless an independently calibrated energy mapping is applied.
+
+---
+
+## 8. Sample/interface
+
+The vector interface solver handles a planar dielectric boundary spectrally:
+
+- transverse wavevector conservation;
+- local s/p decomposition;
+- Fresnel transmission and reflection;
+- `Ex`, `Ey`, `Ez` reconstruction;
+- energy/transversality diagnostics.
+
+Limitations:
+
+- the canonical solver is planar;
+- curved, rough or structured interfaces require a separate model;
+- sample tilt must use the dedicated tilted-interface/vector route rather than a
+  post-processing image shift;
+- material dispersion must be supplied wavelength-by-wavelength for broadband
+  propagation.
+
+---
+
+## 9. Detector/camera prediction
+
+The repository now contains calibrated camera-coordinate comparison and Phase 3B
+adds a detector-transfer layer that can include:
+
+- supplied PSF convolution;
+- relative detector-response map;
+- background;
+- saturation;
+- calibrated object-plane pixel scale, rotation and centre through the existing
+  camera comparison code.
+
+These quantities are never fitted silently to make simulation and experiment
+agree. Missing detector calibration remains missing calibration.
+
+---
+
+## 10. Uncertainty
+
+Two uncertainty levels now exist:
+
+1. reduced metric propagation from supplied calibration uncertainties;
+2. Phase 3B full-field Monte Carlo reruns that return pixelwise mean, standard
+   deviation and confidence limits.
+
+The full-field path requires every Monte Carlo sample to remain on the same
+physical output grid. Hidden registration, scale fitting or image recentering is
+forbidden.
+
+A probability distribution is only physically meaningful when its spread comes
+from measured/manufacturer uncertainty or explicitly labelled sensitivity
+assumptions.
+
+---
+
+## 11. Material response and nonlinear ultrafast physics
+
+The optical digital twin remains fundamentally a **linear optical model**.
+Existing fluence, threshold and empirical response layers are planning or
+calibrated statistical tools. They do not mechanistically solve:
+
+- Kerr self-focusing;
+- multiphoton or tunnel ionisation;
+- free-carrier/plasma generation and defocusing;
+- nonlinear absorption;
+- self-phase modulation;
+- heat accumulation;
+- melt flow;
+- stress and cracking;
+- void/channel formation;
+- permanent refractive-index change.
+
+Therefore a prediction of optical field/fluence is not automatically a
+prediction of permanent material modification.
+
+A future nonlinear-material branch should be treated as a separate physical
+model with its own validation evidence rather than folded into the linear solver
+without provenance.
+
+---
+
+## 12. Zemax / OpticStudio cross-validation
+
+Phase 3A provides an optional OpticStudio POP backend. Its purpose is independent
+prescription-dependent cross-validation, not replacement of the Python solver
+hierarchy.
+
+Important limits:
+
+- POP is not a full Maxwell/material-response solver;
+- traditional ZBF exchange is a transverse-field interchange and must not be
+  used to claim independent `Ez` validation;
+- a live OpticStudio licence and actual `.ZOS/.ZMX` prescription are required
+  for a real cross-validation run;
+- software agreement does not equal experimental validation.
+
+---
+
+## 13. Experimental validation status
+
+No numerical route becomes experimentally validated because it passes unit tests,
+looks physically plausible or agrees with a second numerical solver.
+
+Experimental validation requires:
+
+- a declared bench state;
+- measured calibration values;
+- independent camera/power/wavefront data;
+- fixed comparison coordinates and preprocessing;
+- predeclared metrics/acceptance criteria;
+- provenance linking the measurement and simulation inputs.
+
+Phase 3B is designed to make that comparison possible without changing the
+accepted Phase 1–2C evidence base.
