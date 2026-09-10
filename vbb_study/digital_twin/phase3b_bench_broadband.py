@@ -1,7 +1,7 @@
 """Phase 3B bench-calibrated broadband digital-twin orchestration.
 
 This layer binds measured calibration assets to the new broadband framework
-without modifying the frozen Phase 1-2C evidence routes.  It is intentionally
+without modifying the frozen Phase 1-2C evidence routes. It is intentionally
 strict: a measured-spectrum run is blocked when the spectrum is absent, an
 unknown material never silently inherits fused-silica dispersion, and pupil or
 detector maps are never resized to make them fit.
@@ -153,27 +153,39 @@ def material_model_from_calibration(
 
 
 def _load_separate_spectral_phase(path: str, target_wavelengths_m: np.ndarray) -> tuple[np.ndarray, str]:
+    """Load phase versus wavelength and unwrap it before any interpolation."""
+
     table = np.genfromtxt(Path(path), delimiter=",", names=True, dtype=float, encoding="utf-8-sig")
     if table.size == 0 or table.dtype.names is None:
         raise ValueError("spectral phase CSV is empty or lacks a header")
     names = set(table.dtype.names)
     if "wavelength_m" in names:
-        wl = np.asarray(table["wavelength_m"], dtype=float)
+        wl = np.atleast_1d(np.asarray(table["wavelength_m"], dtype=float))
     elif "wavelength_nm" in names:
-        wl = np.asarray(table["wavelength_nm"], dtype=float) * 1.0e-9
+        wl = np.atleast_1d(np.asarray(table["wavelength_nm"], dtype=float)) * 1.0e-9
     else:
         raise ValueError("spectral phase CSV requires wavelength_m or wavelength_nm")
     if "spectral_phase_rad" not in names:
         raise ValueError("spectral phase CSV requires spectral_phase_rad")
-    phase = np.asarray(table["spectral_phase_rad"], dtype=float)
+    phase = np.atleast_1d(np.asarray(table["spectral_phase_rad"], dtype=float))
+    if wl.shape != phase.shape or wl.size < 2 or np.any(~np.isfinite(wl)) or np.any(~np.isfinite(phase)):
+        raise ValueError("spectral phase CSV requires at least two finite matched wavelength/phase samples")
     order = np.argsort(wl)
     wl = wl[order]
-    phase = phase[order]
-    if np.any(np.diff(wl) <= 0.0) or target_wavelengths_m[0] < wl[0] or target_wavelengths_m[-1] > wl[-1]:
+    phase = np.unwrap(phase[order])
+    target = np.asarray(target_wavelengths_m, dtype=float)
+    if (
+        target.ndim != 1
+        or target.size < 1
+        or np.any(~np.isfinite(target))
+        or np.any(np.diff(target) <= 0.0)
+    ):
+        raise ValueError("target spectrum wavelengths must be finite and strictly increasing")
+    if np.any(np.diff(wl) <= 0.0) or target[0] < wl[0] or target[-1] > wl[-1]:
         raise ValueError("spectral phase wavelength range must span the measured spectrum")
-    if wl.shape == target_wavelengths_m.shape and np.allclose(wl, target_wavelengths_m, rtol=0.0, atol=1e-15):
-        return phase, "exact_grid"
-    return np.interp(target_wavelengths_m, wl, phase), "linear_phase_interpolation_onto_spectrum_grid"
+    if wl.shape == target.shape and np.allclose(wl, target, rtol=0.0, atol=1e-15):
+        return phase, "exact_grid_unwrapped_phase"
+    return np.interp(target, wl, phase), "linear_interpolation_of_unwrapped_phase_onto_spectrum_grid"
 
 
 def spectrum_from_calibration(bundle: CalibrationBundle, config: Phase3BConfig) -> tuple[Spectrum, str]:
@@ -205,7 +217,12 @@ def spectrum_from_calibration(bundle: CalibrationBundle, config: Phase3BConfig) 
             wavelengths_m=spectrum.wavelengths_m,
             energy_weights=spectrum.energy_weights,
             spectral_phase_rad=phase,
-            metadata={**dict(spectrum.metadata), "spectral_phase_source": str(phase_path), "spectral_phase_grid": interpolation},
+            metadata={
+                **dict(spectrum.metadata),
+                "spectral_phase_source": str(phase_path),
+                "spectral_phase_grid": interpolation,
+                "spectral_phase_unwrapped_before_interpolation": True,
+            },
         ).validated()
         status += "+measured_or_supplied_phase"
 
