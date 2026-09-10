@@ -42,6 +42,7 @@ full-field Monte Carlo uncertainty
   - no implicit material selection.
 - `vbb_study/digital_twin/broadband_propagation.py`
   - measured-spectrum CSV ingestion;
+  - physical quadrature of sampled spectral density, including non-uniform wavelength grids;
   - transform-limited Gaussian control spectrum for tests only;
   - per-wavelength execution of an existing optical solver;
   - incoherent energy-weighted intensity integration for slow detectors;
@@ -93,7 +94,7 @@ independent prescription-dependent route for those components.
 
 ## Spectrum CSV contract
 
-A measured spectrum file must contain:
+A measured spectrum file may contain sampled spectral density:
 
 ```csv
 wavelength_nm,spectral_intensity
@@ -104,13 +105,20 @@ wavelength_nm,spectral_intensity
 1038.0,0.10
 ```
 
-`wavelength_m` may be used instead of `wavelength_nm`. `energy_weight` may be
-used instead of `spectral_intensity`. An optional `spectral_phase_rad` column may
-be included in the same file. A separate phase CSV may also be supplied by the
-calibration bundle.
+`wavelength_m` may be used instead of `wavelength_nm`. When the column is named
+`spectral_intensity`, Phase 3B treats it as a wavelength-domain spectral density
+and first integrates it using trapezoidal point/cell weights. This matters when
+the wavelength samples are not uniformly spaced.
 
-The weights are normalised to pulse-energy fractions. They are **not** treated
-as absolute joules unless pulse energy is independently calibrated.
+Alternatively, an `energy_weight` column means that the entries are already
+integrated per-sample pulse-energy weights and must **not** be multiplied by
+wavelength spacing again. An optional `spectral_phase_rad` column may be included
+in the same file. A separate phase CSV may also be supplied by the calibration
+bundle.
+
+After the appropriate density integration, the discrete energy weights are
+normalised to pulse-energy fractions. They are **not** treated as absolute joules
+unless pulse energy is independently calibrated.
 
 ## Detector integration
 
@@ -121,9 +129,14 @@ Phase 3B camera prediction is
 I_\mathrm{det}(x,y)=\sum_i w_i\left(|E_x(x,y,\lambda_i)|^2+|E_y(x,y,\lambda_i)|^2+|E_z(x,y,\lambda_i)|^2\right).
 ```
 
-Cross-frequency optical interference is therefore not included in the slow
-camera image. Coherent time-domain reconstruction is a separate optional output
-and requires a supplied or deliberately declared spectral phase.
+Here `w_i` is the integrated pulse-energy fraction represented by spectral sample
+`i`, not a raw spectrometer ordinate. Cross-frequency optical interference is
+therefore not included in the slow camera image.
+
+Coherent time-domain reconstruction is a separate optional output and requires a
+supplied or deliberately declared spectral phase. Its quadrature converts the
+integrated energy weights back to an angular-frequency spectral amplitude using
+the local `delta_omega`, so non-uniform frequency spacing is accounted for.
 
 ## Material policy
 
