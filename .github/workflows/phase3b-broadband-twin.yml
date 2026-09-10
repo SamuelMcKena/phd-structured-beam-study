@@ -14,7 +14,7 @@ on:
       - "vbb_study/calibration/detector_transfer.py"
       - "vbb_study/calibration/full_field_uncertainty.py"
       - "vbb_study/calibration/__init__.py"
-      - "tests/test_phase3b_broadband_twin.py"
+      - "tests/test_phase3b_*.py"
       - "docs/phase3b/**"
       - "docs/04_model_limitations.md"
       - "config/phase3b_bench_calibrated.example.json"
@@ -37,11 +37,11 @@ jobs:
       - name: Install repository test dependencies
         run: python -m pip install -r requirements-report.txt
       - name: Compile Phase 3B and dependent packages
-        run: python -m compileall -q vbb_study tests/test_phase3b_broadband_twin.py
+        run: python -m compileall -q vbb_study tests/test_phase3b_broadband_twin.py tests/test_phase3b_spectral_quadrature.py
       - name: Check Phase 3B branch diff whitespace
         run: git diff --check origin/phase3-zemax-cross-validation...HEAD
       - name: Run Phase 3B regression tests
-        run: python -m pytest tests/test_phase3b_broadband_twin.py -q
+        run: python -m pytest tests/test_phase3b_*.py -q
       - name: Re-run clean-room Phase 2H vector axicon regressions
         run: >-
           python -m pytest
