@@ -26,6 +26,19 @@ objective_pupil
     magnification, Fourier-plane ring position, first-order filter radii,
     Gaussian pupil fill fraction.
 
+calibrated_objective
+    Measured objective-pupil amplitude/OPD/mask transfer around the accepted
+    vector Debye/Richards-Wolf solver.
+
+dispersion
+    Explicit wavelength-dependent Sellmeier material models and constant-index
+    comparison models. No material is selected implicitly.
+
+vector_surface_refraction
+    Exact local vector Snell/Fresnel surface-boundary operator for arbitrary
+    surface normals. Curved-surface spatial remapping remains a separate solver
+    responsibility.
+
 metrics
     Engine-compatible radial metrics and strict Bessel-region adapters.
 
@@ -54,9 +67,11 @@ polygonal
 from __future__ import annotations
 
 from . import (
+    calibrated_objective,
+    capsule_geometry,
+    dispersion,
     fields,
     holography,
-    capsule_geometry,
     interface,
     materials,
     metrics,
@@ -65,10 +80,13 @@ from . import (
     propagation,
     scalar_bessel,
     vector_jones,
+    vector_surface_refraction,
 )
 
 __all__ = [
+    "calibrated_objective",
     "capsule_geometry",
+    "dispersion",
     "fields",
     "holography",
     "interface",
@@ -79,4 +97,5 @@ __all__ = [
     "propagation",
     "scalar_bessel",
     "vector_jones",
+    "vector_surface_refraction",
 ]
