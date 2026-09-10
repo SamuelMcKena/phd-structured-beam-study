@@ -1,0 +1,43 @@
+{
+  "phase": "PHASE 3B BENCH-CALIBRATED BROADBAND DIGITAL TWIN",
+  "policy": {
+    "require_measured_spectrum": true,
+    "allow_transform_limited_control": false,
+    "experimental_validation_claimed": false,
+    "notes": "Populate paths with laboratory data. Do not replace missing measurements with guessed values for calibrated claims."
+  },
+  "calibration_bundle": "config/calibration/lab_YYYYMMDD.json",
+  "materials": {
+    "sample_material_name": "fused silica",
+    "axicon_material_name": null,
+    "notes": "The axicon glass must be supplied from manufacturer documentation or measurement before broadband dispersion is treated as calibrated."
+  },
+  "assets": {
+    "laser_spectrum_csv": "calibration/laser/spectrum.csv",
+    "laser_spectral_phase_csv": null,
+    "slm1_phase_lut": "calibration/slm/slm1_phase_lut.csv",
+    "slm2_phase_lut": "calibration/slm/slm2_phase_lut.csv",
+    "slm1_static_phase_map": "calibration/slm/slm1_static_phase.npy",
+    "slm2_static_phase_map": "calibration/slm/slm2_static_phase.npy",
+    "lens1_opd_map_m": null,
+    "lens2_opd_map_m": null,
+    "axicon_surface_map_m": null,
+    "axicon_tip_profile": null,
+    "objective_amplitude_transmission": null,
+    "objective_opd_map_m": null,
+    "objective_valid_mask": null,
+    "detector_psf": null,
+    "detector_relative_response": null,
+    "detector_background": null
+  },
+  "required_measurements_for_absolute_bench_matching": [
+    "laser beam radius/ellipticity and physical input-plane registration",
+    "SLM1 and SLM2 phase LUTs at the actual wavelength, incidence and polarisation",
+    "SLM static phase/wavefront maps",
+    "4F focal lengths, separations, iris radius and +1 order position",
+    "axicon glass/material, angle convention, clear aperture and centre",
+    "objective NA, focal length, effective pupil radius and pupil mapping",
+    "camera object-plane scale, rotation, centre and saturation/background",
+    "pulse energy and optical transmissions for absolute fluence"
+  ]
+}
