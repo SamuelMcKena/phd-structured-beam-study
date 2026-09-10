@@ -42,5 +42,17 @@ jobs:
         run: git diff --check origin/phase3-zemax-cross-validation...HEAD
       - name: Run Phase 3B regression tests
         run: python -m pytest tests/test_phase3b_broadband_twin.py -q
-      - name: Re-run vector objective and calibration bridge regressions
-        run: python -m pytest tests/test_phase2c_objective_interface.py tests/test_phase2d_calibration_bridge.py -q
+      - name: Re-run clean-room Phase 2H vector axicon regressions
+        run: >-
+          python -m pytest
+          tests/test_phase2h_vector_refractive_axicon.py
+          tests/test_phase2h_vector_refractive_reference.py
+          tests/test_phase2h_calibrated_vector_tilt_route.py
+          tests/test_phase2h_vector_tilt_study.py
+          -q
+      - name: Explain excluded historical artifact tests
+        run: >-
+          echo "Phase 2C/2D report-artifact tests are intentionally not run here:
+          they require generated/frozen output bundles and Windows-style manifest paths
+          that are not present on a clean Ubuntu checkout. Phase 3B does not modify
+          those frozen artifacts or tests."
