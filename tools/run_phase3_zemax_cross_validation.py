@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import subprocess
+from contextlib import ExitStack
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -11,7 +12,7 @@ import numpy as np
 
 from vbb_study.integrations.zemax.comparison import compare_field_planes
 from vbb_study.integrations.zemax.connection import ZemaxSession
-from vbb_study.integrations.zemax.field_exchange import load_field_npz, validate_zbf_input
+from vbb_study.integrations.zemax.field_exchange import StagedZbfInput, load_field_npz
 from vbb_study.integrations.zemax.models import FieldPlane, PopRequest
 from vbb_study.integrations.zemax.plotting import save_cross_validation_figures
 from vbb_study.integrations.zemax.pop import run_pop
@@ -69,9 +70,14 @@ def main() -> int:
         if start_surface is None or end_surface is None: raise SystemExit("Surface map must define input_plane/objective_entrance and sample_surface before POP can run.")
         if args.case != "G0" and args.beam_file is None: raise SystemExit(f"{args.case} is blocked: arbitrary Python -> ZBF writing is not yet a verified supported mechanism. Supply a documented pre-existing --beam-file .zbf.")
         beam_type = "GaussianWaist"; beam_file = ""; beam_parameters_m: dict[str, float] | None = {"Waist X": args.g0_waist_mm * 1e-3, "Waist Y": args.g0_waist_mm * 1e-3, "Decenter X": 0.0, "Decenter Y": 0.0}
-        if args.beam_file is not None: beam_file = str(validate_zbf_input(args.beam_file)); beam_type = "File"; beam_parameters_m = None
-        request = PopRequest(model_path=str(working_model), wavelength_index=args.wavelength_index, field_index=args.field_index, start_surface=start_surface, end_surface=end_surface, x_sampling=args.sampling, y_sampling=args.sampling, x_width_m=args.x_width_mm * 1e-3, y_width_m=args.y_width_mm * 1e-3, polarization=True, beam_type=beam_type, beam_file=beam_file, beam_parameters_m=beam_parameters_m, use_total_power=True, total_power=1.0, use_peak_irradiance=False)
-        _write_json(case_dir / "pop_request.json", request.to_dict()); unit_to_m = length_unit_to_m(metadata.system_units); pop_result = run_pop(system, request, system_length_unit_to_m=unit_to_m); zemax_wavelength_m = _model_wavelength_m(metadata, args.wavelength_index)
+        with ExitStack() as staged_inputs:
+            if args.beam_file is not None:
+                pop_dir = getattr(system.TheApplication, "POPDir", None)
+                if not pop_dir: raise SystemExit("OpticStudio did not expose its POPDir; refusing an unsupported ZBF path workaround.")
+                staged = staged_inputs.enter_context(StagedZbfInput(args.beam_file, pop_dir)); beam_file = staged.zemax_filename; beam_type = "File"; beam_parameters_m = None
+                provenance["source_zbf_absolute_path"] = str(args.beam_file.expanduser().resolve()); provenance["source_zbf_sha256"] = staged.source_sha256; provenance["zbf_staged_filename"] = staged.zemax_filename; _write_json(case_dir / "provenance.json", provenance)
+            request = PopRequest(model_path=str(working_model), wavelength_index=args.wavelength_index, field_index=args.field_index, start_surface=start_surface, end_surface=end_surface, x_sampling=args.sampling, y_sampling=args.sampling, x_width_m=args.x_width_mm * 1e-3, y_width_m=args.y_width_mm * 1e-3, polarization=True, beam_type=beam_type, beam_file=beam_file, beam_parameters_m=beam_parameters_m, use_total_power=True, total_power=1.0, use_peak_irradiance=False)
+            _write_json(case_dir / "pop_request.json", request.to_dict()); unit_to_m = length_unit_to_m(metadata.system_units); pop_result = run_pop(system, request, system_length_unit_to_m=unit_to_m); zemax_wavelength_m = _model_wavelength_m(metadata, args.wavelength_index)
     np.savez_compressed(case_dir / "zemax_pop_intensity.npz", x_m=pop_result.x_m, y_m=pop_result.y_m, wavelength_m=zemax_wavelength_m, irradiance=pop_result.irradiance)
     python_plane = load_field_npz(args.python_field) if args.python_field is not None else None
     if args.python_reference == "phase2c-vector-focus":

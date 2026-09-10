@@ -92,8 +92,9 @@ def inspect_model(system: Any, *, source_path: str | Path, source_sha256: str) -
 
 
 def length_unit_to_m(system_units: str) -> float:
-    key = system_units.strip().lower().replace(" ", "")
-    mapping = {"millimeters": 1e-3, "millimetres": 1e-3, "mm": 1e-3, "centimeters": 1e-2, "centimetres": 1e-2, "cm": 1e-2, "meters": 1.0, "metres": 1.0, "m": 1.0, "inches": 0.0254, "inch": 0.0254, "feet": 0.3048, "foot": 0.3048}
+    raw = system_units.strip().lower().replace(" ", "")
+    key = raw.rsplit(".", 1)[-1]
+    mapping = {"millimeters": 1e-3, "millimetres": 1e-3, "millimeter": 1e-3, "millimetre": 1e-3, "mm": 1e-3, "centimeters": 1e-2, "centimetres": 1e-2, "centimeter": 1e-2, "centimetre": 1e-2, "cm": 1e-2, "meters": 1.0, "metres": 1.0, "meter": 1.0, "metre": 1.0, "m": 1.0, "inches": 0.0254, "inch": 0.0254, "feet": 0.3048, "foot": 0.3048}
     if key not in mapping:
         raise ZemaxModelError(f"Unsupported/unknown OpticStudio lens unit {system_units!r}; refusing an implicit conversion")
     return mapping[key]

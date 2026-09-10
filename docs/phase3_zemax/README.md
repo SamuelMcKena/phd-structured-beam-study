@@ -12,6 +12,6 @@ C:\PhD\.venv2\Scripts\python.exe tools\run_zemax_smoke_test.py
 
 The repository remains importable and testable without ZOSPy or OpticStudio. A real `.ZOS`/`.ZMX` prescription is treated as read-only evidence: the runner hashes it, makes a work copy, inspects the prescription, and records the source SHA-256. No real-bench validation is claimed until the actual prescription and surface map are supplied.
 
-For B0/V1/V3, the current bridge deliberately blocks arbitrary Python-to-ZBF export unless a documented supported writer is established. A pre-existing, independently generated `.ZBF` may be supplied. This is preferable to reverse engineering a binary format and silently corrupting a field.
+For B0/V1/V3, the bridge deliberately blocks arbitrary Python-to-ZBF export unless a documented supported writer is established. A pre-existing, independently generated `.ZBF` may be supplied. The runner hashes it, stages a temporary copy into OpticStudio's documented `POPDir`/beam-files folder, passes only the Zemax filename to POP, and removes the staged copy afterward. This is preferable to reverse engineering a binary format and silently corrupting a field.
 
 The canonical Python side is connected through `python_reference.py`, which adapts the existing Phase 2C vector-Debye benchmark rather than implementing a second Bessel simulator. Use `--python-reference phase2c-vector-focus --confirm-same-plane` only after confirming the mapped Zemax output is that same physical focal plane.
