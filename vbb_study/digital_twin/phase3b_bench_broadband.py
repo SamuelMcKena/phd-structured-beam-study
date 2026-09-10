@@ -7,10 +7,10 @@ unknown material never silently inherits fused-silica dispersion, and pupil or
 detector maps are never resized to make them fit.
 
 The actual one-wavelength optical calculation is injected as a callback so the
-existing canonical scalar/vector/4F/Debye solvers remain the source of optical
-physics.  Phase 3B provides wavelength-dependent material context and measured
-assets to that callback, then performs spectral integration and detector
-transfer.
+existing canonical scalar/vector/4F/Debye and Phase 2H refractive-axicon solvers
+remain the source of optical physics. Phase 3B provides wavelength-dependent
+material context and measured assets to that callback, then performs spectral
+integration and detector transfer.
 """
 
 from __future__ import annotations
@@ -126,9 +126,9 @@ def material_model_from_calibration(
 ) -> tuple[MaterialModel | None, str]:
     """Resolve a material without silently assigning a glass type.
 
-    Fused silica gets the named Malitson dispersion law.  Any other material
-    may use an explicitly measured constant index as a temporary monochromatic
-    model, but is labelled ``constant_index_no_dispersion``.  Unknown material
+    Fused silica gets the named Malitson dispersion law. Any other material may
+    use an explicitly measured constant index as a temporary monochromatic
+    model, but is labelled ``constant_index_no_dispersion``. Unknown material
     with no index is blocked.
     """
 
@@ -273,8 +273,12 @@ def run_phase3b_broadband(
     blockers: list[str] = []
     if sample_material is None:
         blockers.append("sample material/index unresolved")
+    elif sample_status == "constant_index_no_dispersion":
+        blockers.append("sample wavelength dispersion unresolved; constant index is comparison-only")
     if axicon_material is None:
         blockers.append("axicon material/index unresolved")
+    elif axicon_status == "constant_index_no_dispersion":
+        blockers.append("axicon wavelength dispersion unresolved; constant index is comparison-only")
 
     def one(wavelength_m: float) -> SpectralFieldPlane:
         sample_n = None if sample_material is None else float(sample_material.refractive_index(wavelength_m))
@@ -289,6 +293,7 @@ def run_phase3b_broadband(
                 "sample_material_status": sample_status,
                 "axicon_material_status": axicon_status,
                 "spectrum_status": spectrum_status,
+                "phase2h_two_surface_axicon_authority": "vbb_study.digital_twin.vector_refractive_axicon_eikonal",
             },
         )
         return propagate_one_context(context)
@@ -313,8 +318,11 @@ def run_phase3b_broadband(
             "data_classification": bundle.data_classification,
             "measured_objective_pupil_applied": objective_calibration is not None,
             "detector_transfer_applied": detector_result is not None,
-            "surface_by_surface_boundary_primitive_available": True,
-            "full_curved_surface_wave_remapping_available": False,
+            "generic_vector_surface_boundary_primitive_available": True,
+            "phase2h_two_surface_refractive_axicon_available": True,
+            "phase2h_axicon_model_class": "vector_common_eikonal_geometrical_optics_boundary_field",
+            "full_volume_fdtd_fem_available": False,
+            "general_thick_multielement_lens_surface_solver_available": False,
             "nonlinear_material_propagation_available": False,
             "experimental_validation_claimed": False,
         },
