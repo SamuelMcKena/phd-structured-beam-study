@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
 import numpy as np
 
@@ -23,7 +23,9 @@ from vbb_study.calibration.camera_comparison import (
     compare_simulation_to_camera,
 )
 from vbb_study.calibration.schema import CalibrationBundle, value_at
-from vbb_study.digital_twin.phase3b_bench_broadband import Phase3BResult
+
+if TYPE_CHECKING:
+    from vbb_study.digital_twin.phase3b_bench_broadband import Phase3BResult
 
 
 @dataclass(frozen=True)
@@ -137,7 +139,7 @@ def _evaluate_acceptance(
 
 
 def compare_phase3b_to_camera(
-    phase3b: Phase3BResult,
+    phase3b: "Phase3BResult",
     measured_intensity: np.ndarray,
     bundle: CalibrationBundle,
     *,
