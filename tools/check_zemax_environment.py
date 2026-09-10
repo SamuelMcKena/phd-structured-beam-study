@@ -2,7 +2,12 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from vbb_study.integrations.zemax.availability import classify_exit_code, probe_zemax_environment
 
@@ -26,7 +31,8 @@ def main() -> int:
         for message in status.diagnostic_messages:
             print(f"  - {message}")
     if args.json_path is not None:
-        args.json_path.parent.mkdir(parents=True, exist_ok=True); args.json_path.write_text(json.dumps(status.to_dict(), indent=2), encoding="utf-8")
+        args.json_path.parent.mkdir(parents=True, exist_ok=True)
+        args.json_path.write_text(json.dumps(status.to_dict(), indent=2), encoding="utf-8")
     return classify_exit_code(status)
 
 

@@ -1,8 +1,13 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import asdict
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import numpy as np
 
@@ -24,10 +29,16 @@ def main() -> int:
         stop = oss.LDE.GetSurfaceAt(1)
         stop.Thickness = 50.0
         result = run_pop(oss, request, system_length_unit_to_m=1e-3)
-    finite = bool(np.all(np.isfinite(result.irradiance))); nonnegative = bool(np.all(result.irradiance >= 0.0)); nonzero = bool(float(np.sum(result.irradiance)) > 0.0); shape_ok = result.irradiance.shape == (result.y_m.size, result.x_m.size); passed = finite and nonnegative and nonzero and shape_ok
+    finite = bool(np.all(np.isfinite(result.irradiance)))
+    nonnegative = bool(np.all(result.irradiance >= 0.0))
+    nonzero = bool(float(np.sum(result.irradiance)) > 0.0)
+    shape_ok = result.irradiance.shape == (result.y_m.size, result.x_m.size)
+    passed = finite and nonnegative and nonzero and shape_ok
     np.savez_compressed(OUTPUT / "smoke_pop_result.npz", x_m=result.x_m, y_m=result.y_m, irradiance=result.irradiance)
     payload = {"label": "software_integration_smoke_test", "physical_validation": False, "experimental_validation": False, "passed": passed, "checks": {"finite": finite, "nonnegative": nonnegative, "nonzero": nonzero, "shape_ok": shape_ok}, "request": asdict(request), "metadata": result.metadata, "warnings": result.warnings}
-    (OUTPUT / "smoke_test.json").write_text(json.dumps(payload, indent=2), encoding="utf-8"); print(json.dumps(payload, indent=2)); return 0 if passed else 1
+    (OUTPUT / "smoke_test.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    print(json.dumps(payload, indent=2))
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

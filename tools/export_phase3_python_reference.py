@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from vbb_study.integrations.zemax.field_exchange import save_field_npz
 from vbb_study.integrations.zemax.python_reference import PHASE3_CASES, build_phase2c_vector_focus_reference
