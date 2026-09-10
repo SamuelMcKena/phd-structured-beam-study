@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 
 from vbb_study.calibration.schema import CalibrationBundle, canonical_calibration_template
@@ -8,7 +10,11 @@ from vbb_study.digital_twin.broadband_propagation import (
     spectrum_from_arrays,
     spectrum_from_wavelength_density,
 )
-from vbb_study.digital_twin.phase3b_bench_broadband import Phase3BConfig, run_phase3b_broadband
+from vbb_study.digital_twin.phase3b_bench_broadband import (
+    Phase3BConfig,
+    _load_separate_spectral_phase,
+    run_phase3b_broadband,
+)
 
 
 def test_wavelength_density_uses_trapezoidal_cell_weights_on_nonuniform_grid() -> None:
@@ -24,6 +30,24 @@ def test_explicit_energy_weights_are_not_reweighted_by_wavelength_spacing() -> N
     spectrum = spectrum_from_arrays([1.0e-6, 2.0e-6, 4.0e-6], [1.0, 1.0, 2.0])
     np.testing.assert_allclose(spectrum.energy_weights, [0.25, 0.25, 0.5])
     assert spectrum.metadata["spectral_value_interpretation"] == "integrated_discrete_energy_weights"
+
+
+def test_wrapped_measured_phase_is_unwrapped_before_interpolation(tmp_path: Path) -> None:
+    source_wavelength_nm = np.asarray([1000.0, 1020.0, 1040.0])
+    true_phase = np.asarray([2.8, 3.2, 3.6])
+    wrapped_phase = np.angle(np.exp(1j * true_phase))
+    path = tmp_path / "spectral_phase.csv"
+    np.savetxt(
+        path,
+        np.column_stack([source_wavelength_nm, wrapped_phase]),
+        delimiter=",",
+        header="wavelength_nm,spectral_phase_rad",
+        comments="",
+    )
+    target = np.asarray([1.01e-6, 1.03e-6])
+    interpolated, status = _load_separate_spectral_phase(str(path), target)
+    np.testing.assert_allclose(interpolated, [3.0, 3.4], atol=1e-12)
+    assert "unwrapped_phase" in status
 
 
 def test_phase3b_blocks_broadband_calibration_claim_for_unknown_constant_index_axicon() -> None:
