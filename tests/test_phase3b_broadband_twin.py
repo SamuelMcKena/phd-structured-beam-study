@@ -71,7 +71,7 @@ def test_broadband_rejects_hidden_grid_change() -> None:
         axis = np.linspace(-1.0, 1.0, n)
         return SpectralFieldPlane(wavelength_m, axis, axis, np.ones((n, n), dtype=complex))
 
-    with pytest.raises(ValueError, match="same declared physical output grid"):
+    with pytest.raises(ValueError, match="one declared physical output grid"):
         propagate_broadband(spectrum, propagate)
 
 
@@ -107,9 +107,12 @@ def test_detector_transfer_psf_and_saturation_are_explicit() -> None:
     psf = np.ones((3, 3), dtype=float)
     calibration = DetectorTransferCalibration(psf=psf, saturation_level=0.8)
     result = apply_detector_transfer(image, calibration)
-    assert np.count_nonzero(result.intensity) == 9
+    # FFT convolution leaves roundoff-sized values outside the compact PSF
+    # support, so test the physically meaningful saturation support rather than
+    # exact floating-point zeros.
+    assert np.count_nonzero(result.saturated_mask) == 9
     assert float(np.max(result.intensity)) == pytest.approx(0.8)
-    assert np.any(result.saturated_mask)
+    assert result.metadata["saturated_fraction"] == pytest.approx(9.0 / 81.0)
     assert result.metadata["automatic_fit_to_measurement"] is False
 
 
