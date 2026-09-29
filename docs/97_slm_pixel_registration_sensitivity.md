@@ -13,17 +13,18 @@ alignment dominates; and whether higher vortex charges are more sensitive.
 ## Why the accepted Phase 2E sampling cannot answer it
 
 The pixel pitch is 8 um. The accepted Phase 2E source grids run N=1536 over a
-10 mm window, which is dx = 6.51 um, or **0.8 computational samples per pixel**.
+10 mm window, which is dx = 6.51 um. That is **1.23 computational samples
+across one 8 um pixel pitch** (equivalently dx/p = 0.814), below the two-sample
+minimum imposed by the dedicated registration route and also incommensurate
+with the physical pitch. The accepted grid therefore cannot resolve a
+sub-pixel lattice-registration experiment quantitatively.
 
-On such a grid every computational sample falls inside a pixel of its own, so
-the circular mean in `pixelate` is taken over a single sample and the operator
-degenerates into the identity. The pixel lattice leaves the model entirely, and
-a sub-pixel registration sweep returns **exactly zero for every offset** — a
-null that is indistinguishable at a glance from a physical finding of no
-sensitivity.
-
-This is not a hypothetical. It was observed directly during development: an
-end-to-end sweep at N=512 produced a bitwise-identical field at every offset.
+The exact-null failure occurs more starkly once dx exceeds the pitch. This was
+observed directly during development at N=512 over 10 mm (dx = 19.53 um): every
+computational sample occupies a distinct model pixel, `pixelate()` becomes the
+identity, and an end-to-end registration sweep returns a bitwise-identical field
+at every offset. That false null is indistinguishable at a glance from a
+physical finding of no sensitivity.
 `build_registration_route` therefore *refuses* to run a registration sweep below
 two samples per pixel unless `allow_unresolved_lattice=True` is passed, and
 `blocked_or_data_driven_families()` records why these families must not be added
@@ -174,10 +175,21 @@ field, which a disguised hologram decentre could not do.
 ## Results
 
 Data in `outputs/validation/slm_pixel_registration/`, figures in
-`outputs/figures/slm_pixel_registration/`. Metric throughout is the
-registration-induced infidelity: `1 - |<E,Eref>|^2 / (<E,E><Eref,Eref>)` between
-the field at a given sub-pixel offset and the same route at zero offset. It is
-invariant to a global complex scale, so it reports structural change only.
+`outputs/figures/slm_pixel_registration/`. The original primary metric is the
+laboratory-frame registration-induced infidelity
+`1 - |<E,Eref>|^2 / (<E,E><Eref,Eref>)` between a sub-pixel offset and the
+zero-offset route. It is invariant to a global complex scale, but **not** to
+transverse translation: a perfectly preserved beam that walks by a few microns
+still scores non-zero infidelity.
+
+The audited route therefore now records a second metric beside it:
+`translation_registered_infidelity`. The field centroid is measured, the test
+field is Fourier-shifted onto the reference centroid, and complex fidelity is
+recomputed. The raw value is the correct lab-frame/beam-walk-sensitive metric;
+the translation-registered value is the safer morphology metric. Phase tilt,
+deformation and higher-order changes are deliberately not removed. Any claim
+that one panel 'deforms the beam more' must use the registered metric; the raw
+metric alone supports only a statement about total lab-frame field change.
 
 ### Charge and beam size are one parameter, not two
 
@@ -275,13 +287,20 @@ noise floor *inside the production dataset*: a flat phase command pixelates
 exactly, so a panel translation can change nothing, and any non-zero reading
 there would have condemned the whole run.
 
-### SLM2 matters more than SLM1, which was not the expectation
+### Along the carrier x direction, SLM2 gives the larger raw lab-frame change
 
 SLM1 carries the entire vortex charge and SLM2 carries only a linear carrier
-ramp, so the naive expectation is that SLM1 dominates. It does not. SLM2-only
-translation is **16x more damaging than SLM1-only at charge 1** and still ~1.8x
-at charge 20, and it is non-zero even at charge 0 where SLM1 contributes
-identically nothing.
+ramp, so the naive expectation was that SLM1 would dominate. In the original
+**x-direction laboratory-frame fidelity** it does not: SLM2-only translation
+produces a raw infidelity about 16x larger than SLM1-only at charge 1 and about
+1.8x larger at charge 20, and remains non-zero at charge 0.
+
+This comparison must not yet be described as 16x more *morphological damage*.
+The x-axis is also the carrier direction, and raw complex fidelity penalises
+beam translation. The audited code now writes centroid separation and
+translation-registered fidelity beside every raw value. Regenerating the bench
+matrix with those columns is the required discriminator between a carrier-induced
+beam walk and a genuine deformation of the selected order.
 
 The reason follows from the iris, and it is the same mechanism that makes the
 bench insensitive overall. Pixelating the vortex core produces an error
@@ -403,7 +422,25 @@ Figures worth going to first:
 
 Reproduce with `tools/run_slm_pixel_registration_study.py` and plot with
 `tools/plot_slm_pixel_registration.py`; `tools/summarise_slm_pixel_registration.py`
-prints the headline table for any tag.
+prints raw (`lab reg`) and translation-registered (`shape reg`) headline values.
+
+For the bench-direction audit, use the commensurate three-samples-per-pixel grid
+and run the three supported axes separately:
+
+```bash
+for axis in x y diagonal; do
+  python tools/run_slm_pixel_registration_study.py \
+    --stage registration --axis "$axis" \
+    --fine-grid-n 3750 --relay-grid-n 2048 \
+    --fill-factor-model throughput_only \
+    --tag "bench_${axis}"
+done
+```
+
+The pixel-value convention is an independent modelling choice. Repeat the
+relevant production run with `--pixel-value-model centre_sample` as well as the
+default `area_average`; their difference should be reported as model uncertainty
+rather than silently selecting one convention.
 
 ## What this does not answer
 
@@ -422,6 +459,10 @@ prints the headline table for any tag.
   a commensurate grid. They are consistent and far below any level that would
   matter, but they are not demonstrated converged the way the isolation arm is
   (four significant figures across m = 4, 8, 16).
+- **Direction and beam-walk decomposition of the headline SLM2 ranking.** The committed
+  table predates the translation-registered metric and is an x-axis sweep. Regenerate
+  x/y/diagonal data before describing the SLM2 term as morphology rather than lab-frame
+  change.
 
 ## Next step: scalable angular spectrum
 
