@@ -28,8 +28,10 @@ from vbb_study.digital_twin.slm_pixel_registration import (
 from vbb_study.digital_twin.slm_registration_metrics import (
     azimuthal_spectrum,
     complex_fidelity,
+    fourier_translate,
     plane_metrics,
     relative_l2_phase_aligned,
+    translation_registered_fidelity,
 )
 from vbb_study.digital_twin.vortex_beam_slm_errors import SLMError, actual_slm_phase
 from vbb_study.digital_twin.vortex_system_route import (
@@ -313,6 +315,25 @@ def test_fidelity_is_invariant_to_a_global_phase():
     assert complex_fidelity(a, a) == pytest.approx(1.0)
     assert complex_fidelity(a * np.exp(1.3j), a) == pytest.approx(1.0)
     assert relative_l2_phase_aligned(a * np.exp(1.3j), a) == pytest.approx(0.0, abs=1e-12)
+
+def test_translation_registered_fidelity_separates_beam_walk_from_shape_change():
+    """A pure sub-pixel translation should vanish after centroid registration."""
+
+    n = 256
+    window = 2.0e-3
+    grid = lean_xy_grid(n, window / n)
+    reference = np.exp(-((grid["X"] / 0.25e-3) ** 2 + (grid["Y"] / 0.20e-3) ** 2)).astype(complex)
+    dx = 2.35 * float(grid["dx"])
+    dy = -1.40 * float(grid["dx"])
+    shifted = fourier_translate(reference, grid, shift_x_m=dx, shift_y_m=dy)
+
+    raw_infidelity = 1.0 - complex_fidelity(shifted, reference)
+    registered = translation_registered_fidelity(shifted, reference, grid)
+
+    assert raw_infidelity > 1e-5
+    assert registered["infidelity"] < 1e-12
+    assert registered["alignment_shift_x_m"] == pytest.approx(-dx, abs=1e-10)
+    assert registered["alignment_shift_y_m"] == pytest.approx(-dy, abs=1e-10)
 
 
 def test_azimuthal_spectrum_recovers_a_pure_vortex_charge():
