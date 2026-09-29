@@ -54,6 +54,7 @@ from vbb_study.digital_twin.slm_registration_metrics import (
     plane_metrics,
     relative_l2_phase_aligned,
     sweep_spread,
+    translation_registered_fidelity,
 )
 
 DEFAULT_CASES = ("B0", "V1", "V3", "V5", "V10", "V20")
@@ -115,6 +116,14 @@ def _evaluate(route: dict[str, Any], *, charge: int, refs: dict[str, np.ndarray]
             row[f"postiris_infidelity_vs_{name}"] = 1.0 - fid
             row[f"postiris_relative_l2_vs_{name}"] = relative_l2_phase_aligned(
                 fine, ref)
+            registered = translation_registered_fidelity(
+                fine, ref, route["fine_grid"]
+            )
+            row[f"postiris_translation_registered_fidelity_vs_{name}"] = registered["fidelity"]
+            row[f"postiris_translation_registered_infidelity_vs_{name}"] = registered["infidelity"]
+            row[f"postiris_translation_alignment_shift_x_m_vs_{name}"] = registered["alignment_shift_x_m"]
+            row[f"postiris_translation_alignment_shift_y_m_vs_{name}"] = registered["alignment_shift_y_m"]
+            row[f"postiris_centroid_separation_m_vs_{name}"] = registered["centroid_separation_m"]
         row["postiris_power"] = float(np.sum(np.abs(fine) ** 2) * fine_dx ** 2)
 
     # ---- axicon input plane -------------------------------------------------
@@ -309,9 +318,13 @@ def summarise(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
                 and all(r[k] == rec[k] for k in keys if k != "dof")]
         pool = items + zero
         for metric in ("postiris_infidelity_vs_registered0",
+                       "postiris_translation_registered_infidelity_vs_registered0",
                        "postiris_infidelity_vs_continuous",
+                       "postiris_translation_registered_infidelity_vs_continuous",
                        "before_infidelity_vs_continuous",
+                       "before_translation_registered_infidelity_vs_continuous",
                        "before_infidelity_vs_registered0",
+                       "before_translation_registered_infidelity_vs_registered0",
                        "before_azimuthal_purity",
                        "before_core_darkness",
                        "before_ring_asymmetry_rms",
