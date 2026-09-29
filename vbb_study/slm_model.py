@@ -25,6 +25,21 @@ SLM_FILL_FACTOR_MODELS: tuple[str, ...] = (
 )
 
 
+def _lattice_offset(lattice_offset_m: tuple[float, float] | None) -> tuple[float, float]:
+    """Return the panel pixel-lattice origin offset in metres.
+
+    A non-zero offset means the physical panel (its pixel lattice, its dead-space
+    lattice and its rectangular active area) has been translated in the
+    laboratory frame.  The addressed hologram travels with the panel; that part
+    is handled where the commanded pattern coordinates are formed.
+    """
+
+    if lattice_offset_m is None:
+        return (0.0, 0.0)
+    ox, oy = lattice_offset_m
+    return (float(ox), float(oy))
+
+
 def _grid_xy(grid: Mapping[str, Any]) -> tuple[np.ndarray, np.ndarray, float, float]:
     if "X" in grid and "Y" in grid:
         X = np.asarray(grid["X"], dtype=float)
@@ -47,18 +62,26 @@ def field_power(field: np.ndarray, grid: Mapping[str, Any]) -> float:
     return float(np.sum(np.abs(np.asarray(field, dtype=complex)) ** 2) * dx * dy)
 
 
-def slm_active_aperture(grid: Mapping[str, Any], panel_cfg: SLMPanelConfig) -> np.ndarray:
+def slm_active_aperture(
+    grid: Mapping[str, Any],
+    panel_cfg: SLMPanelConfig,
+    *,
+    lattice_offset_m: tuple[float, float] | None = None,
+) -> np.ndarray:
     """Return the rectangular active-area aperture for one SLM panel."""
 
     X, Y, _, _ = _grid_xy(grid)
+    ox, oy = _lattice_offset(lattice_offset_m)
     half_w = 0.5 * panel_cfg.active_width_m
     half_h = 0.5 * panel_cfg.active_height_m
-    return (np.abs(X) <= half_w) & (np.abs(Y) <= half_h)
+    return (np.abs(X - ox) <= half_w) & (np.abs(Y - oy) <= half_h)
 
 
 def resolved_pixel_aperture(
     grid: Mapping[str, Any],
     panel_cfg: SLMPanelConfig,
+    *,
+    lattice_offset_m: tuple[float, float] | None = None,
 ) -> np.ndarray:
     """Return a resolved square-pixel active-area mask with mean area ``FF``.
 
@@ -69,6 +92,7 @@ def resolved_pixel_aperture(
     """
 
     X, Y, dx, dy = _grid_xy(grid)
+    ox, oy = _lattice_offset(lattice_offset_m)
     pitch = float(panel_cfg.pitch_m)
     if max(abs(dx), abs(dy)) > 0.5 * pitch:
         raise ValueError(
@@ -79,20 +103,25 @@ def resolved_pixel_aperture(
     if ff >= 1.0:
         return np.ones_like(X, dtype=float)
     duty = np.sqrt(ff)
-    xmod = np.mod(X / pitch + 0.5, 1.0) - 0.5
-    ymod = np.mod(Y / pitch + 0.5, 1.0) - 0.5
+    xmod = np.mod((X - ox) / pitch + 0.5, 1.0) - 0.5
+    ymod = np.mod((Y - oy) / pitch + 0.5, 1.0) - 0.5
     return ((np.abs(xmod) <= 0.5 * duty) & (np.abs(ymod) <= 0.5 * duty)).astype(float)
 
 
 def _coherent_deadspace_mask(
     grid: Mapping[str, Any],
     panel_cfg: SLMPanelConfig,
+    *,
+    lattice_offset_m: tuple[float, float] | None = None,
 ) -> tuple[np.ndarray, str]:
     """Return the coherent active-region mask and its sampling classification."""
 
     X, _, dx, dy = _grid_xy(grid)
     if max(abs(dx), abs(dy)) <= 0.5 * float(panel_cfg.pitch_m):
-        return resolved_pixel_aperture(grid, panel_cfg), "resolved_binary_pixel_aperture"
+        return (
+            resolved_pixel_aperture(grid, panel_cfg, lattice_offset_m=lattice_offset_m),
+            "resolved_binary_pixel_aperture",
+        )
     return (
         np.full_like(X, float(np.clip(panel_cfg.fill_factor, 0.0, 1.0)), dtype=float),
         "unresolved_effective_duty",
@@ -103,6 +132,8 @@ def pixelate(
     phase: np.ndarray,
     grid: Mapping[str, Any],
     panel_cfg: SLMPanelConfig,
+    *,
+    lattice_offset_m: tuple[float, float] | None = None,
 ) -> np.ndarray:
     """Area-average a continuous phase target onto the SLM pixel grid.
 
@@ -118,9 +149,10 @@ def pixelate(
     if phi.shape != X.shape:
         raise ValueError("phase and grid arrays must have the same shape.")
 
-    aperture = slm_active_aperture(grid, panel_cfg)
-    x0 = X + 0.5 * panel_cfg.active_width_m
-    y0 = Y + 0.5 * panel_cfg.active_height_m
+    ox, oy = _lattice_offset(lattice_offset_m)
+    aperture = slm_active_aperture(grid, panel_cfg, lattice_offset_m=(ox, oy))
+    x0 = (X - ox) + 0.5 * panel_cfg.active_width_m
+    y0 = (Y - oy) + 0.5 * panel_cfg.active_height_m
     ix = np.floor(x0 / float(panel_cfg.pitch_m)).astype(np.int64)
     iy = np.floor(y0 / float(panel_cfg.pitch_m)).astype(np.int64)
     valid = aperture & (ix >= 0) & (ix < panel_cfg.n_x) & (iy >= 0) & (iy < panel_cfg.n_y)
@@ -170,10 +202,11 @@ def prepare_slm_phase(
     *,
     quantise_phase: bool = True,
     apply_carrier: bool = True,
+    lattice_offset_m: tuple[float, float] | None = None,
 ) -> np.ndarray:
     """Pixelate, optionally add carrier, and optionally quantise a phase map."""
 
-    prepared = pixelate(phase, grid, panel_cfg)
+    prepared = pixelate(phase, grid, panel_cfg, lattice_offset_m=lattice_offset_m)
     if apply_carrier:
         prepared = prepared + carrier_phase(grid, panel_cfg)
     if quantise_phase:
@@ -252,6 +285,7 @@ def apply_slm(
     apply_fill_factor: bool = True,
     apply_carrier: bool = True,
     fill_factor_model: SLMFillFactorModel = "coherent_unmodulated_deadspace",
+    lattice_offset_m: tuple[float, float] | None = None,
 ) -> SLMApplication:
     """Apply the Stage 7 phase-only SLM model to one scalar component.
 
@@ -275,10 +309,11 @@ def apply_slm(
             panel_cfg,
             quantise_phase=quantise_phase,
             apply_carrier=apply_carrier,
+            lattice_offset_m=lattice_offset_m,
         )
     if incident_full.shape != psi.shape:
         raise ValueError("field and phase arrays must have the same shape.")
-    aperture = slm_active_aperture(grid, panel_cfg)
+    aperture = slm_active_aperture(grid, panel_cfg, lattice_offset_m=lattice_offset_m)
     incident = np.where(aperture, incident_full, 0.0)
     model = str(fill_factor_model).strip().lower()
     if model not in SLM_FILL_FACTOR_MODELS:
@@ -291,13 +326,17 @@ def apply_slm(
         modulated = np.sqrt(ff) * np.exp(1j * psi) * incident
         unmodulated = np.zeros_like(modulated)
     elif model == "resolved_pixel_aperture":
-        mask = resolved_pixel_aperture(grid, panel_cfg) if apply_fill_factor else np.ones_like(psi)
+        mask = (
+            resolved_pixel_aperture(grid, panel_cfg, lattice_offset_m=lattice_offset_m)
+            if apply_fill_factor
+            else np.ones_like(psi)
+        )
         modulated = mask * np.exp(1j * psi) * incident
         unmodulated = np.zeros_like(modulated)
         sampling = "resolved_binary_pixel_aperture"
     else:
         mask, sampling = (
-            _coherent_deadspace_mask(grid, panel_cfg)
+            _coherent_deadspace_mask(grid, panel_cfg, lattice_offset_m=lattice_offset_m)
             if apply_fill_factor
             else (np.ones_like(psi), "fill_factor_disabled")
         )
@@ -322,6 +361,7 @@ def apply_slm(
             "quantise_phase": bool(quantise_phase),
             "apply_carrier": bool(apply_carrier),
             "phase_is_prepared": bool(phase_is_prepared),
+            "pixel_lattice_offset_m": _lattice_offset(lattice_offset_m),
         },
     )
 
