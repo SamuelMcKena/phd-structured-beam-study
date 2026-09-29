@@ -361,6 +361,20 @@ def blocked_or_data_driven_families() -> dict[str, dict[str, Any]]:
             "status": "full_surface_refraction_required",
             "required": "explicit manufacturer angle convention and vector Snell/Fresnel two-surface model",
         },
+        "slm_sub_pixel_lattice_registration": {
+            "status": "separate_resolved_lattice_route",
+            "required": (
+                "vbb_study.digital_twin.slm_pixel_registration; must NOT be added to "
+                "this registry.  The suite runs build_system_route on a single grid "
+                "with dx >= the 8 um pixel pitch, where pixelate() degenerates into "
+                "the identity and a sub-pixel sweep returns exactly zero for every "
+                "offset -- an artificial null indistinguishable from a physical "
+                "finding of no sensitivity.  The dedicated route resolves the lattice "
+                "and refuses unresolved grids.  Note that slm1_hologram_offset_x above "
+                "is a different error: a 25-pixel electronic pattern decentre, not a "
+                "sub-pixel beam-to-lattice registration."
+            ),
+        },
         "objective_and_sample_errors": {
             "status": "separate_vector_branch",
             "required": "Phase 2C vector Debye/interface route; do not fold into source-scale Bessel propagation",

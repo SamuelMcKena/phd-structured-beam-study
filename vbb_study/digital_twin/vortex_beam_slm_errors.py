@@ -72,12 +72,31 @@ class GaussianBeamError:
 class SLMError:
     """One phase-only SLM error model.
 
-    Registration parameters act on the commanded pattern coordinates.
+    Two physically distinct registration errors are represented.
+
+    ``panel_translation_m`` translates the **physical panel** in the laboratory
+    frame: its pixel lattice, its dead-space lattice, its rectangular active
+    area and the hologram addressed in panel pixel coordinates all move
+    together.  This is the degree of freedom that changes where the incident
+    beam lands *relative to the pixel lattice*, and it is the only way to vary
+    that quantity independently for each panel when the two panels share a
+    plane.
+
+    ``pattern_offset_m`` is an **electronic** shift of the addressed hologram
+    relative to its own panel.  The pixel lattice does not move with it.
+
+    Holding the beam fixed while setting ``panel_translation_m = -d`` and
+    ``pattern_offset_m = +d`` therefore changes the beam-to-pixel-lattice
+    registration by ``d`` while leaving the beam-to-hologram alignment exactly
+    nominal.  That separation is what makes a sub-pixel registration study
+    distinguishable from ordinary hologram decentre.
+
     ``phase_stroke_scale`` rescales the actual phase swing relative to ideal.
     ``fringing_sigma_*_px`` are phenomenological convolution widths and remain
     zero unless fitted to measured data.
     """
 
+    panel_translation_m: tuple[float, float] = (0.0, 0.0)
     pattern_offset_m: tuple[float, float] = (0.0, 0.0)
     pattern_rotation_rad: float = 0.0
     pattern_scale_x: float = 1.0
@@ -88,7 +107,15 @@ class SLMError:
     fringing_sigma_x_px: float = 0.0
     fringing_sigma_y_px: float = 0.0
 
+    @property
+    def lattice_offset_m(self) -> tuple[float, float]:
+        """Pixel-lattice origin offset implied by the panel translation."""
+
+        return (float(self.panel_translation_m[0]), float(self.panel_translation_m[1]))
+
     def validate(self) -> None:
+        if not all(math.isfinite(float(v)) for v in self.panel_translation_m):
+            raise ValueError("SLM panel translation must be finite")
         if self.pattern_scale_x <= 0.0 or self.pattern_scale_y <= 0.0:
             raise ValueError("SLM pattern scales must be positive")
         if self.phase_stroke_scale <= 0.0:
@@ -171,11 +198,18 @@ def gaussian_input_field(
 def transformed_pattern_coordinates(
     grid: Mapping[str, Any], error: SLMError
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Coordinates in which the commanded hologram is evaluated."""
+    """Coordinates in which the commanded hologram is evaluated.
+
+    The hologram is addressed in panel pixel coordinates, so a physical panel
+    translation displaces the commanded pattern in the laboratory frame in
+    addition to any electronic ``pattern_offset_m``.
+    """
 
     error.validate()
-    X = np.asarray(grid["X"], dtype=float) - float(error.pattern_offset_m[0])
-    Y = np.asarray(grid["Y"], dtype=float) - float(error.pattern_offset_m[1])
+    cx = float(error.panel_translation_m[0]) + float(error.pattern_offset_m[0])
+    cy = float(error.panel_translation_m[1]) + float(error.pattern_offset_m[1])
+    X = np.asarray(grid["X"], dtype=float) - cx
+    Y = np.asarray(grid["Y"], dtype=float) - cy
     c = math.cos(float(error.pattern_rotation_rad))
     s = math.sin(float(error.pattern_rotation_rad))
     xr = c * X + s * Y

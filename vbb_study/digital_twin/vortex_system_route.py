@@ -359,3 +359,36 @@ def build_system_route(
             },
         },
     }
+
+
+def fourier_resample_fixed_window(field: np.ndarray, output_n: int) -> np.ndarray:
+    """Band-limit resample a square field without changing its physical window.
+
+    The explicit 4F relay needs a window wide enough to contain the displaced
+    selected order, whereas a high-angle axicon needs a substantially finer
+    transverse step.  Treating those as one grid caused the q=20 route either
+    to clip the order or to alias the conical phase.  Fourier zero-padding is
+    the appropriate handoff because the selected-order iris has already made
+    the relay output band limited.
+    """
+    source = np.asarray(field, dtype=np.complex128)
+    if source.ndim != 2 or source.shape[0] != source.shape[1]:
+        raise ValueError("field must be a square 2D array")
+    input_n = int(source.shape[0])
+    output_n = int(output_n)
+    if output_n < input_n:
+        raise ValueError("output_n must be at least the input grid size")
+    if output_n == input_n:
+        return source.copy()
+    spectrum = np.fft.fftshift(np.fft.fft2(source))
+    # ``make_xy_grid`` uses cell-centred coordinates.  Refining N therefore
+    # changes the first coordinate from -L/2+dx_in/2 to -L/2+dx_out/2.
+    # Account for that fractional-input-pixel origin shift before zero padding.
+    delta_samples = 0.5 * (float(input_n) / output_n - 1.0)
+    frequency_cycles_per_sample = np.fft.fftshift(np.fft.fftfreq(input_n, d=1.0))
+    fy, fx = np.meshgrid(frequency_cycles_per_sample, frequency_cycles_per_sample, indexing="ij")
+    spectrum *= np.exp(1j * TWOPI * delta_samples * (fx + fy))
+    padded = np.zeros((output_n, output_n), dtype=np.complex128)
+    start = (output_n - input_n) // 2
+    padded[start:start + input_n, start:start + input_n] = spectrum
+    return np.fft.ifft2(np.fft.ifftshift(padded)) * (float(output_n) / input_n) ** 2
