@@ -68,8 +68,11 @@ def main() -> None:
             continue
         groups[(_f(r, "beam_radius_px"), int(_f(r, "charge")), r["dof"])].append(r)
 
-    hdr = (f"{'w[px]':>8} {'l':>4} {'dof':>13} {'reg spread':>12} {'pix penalty':>12} "
-           f"{'ring asym':>11} {'core dark':>10} {'zone spread':>12}")
+    aligned_metric = metric.replace(
+        "infidelity_vs_", "translation_registered_infidelity_vs_"
+    )
+    hdr = (f"{'w[px]':>8} {'l':>4} {'dof':>13} {'lab reg':>12} {'shape reg':>12} "
+           f"{'pix penalty':>12} {'ring asym':>11} {'core dark':>10} {'zone spread':>12}")
     print(hdr)
     print("-" * len(hdr))
     for key in sorted(groups):
@@ -83,6 +86,7 @@ def main() -> None:
                         and _f(r, "beam_radius_px") == w
                         and int(_f(r, "charge")) == ell]
         reg = _finite([_f(r, metric) for r in pool])
+        aligned = _finite([_f(r, aligned_metric) for r in pool])
         pen = _finite([_f(r, penalty) for r in pool])
         asym = _finite([_f(r, "before_ring_asymmetry_rms") for r in pool])
         core = _finite([_f(r, "before_core_darkness") for r in pool])
@@ -92,14 +96,15 @@ def main() -> None:
         zone_spread = ((max(zone) - min(zone)) / max(abs(sum(zone) / len(zone)), 1e-30)
                        if len(zone) > 1 else float("nan"))
         print(f"{w:8.1f} {ell:4d} {dof:>13} {max(reg):12.3e} "
+              f"{(max(aligned) if aligned else float('nan')):12.3e} "
               f"{(sum(pen)/len(pen) if pen else float('nan')):12.3e} "
               f"{(max(asym)-min(asym) if len(asym) > 1 else float('nan')):11.3e} "
               f"{(sum(core)/len(core) if core else float('nan')):10.4f} "
               f"{zone_spread:12.3e}")
 
     print()
-    print("reg spread   = max infidelity across the sub-pixel offset sweep, "
-          "vs the zero-offset route")
+    print("lab reg      = max laboratory-frame infidelity across the sub-pixel sweep")
+    print("shape reg    = same comparison after Fourier recentering to remove centroid translation")
     print("pix penalty  = mean infidelity vs the continuous (unpixelated) ideal")
     print("ring asym    = spread of ring azimuthal asymmetry across the sweep")
     print("zone spread  = relative spread of Bessel-zone length across the sweep")
