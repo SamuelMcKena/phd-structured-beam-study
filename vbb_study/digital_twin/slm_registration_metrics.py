@@ -74,6 +74,75 @@ def field_power(field: np.ndarray, grid: Mapping[str, Any]) -> float:
     return float(np.sum(np.abs(np.asarray(field)) ** 2) * float(grid["dx"]) ** 2)
 
 
+def _intensity_centroid_m(
+    field: np.ndarray, grid: Mapping[str, Any]
+) -> tuple[float, float]:
+    """Return the intensity centroid in laboratory x/y coordinates."""
+
+    intensity = np.abs(np.asarray(field, dtype=np.complex128)) ** 2
+    total = float(np.sum(intensity))
+    X = np.asarray(grid["X"], dtype=float)
+    Y = np.asarray(grid["Y"], dtype=float)
+    return (
+        float(np.sum(intensity * X) / max(total, EPS)),
+        float(np.sum(intensity * Y) / max(total, EPS)),
+    )
+
+
+def fourier_translate(
+    field: np.ndarray,
+    grid: Mapping[str, Any],
+    *,
+    shift_x_m: float,
+    shift_y_m: float,
+) -> np.ndarray:
+    """Translate a complex field without interpolation using the Fourier shift theorem.
+
+    Positive shifts move the field towards positive laboratory coordinates.
+    The shifts are tiny compared with the computational window, so periodic
+    wrap-around is negligible for the registration study.
+    """
+
+    source = np.asarray(field, dtype=np.complex128)
+    if source.ndim != 2 or source.shape[0] != source.shape[1]:
+        raise ValueError("field must be a square 2D array")
+    n = int(source.shape[0])
+    dx = float(grid["dx"])
+    fx = np.fft.fftfreq(n, d=dx)
+    FY, FX = np.meshgrid(fx, fx, indexing="ij")
+    phase = np.exp(-1j * TWOPI * (FX * float(shift_x_m) + FY * float(shift_y_m)))
+    return np.fft.ifft2(np.fft.fft2(source) * phase)
+
+
+def translation_registered_fidelity(
+    field: np.ndarray,
+    reference: np.ndarray,
+    grid: Mapping[str, Any],
+) -> dict[str, float]:
+    """Compare fields after removing only their transverse centroid separation.
+
+    Raw complex-field fidelity is laboratory-frame sensitive: a physically
+    identical beam translated by a few microns has non-zero infidelity. That is
+    useful for beam-walk diagnostics but is not by itself a morphology change.
+    This metric recentres the field onto the reference centroid with an exact
+    Fourier translation. Phase tilt, deformation and higher-order changes remain.
+    """
+
+    cx, cy = _intensity_centroid_m(field, grid)
+    rx, ry = _intensity_centroid_m(reference, grid)
+    shift_x = rx - cx
+    shift_y = ry - cy
+    aligned = fourier_translate(field, grid, shift_x_m=shift_x, shift_y_m=shift_y)
+    fidelity = complex_fidelity(aligned, reference)
+    return {
+        "fidelity": float(fidelity),
+        "infidelity": float(1.0 - fidelity),
+        "alignment_shift_x_m": float(shift_x),
+        "alignment_shift_y_m": float(shift_y),
+        "centroid_separation_m": float(math.hypot(cx - rx, cy - ry)),
+    }
+
+
 # --------------------------------------------------------------------------
 # radial / azimuthal structure
 # --------------------------------------------------------------------------
@@ -233,6 +302,12 @@ def plane_metrics(
         out["fidelity"] = complex_fidelity(field, reference)
         out["infidelity"] = 1.0 - out["fidelity"]
         out["relative_l2"] = relative_l2_phase_aligned(field, reference)
+        registered = translation_registered_fidelity(field, reference, grid)
+        out["translation_registered_fidelity"] = registered["fidelity"]
+        out["translation_registered_infidelity"] = registered["infidelity"]
+        out["translation_alignment_shift_x_m"] = registered["alignment_shift_x_m"]
+        out["translation_alignment_shift_y_m"] = registered["alignment_shift_y_m"]
+        out["centroid_separation_m"] = registered["centroid_separation_m"]
         ref_power = field_power(reference, grid)
         out["power_ratio"] = float(out["power"] / max(ref_power, EPS))
     return out
