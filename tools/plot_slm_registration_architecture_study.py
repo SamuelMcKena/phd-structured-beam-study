@@ -229,6 +229,64 @@ def plot_interpanel(df: pd.DataFrame, outdir: Path) -> list[Path]:
     return paths
 
 
+def plot_axial(df: pd.DataFrame, outdir: Path) -> Path:
+    """Plot propagated Bessel-region sensitivity for a representative case."""
+
+    charge = 20 if 20 in set(df["charge"]) else int(df["charge"].max())
+    radius = 50.0 if np.any(np.isclose(df["beam_radius_px"], 50.0)) else float(df["beam_radius_px"].iloc[0])
+    sub = df[
+        (df["charge"] == charge)
+        & np.isclose(df["beam_radius_px"], radius)
+    ].copy()
+
+    fig, axs = plt.subplots(1, 3, figsize=(14, 4.6), constrained_layout=True)
+    for architecture, ga in sub.groupby("architecture"):
+        for panel, g in ga.groupby("panel"):
+            g = g.sort_values("offset_fraction_px")
+            label = f"{architecture}: {panel}"
+            axs[0].plot(
+                g["offset_fraction_px"],
+                g["peak_intensity_ratio"],
+                marker="o",
+                label=label,
+            )
+            axs[1].plot(
+                g["offset_fraction_px"],
+                g["bessel_zone_ratio"],
+                marker="o",
+                label=label,
+            )
+            morph = (
+                "propagated_translation_registered_infidelity"
+                if "propagated_translation_registered_infidelity" in g.columns
+                else "propagated_infidelity"
+            )
+            axs[2].plot(
+                g["offset_fraction_px"],
+                g[morph],
+                marker="o",
+                label=label,
+            )
+
+    axs[0].axhline(1.0, ls="--", lw=1)
+    axs[1].axhline(1.0, ls="--", lw=1)
+    axs[0].set_ylabel("Peak intensity / zero-registration")
+    axs[1].set_ylabel("Bessel-zone length / zero-registration")
+    axs[2].set_ylabel("Propagated morphology infidelity")
+    for ax in axs:
+        ax.set_xlabel("Registration shift / pixel pitch")
+        ax.grid(True, alpha=0.25)
+    axs[0].set_title("Peak intensity")
+    axs[1].set_title("Bessel-zone length")
+    axs[2].set_title("XY field at reference z")
+    axs[0].legend(fontsize=7)
+    fig.suptitle(f"Post-axicon sensitivity: L={charge}, w={radius:g} px")
+    path = outdir / "07_axial_registration_sensitivity.png"
+    fig.savefig(path, dpi=320, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 def _crop(arr: np.ndarray, x_m: np.ndarray, half_width_um: float) -> tuple[np.ndarray, np.ndarray]:
     mask = np.abs(x_m) <= float(half_width_um) * 1e-6
     idx = np.where(mask)[0]
@@ -323,6 +381,10 @@ def main() -> None:
     unit_path = datadir / "unit_cell_maps.csv"
     if unit_path.exists():
         made.extend(plot_unit_cell(_read_csv(unit_path), outdir))
+
+    axial_path = datadir / "axial_metrics.csv"
+    if axial_path.exists():
+        made.append(plot_axial(_read_csv(axial_path), outdir))
 
     inter_path = datadir / "interpanel_registration_map.csv"
     if inter_path.exists():
