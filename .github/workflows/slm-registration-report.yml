@@ -8,6 +8,7 @@ on:
       - 'vbb_study/digital_twin/slm_registration_architectures.py'
       - 'tools/run_slm_registration_architecture_study.py'
       - 'tools/plot_slm_registration_architecture_study.py'
+      - 'tools/plot_slm_registration_geometry.py'
       - 'tools/summarise_slm_registration_architecture_study.py'
       - 'tools/build_slm_registration_architecture_report.py'
 
@@ -38,6 +39,9 @@ jobs:
           cache: pip
 
       - run: python -m pip install -r requirements.txt
+
+      - name: Generate registration geometry diagrams
+        run: python tools/plot_slm_registration_geometry.py
 
       - name: Mechanism and architecture comparison matrix
         run: >-
@@ -117,6 +121,7 @@ jobs:
             outputs/validation/slm_registration_architecture/report_bench
             outputs/figures/slm_registration_architecture/report_core
             outputs/figures/slm_registration_architecture/report_bench
+            outputs/figures/slm_registration_architecture/geometry
             outputs/reports/slm_registration_architecture/report_core
             outputs/reports/slm_registration_architecture/report_bench
           if-no-files-found: error
