@@ -70,26 +70,37 @@ def plot_offset_curves(df: pd.DataFrame, outdir: Path) -> Path:
     axs[0].grid(True, alpha=0.25)
     axs[0].legend(fontsize=7)
 
-    # Direct architecture ratio for each panel at maximum tested offset.
+    # Architecture-label symmetry must compare equivalent *roles*, not the
+    # same physical panel label: A/SLM1 and B/SLM2 are the vortex-owning
+    # cases, while A/SLM2 and B/SLM1 are the non-vortex-owner cases.
     maxoff = sub["offset_fraction_px"].max()
     edge = sub[np.isclose(sub["offset_fraction_px"], maxoff)]
-    panels = [p for p in ("slm1", "slm2", "common", "differential") if p in set(edge["panel_dof"])]
+    role_pairs = [
+        ("vortex owner", "slm1", "slm2"),
+        ("non-vortex owner", "slm2", "slm1"),
+    ]
+    labels = []
     ratios = []
-    for panel in panels:
-        a = edge[(edge["architecture"] == "upstream_vortex") & (edge["panel_dof"] == panel)]
-        b = edge[(edge["architecture"] == "downstream_vortex") & (edge["panel_dof"] == panel)]
+    for role, panel_a, panel_b in role_pairs:
+        a = edge[
+            (edge["architecture"] == "upstream_vortex")
+            & (edge["panel_dof"] == panel_a)
+        ]
+        b = edge[
+            (edge["architecture"] == "downstream_vortex")
+            & (edge["panel_dof"] == panel_b)
+        ]
         if len(a) and len(b):
             av = float(a.iloc[0][metric])
             bv = float(b.iloc[0][metric])
+            labels.append(role)
             ratios.append(bv / max(av, 1e-30))
-        else:
-            ratios.append(np.nan)
-    axs[1].bar(np.arange(len(panels)), ratios)
+    axs[1].bar(np.arange(len(labels)), ratios)
     axs[1].axhline(1.0, ls="--", lw=1)
-    axs[1].set_xticks(np.arange(len(panels)), panels, rotation=25)
-    axs[1].set_ylabel("Architecture B / Architecture A sensitivity")
+    axs[1].set_xticks(np.arange(len(labels)), labels, rotation=20)
+    axs[1].set_ylabel("B / A paired-role sensitivity")
     axs[1].set_title(
-        f"Label-symmetry diagnostic at {maxoff:.3f} pixel (flat correction: expect 1)"
+        f"Panel-label symmetry diagnostic at {maxoff:.3f} pixel (expect 1)"
     )
     axs[1].grid(True, axis="y", alpha=0.25)
 
