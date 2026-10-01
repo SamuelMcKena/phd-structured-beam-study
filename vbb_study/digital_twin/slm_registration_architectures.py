@@ -372,9 +372,22 @@ def build_architecture_registration_route(
     )
     after_slm2 = field.copy() if keep_intermediate_fields else None
 
-    # Explicit accepted 4F route.
+    # Historical explicit 4F route. Record numerical propagation loss separately
+    # from physical iris loss: BL-ASM clipping is not absorption by an optic.
+    propagation_audit = []
+    def audited_propagate(source, grid, lam, z):
+        before = float(np.sum(np.abs(source) ** 2))
+        result = lean_asm_propagate(source, grid, lam, z)
+        after = float(np.sum(np.abs(result) ** 2))
+        propagation_audit.append({
+            'grid_n': int(grid['N']), 'distance_m': float(z),
+            'power_ratio': after / max(before, EPS),
+            'propagation_power_drift_fraction': abs(after / max(before, EPS) - 1.0),
+        })
+        return result
+
     f4f = float(hw["fourf_focal_length_m"])
-    field = lean_asm_propagate(field, fine, lam, f4f)
+    field = audited_propagate(field, fine, lam, f4f)
     field, lens1_meta = _apply_lens_plane(
         field,
         fine,
@@ -383,7 +396,7 @@ def build_architecture_registration_route(
         error=LensError(),
         opd_map_m=None,
     )
-    field = lean_asm_propagate(field, fine, lam, f4f)
+    field = audited_propagate(field, fine, lam, f4f)
 
     centre = nominal_order_position_m(
         wavelength_m=lam,
@@ -422,7 +435,7 @@ def build_architecture_registration_route(
         float(sampling.window_m) / sampling.relay_grid_n,
     )
 
-    field = lean_asm_propagate(field, coarse, lam, f4f)
+    field = audited_propagate(field, coarse, lam, f4f)
     field, lens2_meta = _apply_lens_plane(
         field,
         coarse,
@@ -431,7 +444,7 @@ def build_architecture_registration_route(
         error=LensError(),
         opd_map_m=None,
     )
-    field = lean_asm_propagate(field, coarse, lam, f4f)
+    field = audited_propagate(field, coarse, lam, f4f)
 
     # Remove the deterministic summed two-panel carrier in the 4F image frame.
     # Both architectures use the same two blazed panels, so this operation is common.
@@ -456,6 +469,14 @@ def build_architecture_registration_route(
     )
     meta: dict[str, Any] = {
         "route_id": "slm_registration_architecture_comparison_v1",
+        "numerical_propagation_audit": propagation_audit,
+        "propagation_power_drift_fraction": max(
+            row['propagation_power_drift_fraction'] for row in propagation_audit
+        ),
+        "quantitative_registration_claims_allowed": all(
+            row['propagation_power_drift_fraction'] <= 0.05 for row in propagation_audit
+        ),
+        "report_reference_route": "registration_reference pixel-integrated ideal 4F",
         "case_id": case_id,
         "architecture": architecture,
         "vortex_charge": ell,

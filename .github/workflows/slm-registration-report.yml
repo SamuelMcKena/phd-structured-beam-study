@@ -1,128 +1,58 @@
 name: Build SLM registration report evidence
-
 on:
   workflow_dispatch:
   pull_request:
     paths:
       - '.github/workflows/slm-registration-report.yml'
-      - 'vbb_study/digital_twin/slm_registration_architectures.py'
-      - 'tools/run_slm_registration_architecture_study.py'
-      - 'tools/plot_slm_registration_architecture_study.py'
-      - 'tools/plot_slm_registration_geometry.py'
-      - 'tools/summarise_slm_registration_architecture_study.py'
-      - 'tools/build_slm_registration_architecture_report.py'
-
-concurrency:
-  group: slm-registration-report-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
-
+      - 'vbb_study/digital_twin/*registration*.py'
+      - 'tools/*registration*.py'
+      - 'tests/test*registration*.py'
+      - 'docs/100_slm_registration_definitive.md'
 permissions:
   contents: read
-
+concurrency:
+  group: registration-report-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 env:
   PYTHONPATH: .
   MPLBACKEND: Agg
   OMP_NUM_THREADS: '2'
   OPENBLAS_NUM_THREADS: '2'
   MKL_NUM_THREADS: '2'
-
 jobs:
-  build-report-evidence:
+  evidence:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
           cache: pip
-
-      - run: python -m pip install -r requirements.txt
-
-      - name: Generate registration geometry diagrams
-        run: python tools/plot_slm_registration_geometry.py
-
-      - name: Mechanism and architecture comparison matrix
-        run: >-
-          python tools/run_slm_registration_architecture_study.py
-          --tag report_core
-          --stages sweep,axial,xy
-          --charges 10,20
-          --beam-radii-px 50,100
-          --offset-fractions 0,0.5
-          --axes x,y
-          --panels slm1,slm2
-          --fine-grid-n 2500
-          --relay-grid-n 768
-          --window-mm 10.0
-          --axial-charges 10,20
-          --axial-beam-radii-px 50
-          --axial-panels slm1,slm2
-          --axial-axis x
-          --axial-offset-fractions 0,0.5
-          --axial-z-planes 20
-          --xy-charge 20
-          --xy-beam-radius-px 50
-          --xy-panels slm1,slm2
-          --xy-offset-fractions 0,0.25,0.5
-          --xy-z-planes 20
-          --xy-half-width-um 600
-
-      - name: Plot mechanism matrix
-        run: python tools/plot_slm_registration_architecture_study.py --tag report_core --xy-half-width-um 600
-
-      - name: Build mechanism report
-        run: python tools/build_slm_registration_architecture_report.py --tag report_core
-
-      - name: Canonical 2 mm bench control
-        run: >-
-          python tools/run_slm_registration_architecture_study.py
-          --tag report_bench
-          --stages sweep,axial,xy
-          --charges 10,20
-          --beam-radii-px 250
-          --offset-fractions 0,0.5
-          --axes x,y
-          --panels slm1,slm2
-          --fine-grid-n 2500
-          --relay-grid-n 1024
-          --window-mm 10.0
-          --axial-charges 10,20
-          --axial-beam-radii-px 250
-          --axial-panels slm1,slm2
-          --axial-axis x
-          --axial-offset-fractions 0,0.5
-          --axial-z-planes 20
-          --xy-charge 20
-          --xy-beam-radius-px 250
-          --xy-panels slm1,slm2
-          --xy-offset-fractions 0,0.5
-          --xy-z-planes 20
-          --xy-half-width-um 1400
-
-      - name: Plot bench control
-        run: python tools/plot_slm_registration_architecture_study.py --tag report_bench --xy-half-width-um 1400
-
-      - name: Build bench report
-        run: python tools/build_slm_registration_architecture_report.py --tag report_bench
-
-      - name: Write summaries
+      - run: python -m pip install -r requirements.txt python-docx
+      - run: sudo apt-get update && sudo apt-get install -y pandoc libreoffice-writer
+      - name: Physics gates
+        run: python -m pytest -q tests/test_slm_pixel_registration.py tests/test_slm_registration_architectures.py tests/test_registration_reference.py
+      - name: Reproduce primary adjusted-iris evidence
+        run: python tools/run_registration_reference_study.py
+      - name: Additional controls and diagnostics
         run: |
-          python tools/summarise_slm_registration_architecture_study.py --tag report_core > outputs/validation/slm_registration_architecture/report_core/summary.txt
-          python tools/summarise_slm_registration_architecture_study.py --tag report_bench > outputs/validation/slm_registration_architecture/report_bench/summary.txt
-
-      - name: Upload report evidence
-        uses: actions/upload-artifact@v4
+          python tools/run_registration_extra_controls.py
+          python tools/complete_registration_diagnostics.py
+          python tools/audit_registration_legacy.py
+      - name: Figures and editable academic report
+        run: |
+          python tools/plot_registration_reference_study.py
+          python tools/complete_registration_diagnostics.py
+          python tools/build_registration_reference_report.py
+      - name: Export PDF
+        run: libreoffice -env:UserInstallation=file:///tmp/registration-lo --headless --convert-to pdf --outdir outputs/reports/registration_definitive outputs/reports/registration_definitive/SLM_Pixel_Registration_Report.docx
+      - uses: actions/upload-artifact@v4
         with:
-          name: slm-registration-report-evidence
+          name: registration-definitive-evidence
           path: |
-            outputs/validation/slm_registration_architecture/report_core
-            outputs/validation/slm_registration_architecture/report_bench
-            outputs/figures/slm_registration_architecture/report_core
-            outputs/figures/slm_registration_architecture/report_bench
-            outputs/figures/slm_registration_architecture/geometry
-            outputs/reports/slm_registration_architecture/report_core
-            outputs/reports/slm_registration_architecture/report_bench
+            outputs/validation/registration_iris_adjusted
+            outputs/figures/registration_definitive
+            outputs/reports/registration_definitive
           if-no-files-found: error
           compression-level: 6

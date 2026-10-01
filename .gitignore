@@ -11,3 +11,8 @@ __pycache__/
 /*.zip
 /vbb_study - Copy/
 vbb_study.egg-info/
+outputs/validation/registration_definitive/
+outputs/validation/registration_iris_adjusted/
+outputs/figures/registration_definitive/
+outputs/figures/registration_fixed_iris/
+outputs/reports/registration_definitive/

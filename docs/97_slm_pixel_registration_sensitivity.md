@@ -1,5 +1,10 @@
 # Sub-pixel SLM pixel-lattice registration sensitivity
 
+> Historical implementation note. The numerical propagation and Fourier-plane
+> coarsening claims below are superseded by [the independent audited study](100_slm_registration_definitive.md).
+> Audited nominal free-space losses exceed the repository's 5% power gate;
+> retain this document for provenance, not as current quantitative evidence.
+
 ## The question
 
 The hologram is written onto a discrete LCoS pixel lattice that is fixed in the

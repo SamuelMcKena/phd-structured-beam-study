@@ -53,6 +53,13 @@ to zero and labels it flat_zero_physics_isolation. A user-supplied spatial
 correction command/map may be supplied for a second pass. No nominal or
 invented correction is allowed to masquerade as measured bench correction.
 
+> Quantitative report results from the sampled-4F route are superseded by
+> [the independent audited study](100_slm_registration_definitive.md).
+> Both blazes are required but do not by themselves repair numerical propagation.
+> The identity-transfer flat-correction model is role-exchange symmetric and
+> cannot test an architecture winner. Historical hypothesis language below
+> must be read in that scope.
+
 ## What registration means
 
 For panel i define beam centre b_i, hologram origin h_i and physical

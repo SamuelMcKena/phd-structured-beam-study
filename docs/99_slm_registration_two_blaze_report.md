@@ -1,5 +1,12 @@
 # Sub-pixel registration of dual-SLM vortex-Bessel beams with blaze on both panels
 
+> Superseded quantitative report. The historical propagation used below fails
+> the 5% numerical power-drift gate in audited nominal free-space segments.
+> Its numerical peak/zone conclusions are withdrawn as current evidence.
+> Use [the independent audited study](100_slm_registration_definitive.md),
+> which includes adjusted-iris registration results and a fixed-iris control.
+> The two-blaze architecture symmetry statement remains valid.
+
 ## Status
 
 This document supersedes the earlier one-blaze architecture interpretation.
