@@ -205,15 +205,15 @@ the largest for Architecture B is {_fmt(bmax)}. {ratio_text}
 
 Architecture A:
 
-- SLM1: vortex
+- SLM1: vortex + carrier/blaze
 - SLM2: correction + carrier/blaze
 
 Architecture B:
 
-- SLM1: correction
+- SLM1: correction + carrier/blaze
 - SLM2: vortex + carrier/blaze
 
-The carrier/blaze term is present on SLM2 in both cases. The correction status
+The carrier/blaze term is present on both SLM1 and SLM2 in both cases. The correction status
 for this run is: **{correction_status}**.
 
 The registration variables are independent x/y offsets of the SLM1 and SLM2
@@ -229,9 +229,11 @@ over a {spp.get('window_mm', 'unknown')} mm window. Pixel values used the
 {spp.get('pixel_value_model', 'unknown')} convention and the fill-factor model
 was {spp.get('fill_factor_model', 'unknown')}.
 
-The downstream optical route is held fixed between architectures: SLM2
-carrier/blaze, explicit 4F propagation, fixed +1 order selection, carrier
-removal in the selected-order frame, and the physical axicon. No unmeasured
+The downstream optical route is held fixed between architectures. Both SLM
+commands contain their carrier/blaze terms; in the scalar effective-channel
+model the common 4F selected-order centre is computed from the summed two-panel
+carrier, after which the summed deterministic carrier is removed in the image
+frame before the physical axicon. No unmeasured
 SLM1-to-SLM2 free-space separation is introduced.
 
 The principal comparisons are:
