@@ -21,7 +21,13 @@ COLORS={25:'#803da4',50:'#d34a32',100:'#e39723',150:'#247b65',250:'#2864a0'}
 
 
 def save(fig,path):
-    fig.savefig(path.with_suffix('.png'),bbox_inches='tight',facecolor='white')
+    from io import BytesIO
+    from PIL import Image
+    buffer=BytesIO()
+    fig.savefig(buffer,format='png',bbox_inches='tight',facecolor='white')
+    payload=buffer.getvalue()
+    with Image.open(BytesIO(payload)) as check:check.load()
+    path.with_suffix('.png').write_bytes(payload)
     fig.savefig(path.with_suffix('.pdf'),bbox_inches='tight',facecolor='white')
     plt.close(fig)
 
@@ -71,6 +77,8 @@ def xy_panels(f,w,plane,residual,out,adapted=False):
     ids=np.flatnonzero(abs(x)<=half);xc=x[ids];Is=[abs(E[np.ix_(ids,ids)])**2 for E in Es]
     peak=float(Is[0].max());arrs=[(I-Is[0])/peak if residual else I/peak for I in Is]
     vmax=max(float(np.max(abs(a))) for a in arrs) if residual else max(float(np.max(a)) for a in arrs)
+    clipped=residual and plane=='pre' and w==50
+    if clipped:vmax=float(np.quantile(np.abs(np.concatenate([a.ravel() for a in arrs])),.999))
     if residual: vmax=max(vmax,1e-7)
     fig=plt.figure(figsize=(11.8,7.6),layout='constrained');gs=fig.add_gridspec(2,3)
     for j,(d,a) in enumerate(zip(ds,arrs)):
@@ -90,7 +98,8 @@ def xy_panels(f,w,plane,residual,out,adapted=False):
     ax.text(0,.29,'Scale fixed to the zero-shift peak.\nNo per-panel renormalisation.',linespacing=1.5,fontsize=12)
     if w==50:
         ax.text(0,.06,'Iris adjusted for the vortex.\nSame iris at every offset.' if adapted else 'The intended L = 20 vortex is\nalready rejected by this iris.',color=COLORS[w],fontsize=12)
-    cb=fig.colorbar(im,ax=fig.axes[:5],fraction=.024,pad=.025)
+    cb=fig.colorbar(im,ax=fig.axes[:5],fraction=.024,pad=.025,extend='both' if clipped else 'neither')
+    if clipped:ax.text(0,-.06,'Residual scale: 99.9th percentile.\nCentral outliers saturate.',fontsize=11)
     cb.set_label(r'$(I-I_0)/I_{0,\max}$' if residual else r'$I/I_{0,\max}$',fontsize=15)
     name=f'{"stress" if w==50 else "bench"}_{plane}_{"residual" if residual else "intensity"}'
     save(fig,out/name)

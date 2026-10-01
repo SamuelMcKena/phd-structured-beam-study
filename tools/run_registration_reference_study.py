@@ -211,7 +211,7 @@ def run(out, stages, iris_policy='fixed'):
             adapted_bandwidth_rule='max(2500, 5L/(2 pi w)); fixed across all registration states within each L,w comparison',
             wide_iris_scope='ideal selected-channel diagnostic; broad aperture may admit physical zero/unwanted orders absent in throughput-only model',
             pixel_command='centre_sample consistent with inspected GUI; ideal 256-level LUT',
-            illumination_quadrature='sweep q=1; headline fields q=2; convergence q=4',
+            illumination_quadrature='sweep q=1; pre/axial q=2; refined propagated headline and convergence q=4',
             pixel_phase_integration='analytic top-hat rectangle sinc, exact lattice intersections',
             scalar_boundary='relative free-space morphology only; no vector/objective/material claims',
             beta_rad=p.beta,cone_radial_period_m=2*np.pi/p.kr,
