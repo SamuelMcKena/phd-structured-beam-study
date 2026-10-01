@@ -11,6 +11,10 @@ on:
       - 'tools/summarise_slm_registration_architecture_study.py'
       - 'tools/build_slm_registration_architecture_report.py'
 
+concurrency:
+  group: slm-registration-report-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -42,24 +46,24 @@ jobs:
           --stages sweep,unit_cell,interpanel,axial,xy
           --charges 0,3,10,20
           --beam-radii-px 25,50,100
-          --offset-fractions 0,0.25,0.5
-          --axes x,y
+          --offset-fractions 0,0.5
+          --axes x
           --panels slm1,slm2,differential
           --fine-grid-n 1000
           --relay-grid-n 512
           --window-mm 4.0
-          --unit-cell-charges 10,20
+          --unit-cell-charges 20
           --unit-cell-beam-radii-px 50
           --unit-cell-subdivisions 4
           --interpanel-charge 20
           --interpanel-beam-radius-px 50
           --interpanel-axis x
           --interpanel-fractions=-0.5,-0.25,0,0.25,0.5
-          --axial-charges 10,20
+          --axial-charges 20
           --axial-beam-radii-px 50
           --axial-panels slm1,slm2
           --axial-axis x
-          --axial-offset-fractions 0,0.25,0.5
+          --axial-offset-fractions 0,0.5
           --axial-z-planes 20
           --xy-charge 20
           --xy-beam-radius-px 50
