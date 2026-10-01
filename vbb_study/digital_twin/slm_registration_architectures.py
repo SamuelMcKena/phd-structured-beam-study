@@ -66,7 +66,6 @@ from vbb_study.digital_twin.vortex_explicit_4f import (
 )
 from vbb_study.digital_twin.vortex_system_route import (
     AxiconError,
-    _ell,
     physical_axicon_on_own_plane,
 )
 
@@ -158,6 +157,20 @@ def _validate_architecture(architecture: ArchitectureName) -> str:
             f"architecture must be one of {ARCHITECTURES}; got {architecture!r}"
         )
     return architecture
+
+
+def _charge_from_case_id(case_id: str) -> int:
+    """Parse B0 or arbitrary non-negative V<n> scalar vortex case IDs."""
+
+    cid = str(case_id).strip()
+    if cid == "B0":
+        return 0
+    if cid.startswith("V") and cid[1:].isdigit():
+        charge = int(cid[1:])
+        if charge >= 0:
+            return charge
+    raise ValueError(f"unsupported scalar vortex case {case_id!r}")
+
 
 
 def architecture_phase_components(
@@ -271,7 +284,7 @@ def build_architecture_registration_route(
         if beam_radius_m is None
         else float(beam_radius_m)
     )
-    ell = int(_ell(case_id))
+    ell = _charge_from_case_id(case_id)
 
     spp = sampling.samples_per_pixel(pitch)
     if pixelate_phase and spp < 2.0 and not allow_unresolved_lattice:
