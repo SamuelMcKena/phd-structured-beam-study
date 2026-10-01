@@ -144,6 +144,35 @@ def test_phase_ownership_downstream_vortex() -> None:
     assert slm2(x, y) == pytest.approx(expected_slm2)
 
 
+def test_zero_correction_architectures_have_identical_total_displayed_phase() -> None:
+    """With identical blazes and no correction, A/B differ only by panel label."""
+
+    xx = np.linspace(-20e-6, 20e-6, 9)
+    x, y = np.meshgrid(xx, xx, indexing="xy")
+    carrier = 6250.0
+
+    a1, a2, _ = architecture_phase_components(
+        "upstream_vortex",
+        charge=20,
+        slm1_carrier_cpm=carrier,
+        slm2_carrier_cpm=carrier,
+        correction_command=None,
+    )
+    b1, b2, _ = architecture_phase_components(
+        "downstream_vortex",
+        charge=20,
+        slm1_carrier_cpm=carrier,
+        slm2_carrier_cpm=carrier,
+        correction_command=None,
+    )
+
+    # Before per-panel wrapping/quantisation the total scalar command is
+    # mathematically identical. Any A/B difference at zero inter-panel
+    # propagation must therefore come from panel-specific hardware/geometry.
+    assert (a1(x, y) + a2(x, y)) == pytest.approx(b1(x, y) + b2(x, y))
+
+
+
 def test_flat_correction_is_explicit_physics_isolation_baseline() -> None:
     _, _, roles = architecture_phase_components(
         "downstream_vortex",
