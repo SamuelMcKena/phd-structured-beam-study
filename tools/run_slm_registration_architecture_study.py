@@ -393,7 +393,7 @@ def run_interpanel(args: argparse.Namespace, outdir: Path) -> Path:
 
 
 def run_representative_xy(args: argparse.Namespace, outdir: Path) -> Path:
-    """Save representative pre-axicon and propagated XY profiles for plotting."""
+    """Save representative pre-axicon and propagated XY profiles for both SLMs."""
 
     hw = canonical_registration_hardware()
     pitch = float(hw["pixel_pitch_m"])
@@ -407,72 +407,87 @@ def run_representative_xy(args: argparse.Namespace, outdir: Path) -> Path:
     charge = int(args.xy_charge)
     radius_px = float(args.xy_beam_radius_px)
     fractions = _parse_csv_numbers(args.xy_offset_fractions, float)
+    panels = [v.strip() for v in args.xy_panels.split(",") if v.strip()]
+    for panel in panels:
+        if panel not in ("slm1", "slm2"):
+            raise ValueError("--xy-panels may contain only slm1 and slm2")
 
     payload: dict[str, Any] = {}
     for architecture in [v.strip() for v in args.architectures.split(",") if v.strip()]:
-        routes: list[dict[str, Any]] = []
-        for frac in fractions:
-            d = float(frac) * pitch
-            state = RegistrationState(slm2_dx_m=d)
-            route = build_architecture_registration_route(
-                _case_id(charge),
-                architecture=architecture,
-                registration=state,
-                sampling=sampling,
-                beam_radius_m=radius_px * pitch,
-                correction_command=correction,
-                fill_factor_model=args.fill_factor_model,
-                pixel_value_model=args.pixel_value_model,
-                keep_intermediate_fields=True,
-                keep_fine_post_iris=True,
-            )
-            routes.append(route)
+        for panel in panels:
+            routes: list[dict[str, Any]] = []
+            for frac in fractions:
+                d = float(frac) * pitch
+                state = (
+                    RegistrationState(slm1_dx_m=d)
+                    if panel == "slm1"
+                    else RegistrationState(slm2_dx_m=d)
+                )
+                route = build_architecture_registration_route(
+                    _case_id(charge),
+                    architecture=architecture,
+                    registration=state,
+                    sampling=sampling,
+                    beam_radius_m=radius_px * pitch,
+                    correction_command=correction,
+                    fill_factor_model=args.fill_factor_model,
+                    pixel_value_model=args.pixel_value_model,
+                    keep_intermediate_fields=True,
+                    keep_fine_post_iris=True,
+                )
+                routes.append(route)
 
-        # Use a common z-grid fixed by the zero-registration route.
-        ref = routes[0]
-        kr = abs(float(ref["metadata"]["axicon"]["exact_kr_m_inv"]))
-        k0 = 2.0 * math.pi / lam
-        theta = math.asin(min(1.0, kr / k0))
-        zmax = radius_px * pitch / max(math.tan(theta), 1e-15)
-        z_values = np.linspace(0.05 * zmax, 1.05 * zmax, int(args.xy_z_planes))
-        ref_ax = axial_profile(
-            ref["post_axicon"],
-            ref["grid"],
-            wavelength_m=lam,
-            z_values_m=z_values,
-            charge=charge,
-            keep_planes_m=(),
-        )
-        z_peak = float(ref_ax["z_at_peak_m"])
-
-        key = architecture
-        payload[f"{key}__offset_fraction_px"] = np.asarray(fractions, dtype=float)
-        payload[f"{key}__x_m"] = np.asarray(ref["grid"]["x"], dtype=float)
-        payload[f"{key}__z_peak_m"] = np.asarray([z_peak], dtype=float)
-
-        pre = []
-        propagated = []
-        after_slm2 = []
-        for route in routes:
-            pre.append(np.asarray(route["field_on_axicon_plane"], dtype=np.complex64))
-            after_slm2.append(np.asarray(route["field_after_slm2"], dtype=np.complex64))
-            ax = axial_profile(
-                route["post_axicon"],
-                route["grid"],
+            # Use one common propagated plane fixed by the zero-registration route.
+            ref = routes[0]
+            kr = abs(float(ref["metadata"]["axicon"]["exact_kr_m_inv"]))
+            k0 = 2.0 * math.pi / lam
+            theta = math.asin(min(1.0, kr / k0))
+            zmax = radius_px * pitch / max(math.tan(theta), 1e-15)
+            z_values = np.linspace(0.05 * zmax, 1.05 * zmax, int(args.xy_z_planes))
+            ref_ax = axial_profile(
+                ref["post_axicon"],
+                ref["grid"],
                 wavelength_m=lam,
-                z_values_m=[z_peak],
+                z_values_m=z_values,
                 charge=charge,
-                keep_planes_m=[z_peak],
+                keep_planes_m=(),
             )
-            propagated.append(np.asarray(ax["planes"][z_peak], dtype=np.complex64))
-        payload[f"{key}__field_after_slm2"] = np.stack(after_slm2)
-        payload[f"{key}__field_pre_axicon"] = np.stack(pre)
-        payload[f"{key}__field_at_reference_z"] = np.stack(propagated)
+            z_peak = float(ref_ax["z_at_peak_m"])
+
+            key = f"{architecture}__{panel}"
+            payload[f"{key}__offset_fraction_px"] = np.asarray(fractions, dtype=float)
+            payload[f"{key}__x_m"] = np.asarray(ref["grid"]["x"], dtype=float)
+            payload[f"{key}__fine_x_m"] = np.asarray(ref["intermediate_grid"]["x"], dtype=float)
+            payload[f"{key}__z_peak_m"] = np.asarray([z_peak], dtype=float)
+
+            pre = []
+            propagated = []
+            after_slm1 = []
+            after_slm2 = []
+            for route in routes:
+                pre.append(np.asarray(route["field_on_axicon_plane"], dtype=np.complex64))
+                after_slm1.append(np.asarray(route["field_after_slm1"], dtype=np.complex64))
+                after_slm2.append(np.asarray(route["field_after_slm2"], dtype=np.complex64))
+                ax = axial_profile(
+                    route["post_axicon"],
+                    route["grid"],
+                    wavelength_m=lam,
+                    z_values_m=[z_peak],
+                    charge=charge,
+                    keep_planes_m=[z_peak],
+                )
+                propagated.append(np.asarray(ax["planes"][z_peak], dtype=np.complex64))
+            payload[f"{key}__field_after_slm1"] = np.stack(after_slm1)
+            payload[f"{key}__field_after_slm2"] = np.stack(after_slm2)
+            payload[f"{key}__field_pre_axicon"] = np.stack(pre)
+            payload[f"{key}__field_at_reference_z"] = np.stack(propagated)
+
+            # Drop route references before the next panel/architecture block.
+            routes.clear()
 
     path = outdir / "representative_xy_fields.npz"
     np.savez_compressed(path, **payload)
     return path
-
 
 def write_manifest(args: argparse.Namespace, outdir: Path, artifacts: list[Path]) -> Path:
     hw = canonical_registration_hardware()
@@ -540,6 +555,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--xy-charge", type=int, default=20)
     p.add_argument("--xy-beam-radius-px", type=float, default=50.0)
     p.add_argument("--xy-offset-fractions", default="0,0.125,0.25,0.375,0.5")
+    p.add_argument("--xy-panels", default="slm1,slm2")
     p.add_argument("--xy-z-planes", type=int, default=24)
     return p
 
