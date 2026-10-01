@@ -191,6 +191,7 @@ outputs/validation/slm_registration_architecture/<tag>/
     architecture_sweep.csv
     unit_cell_maps.csv
     interpanel_registration_map.csv
+    axial_metrics.csv
     representative_xy_fields.npz
 ~~~
 
@@ -208,6 +209,7 @@ including:
 - B/A architecture-ratio map,
 - SLM1 and SLM2 pixel-unit-cell maps,
 - SLM1-offset x SLM2-offset maps,
+- quantitative post-axicon peak/zone/morphology curves,
 - real XY pre-axicon intensity/residual panels,
 - real XY propagated intensity/residual panels.
 
@@ -255,7 +257,7 @@ Core architecture sweep and representative XY fields:
 ~~~
 python tools/run_slm_registration_architecture_study.py \
   --tag core \
-  --stages sweep,xy \
+  --stages sweep,axial,xy \
   --fine-grid-n 2500 \
   --relay-grid-n 1024
 ~~~
@@ -265,7 +267,7 @@ Add two-dimensional pixel-unit-cell and relative-panel maps:
 ~~~
 python tools/run_slm_registration_architecture_study.py \
   --tag full \
-  --stages sweep,unit_cell,interpanel,xy \
+  --stages sweep,unit_cell,interpanel,axial,xy \
   --fine-grid-n 2500 \
   --relay-grid-n 1024
 ~~~
