@@ -13,6 +13,7 @@ from vbb_study.digital_twin.slm_registration_architectures import (
     errors_from_registration,
     pure_registration_error,
     unit_cell_offsets,
+    canonical_registration_hardware,
 )
 
 
@@ -41,6 +42,16 @@ def test_two_panel_registration_state_is_independent() -> None:
     assert e2.lattice_offset_m == pytest.approx((3.0e-6, -4.0e-6))
     assert np.add(e1.panel_translation_m, e1.pattern_offset_m) == pytest.approx((0.0, 0.0))
     assert np.add(e2.panel_translation_m, e2.pattern_offset_m) == pytest.approx((0.0, 0.0))
+
+
+def test_canonical_slm2_carrier_is_confirmed_20_pixel_blaze() -> None:
+    hw = canonical_registration_hardware()
+    pitch = float(hw["pixel_pitch_m"])
+    carrier = float(hw["carrier_cpm"])
+    period_px = 1.0 / (carrier * pitch)
+    assert carrier == pytest.approx(6250.0)
+    assert period_px == pytest.approx(20.0)
+
 
 
 def test_slm2_carries_carrier_blaze_in_both_architectures() -> None:
