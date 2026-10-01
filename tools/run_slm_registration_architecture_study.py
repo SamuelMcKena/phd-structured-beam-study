@@ -392,6 +392,144 @@ def run_interpanel(args: argparse.Namespace, outdir: Path) -> Path:
     return path
 
 
+def run_axial(args: argparse.Namespace, outdir: Path) -> Path:
+    """Quantify propagated Bessel-region sensitivity for representative cases."""
+
+    hw = canonical_registration_hardware()
+    pitch = float(hw["pixel_pitch_m"])
+    lam = float(hw["wavelength_m"])
+    sampling = RegistrationSampling(
+        fine_grid_n=int(args.fine_grid_n),
+        relay_grid_n=int(args.relay_grid_n),
+        window_m=float(args.window_mm) * 1e-3,
+    )
+    correction = _correction_from_npy(args.correction_npy, sampling.window_m)
+    charges = _parse_csv_numbers(args.axial_charges, int)
+    radii_px = _parse_csv_numbers(args.axial_beam_radii_px, float)
+    fractions = _parse_csv_numbers(args.axial_offset_fractions, float)
+    panels = [v.strip() for v in args.axial_panels.split(",") if v.strip()]
+    axis = str(args.axial_axis)
+    if axis not in ("x", "y", "diagonal"):
+        raise ValueError("--axial-axis must be x, y or diagonal")
+    for panel in panels:
+        if panel not in ("slm1", "slm2"):
+            raise ValueError("--axial-panels may contain only slm1 and slm2")
+
+    rows: list[dict[str, Any]] = []
+
+    for architecture in [v.strip() for v in args.architectures.split(",") if v.strip()]:
+        for charge in charges:
+            case_id = _case_id(charge)
+            for radius_px in radii_px:
+                radius_m = float(radius_px) * pitch
+                for panel in panels:
+                    states = architecture_registration_states_1d(
+                        np.asarray(fractions, dtype=float) * pitch,
+                        panel=panel,
+                        axis=axis,
+                    )
+                    routes: list[dict[str, Any]] = []
+                    for state in states:
+                        routes.append(
+                            build_architecture_registration_route(
+                                case_id,
+                                architecture=architecture,
+                                registration=state,
+                                sampling=sampling,
+                                beam_radius_m=radius_m,
+                                correction_command=correction,
+                                fill_factor_model=args.fill_factor_model,
+                                pixel_value_model=args.pixel_value_model,
+                                keep_intermediate_fields=False,
+                                keep_fine_post_iris=False,
+                            )
+                        )
+
+                    ref = routes[0]
+                    kr = abs(float(ref["metadata"]["axicon"]["exact_kr_m_inv"]))
+                    k0 = 2.0 * math.pi / lam
+                    theta = math.asin(min(1.0, kr / k0))
+                    zmax = radius_m / max(math.tan(theta), 1e-15)
+                    z_values = np.linspace(
+                        0.05 * zmax,
+                        1.05 * zmax,
+                        int(args.axial_z_planes),
+                    )
+                    ref_profile = axial_profile(
+                        ref["post_axicon"],
+                        ref["grid"],
+                        wavelength_m=lam,
+                        z_values_m=z_values,
+                        charge=charge,
+                        keep_planes_m=(),
+                    )
+                    z_ref = float(ref_profile["z_at_peak_m"])
+                    ref_keep = axial_profile(
+                        ref["post_axicon"],
+                        ref["grid"],
+                        wavelength_m=lam,
+                        z_values_m=[z_ref],
+                        charge=charge,
+                        keep_planes_m=[z_ref],
+                    )
+                    ref_plane = ref_keep["planes"][z_ref]
+                    ref_peak = float(ref_profile["peak_intensity"])
+                    ref_zone = float(ref_profile["bessel_zone_fwhm_m"])
+
+                    for frac, route in zip(fractions, routes):
+                        prof = axial_profile(
+                            route["post_axicon"],
+                            route["grid"],
+                            wavelength_m=lam,
+                            z_values_m=z_values,
+                            charge=charge,
+                            keep_planes_m=[z_ref],
+                        )
+                        at_ref = prof["planes"][z_ref]
+                        pm = plane_metrics(
+                            at_ref,
+                            route["grid"],
+                            charge=charge,
+                            reference=ref_plane,
+                        )
+                        idx_ref = int(np.argmin(np.abs(np.asarray(prof["z_m"]) - z_ref)))
+                        row = {
+                            "architecture": architecture,
+                            "charge": int(charge),
+                            "beam_radius_px": float(radius_px),
+                            "panel": panel,
+                            "axis": axis,
+                            "offset_fraction_px": float(frac),
+                            "offset_um": float(frac) * pitch * 1e6,
+                            "reference_z_peak_m": z_ref,
+                            "z_at_peak_m": float(prof["z_at_peak_m"]),
+                            "peak_intensity": float(prof["peak_intensity"]),
+                            "peak_intensity_ratio": float(prof["peak_intensity"]) / max(ref_peak, 1e-30),
+                            "bessel_zone_fwhm_m": float(prof["bessel_zone_fwhm_m"]),
+                            "bessel_zone_ratio": (
+                                float(prof["bessel_zone_fwhm_m"]) / max(ref_zone, 1e-30)
+                                if np.isfinite(ref_zone) and ref_zone > 0.0
+                                else float("nan")
+                            ),
+                            "ring_radius_at_reference_z_m": float(np.asarray(prof["ring_radius_z"])[idx_ref]),
+                            "core_darkness_at_reference_z": float(np.asarray(prof["core_darkness_z"])[idx_ref]),
+                        }
+                        for key, value in pm.items():
+                            row[f"propagated_{key}"] = value
+                        rows.append(row)
+
+                    routes.clear()
+
+    path = outdir / "axial_metrics.csv"
+    if rows:
+        fields = sorted({k for row in rows for k in row})
+        with path.open("w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fields)
+            writer.writeheader()
+            writer.writerows(rows)
+    return path
+
+
 def run_representative_xy(args: argparse.Namespace, outdir: Path) -> Path:
     """Save representative pre-axicon and propagated XY profiles for both SLMs."""
 
@@ -552,6 +690,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--interpanel-axis", default="x")
     p.add_argument("--interpanel-fractions", default="-0.5,-0.25,0,0.25,0.5")
 
+    p.add_argument("--axial-charges", default="10,20")
+    p.add_argument("--axial-beam-radii-px", default="50,250")
+    p.add_argument("--axial-panels", default="slm1,slm2")
+    p.add_argument("--axial-axis", default="x")
+    p.add_argument("--axial-offset-fractions", default="0,0.25,0.5")
+    p.add_argument("--axial-z-planes", type=int, default=24)
+
     p.add_argument("--xy-charge", type=int, default=20)
     p.add_argument("--xy-beam-radius-px", type=float, default=50.0)
     p.add_argument("--xy-offset-fractions", default="0,0.125,0.25,0.375,0.5")
@@ -573,6 +718,8 @@ def main() -> None:
         artifacts.append(run_unit_cell(args, outdir))
     if "interpanel" in stages:
         artifacts.append(run_interpanel(args, outdir))
+    if "axial" in stages:
+        artifacts.append(run_axial(args, outdir))
     if "xy" in stages:
         artifacts.append(run_representative_xy(args, outdir))
     artifacts.append(write_manifest(args, outdir, artifacts))
