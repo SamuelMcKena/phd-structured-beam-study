@@ -1,0 +1,49 @@
+name: SLM registration architecture comparison
+
+on:
+  pull_request:
+    paths:
+      - 'vbb_study/digital_twin/slm_registration_architectures.py'
+      - 'vbb_study/digital_twin/slm_pixel_registration.py'
+      - 'vbb_study/digital_twin/slm_registration_metrics.py'
+      - 'tools/run_slm_registration_architecture_study.py'
+      - 'tools/plot_slm_registration_architecture_study.py'
+      - 'tests/test_slm_registration_architectures.py'
+      - 'docs/98_slm_registration_architecture_comparison.md'
+      - '.github/workflows/slm-registration-architecture.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: slm-registration-architecture-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+  OMP_NUM_THREADS: '2'
+  OPENBLAS_NUM_THREADS: '2'
+  MKL_NUM_THREADS: '2'
+
+jobs:
+  focused-tests:
+    name: Registration architecture physics gates
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt
+      - name: Run registration tests
+        run: >-
+          python -m pytest -q
+          tests/test_slm_pixel_registration.py
+          tests/test_slm_registration_architectures.py
+      - name: Compile architecture study modules
+        run: >-
+          python -m compileall -q
+          vbb_study/digital_twin/slm_registration_architectures.py
+          tools/run_slm_registration_architecture_study.py
+          tools/plot_slm_registration_architecture_study.py
