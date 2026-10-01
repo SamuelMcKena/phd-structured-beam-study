@@ -18,8 +18,8 @@ DEFAULT_DATA = ROOT / "outputs" / "validation" / "slm_registration_architecture"
 DEFAULT_FIG = ROOT / "outputs" / "figures" / "slm_registration_architecture"
 
 ARCH_LABELS = {
-    "upstream_vortex": "A: SLM1 vortex; SLM2 correction + carrier/blaze",
-    "downstream_vortex": "B: SLM1 correction; SLM2 vortex + carrier/blaze",
+    "upstream_vortex": "A: SLM1 vortex + blaze; SLM2 correction + blaze",
+    "downstream_vortex": "B: SLM1 correction + blaze; SLM2 vortex + blaze",
 }
 
 
