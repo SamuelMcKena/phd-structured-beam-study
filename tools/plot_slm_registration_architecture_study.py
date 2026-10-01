@@ -241,50 +241,65 @@ def plot_xy(npz_path: Path, outdir: Path, half_width_um: float = 300.0) -> list[
     data = np.load(npz_path)
     paths = []
     for architecture in ARCH_LABELS:
-        prefix = architecture + "__"
-        key = prefix + "field_pre_axicon"
-        if key not in data:
-            continue
-        offsets = data[prefix + "offset_fraction_px"]
-        x_m = data[prefix + "x_m"]
-        pre = data[prefix + "field_pre_axicon"]
-        post = data[prefix + "field_at_reference_z"]
+        for panel in ("slm1", "slm2"):
+            prefix = f"{architecture}__{panel}__"
+            key = prefix + "field_pre_axicon"
+            if key not in data:
+                continue
+            offsets = data[prefix + "offset_fraction_px"]
+            x_m = data[prefix + "x_m"]
+            pre = data[prefix + "field_pre_axicon"]
+            post = data[prefix + "field_at_reference_z"]
 
-        for plane_name, stack in (("pre_axicon", pre), ("after_axicon_propagated", post)):
-            ref = np.abs(stack[0]) ** 2
-            scale = float(np.max(ref))
-            fig, axs = plt.subplots(2, len(offsets), figsize=(3.0 * len(offsets), 6.0), constrained_layout=True)
-            for j, (frac, field) in enumerate(zip(offsets, stack)):
-                I = np.abs(field) ** 2
-                Icrop, xx = _crop(I, x_m, half_width_um)
-                Rcrop, _ = _crop((I - ref) / max(scale, 1e-30), x_m, half_width_um)
-                axs[0, j].imshow(
-                    Icrop / max(scale, 1e-30),
-                    origin="lower",
-                    extent=[xx[0], xx[-1], xx[0], xx[-1]],
-                    cmap="inferno",
-                    vmin=0,
+            for plane_name, stack in (
+                ("pre_axicon", pre),
+                ("after_axicon_propagated", post),
+            ):
+                ref = np.abs(stack[0]) ** 2
+                scale = float(np.max(ref))
+                fig, axs = plt.subplots(
+                    2,
+                    len(offsets),
+                    figsize=(3.0 * len(offsets), 6.0),
+                    constrained_layout=True,
                 )
-                lim = max(float(np.max(np.abs(Rcrop))), 1e-12)
-                axs[1, j].imshow(
-                    Rcrop,
-                    origin="lower",
-                    extent=[xx[0], xx[-1], xx[0], xx[-1]],
-                    cmap="coolwarm",
-                    norm=TwoSlopeNorm(vmin=-lim, vcenter=0.0, vmax=lim),
+                for j, (frac, field) in enumerate(zip(offsets, stack)):
+                    I = np.abs(field) ** 2
+                    Icrop, xx = _crop(I, x_m, half_width_um)
+                    Rcrop, _ = _crop(
+                        (I - ref) / max(scale, 1e-30),
+                        x_m,
+                        half_width_um,
+                    )
+                    axs[0, j].imshow(
+                        Icrop / max(scale, 1e-30),
+                        origin="lower",
+                        extent=[xx[0], xx[-1], xx[0], xx[-1]],
+                        cmap="inferno",
+                        vmin=0,
+                    )
+                    lim = max(float(np.max(np.abs(Rcrop))), 1e-12)
+                    axs[1, j].imshow(
+                        Rcrop,
+                        origin="lower",
+                        extent=[xx[0], xx[-1], xx[0], xx[-1]],
+                        cmap="coolwarm",
+                        norm=TwoSlopeNorm(vmin=-lim, vcenter=0.0, vmax=lim),
+                    )
+                    axs[0, j].set_title(f"{frac:.3f} pixel")
+                    axs[1, j].set_title("signed residual")
+                    for ax in (axs[0, j], axs[1, j]):
+                        ax.set_xlabel("x (um)")
+                        ax.set_ylabel("y (um)")
+                fig.suptitle(
+                    f"{ARCH_LABELS[architecture]} | {panel.upper()} registration | "
+                    f"{plane_name.replace('_', ' ')} XY profiles"
                 )
-                axs[0, j].set_title(f"{frac:.3f} pixel")
-                axs[1, j].set_title("signed residual")
-                for ax in (axs[0, j], axs[1, j]):
-                    ax.set_xlabel("x (um)")
-                    ax.set_ylabel("y (um)")
-            fig.suptitle(f"{ARCH_LABELS[architecture]}: {plane_name.replace('_', ' ')} XY profiles")
-            path = outdir / f"06_xy_{architecture}_{plane_name}.png"
-            fig.savefig(path, dpi=320, bbox_inches="tight")
-            plt.close(fig)
-            paths.append(path)
+                path = outdir / f"06_xy_{architecture}_{panel}_{plane_name}.png"
+                fig.savefig(path, dpi=320, bbox_inches="tight")
+                plt.close(fig)
+                paths.append(path)
     return paths
-
 
 def main() -> None:
     parser = argparse.ArgumentParser()
