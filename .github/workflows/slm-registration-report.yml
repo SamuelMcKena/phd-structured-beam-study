@@ -1,0 +1,118 @@
+name: Build SLM registration report evidence
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+  OMP_NUM_THREADS: '2'
+  OPENBLAS_NUM_THREADS: '2'
+  MKL_NUM_THREADS: '2'
+
+jobs:
+  build-report-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+
+      - run: python -m pip install -r requirements.txt
+
+      - name: Mechanism and architecture comparison matrix
+        run: >-
+          python tools/run_slm_registration_architecture_study.py
+          --tag report_core
+          --stages sweep,unit_cell,interpanel,axial,xy
+          --charges 0,3,10,20
+          --beam-radii-px 25,50,100
+          --offset-fractions 0,0.25,0.5
+          --axes x,y
+          --panels slm1,slm2,differential
+          --fine-grid-n 1000
+          --relay-grid-n 512
+          --window-mm 4.0
+          --unit-cell-charges 10,20
+          --unit-cell-beam-radii-px 50
+          --unit-cell-subdivisions 4
+          --interpanel-charge 20
+          --interpanel-beam-radius-px 50
+          --interpanel-axis x
+          --interpanel-fractions=-0.5,-0.25,0,0.25,0.5
+          --axial-charges 10,20
+          --axial-beam-radii-px 50
+          --axial-panels slm1,slm2
+          --axial-axis x
+          --axial-offset-fractions 0,0.25,0.5
+          --axial-z-planes 20
+          --xy-charge 20
+          --xy-beam-radius-px 50
+          --xy-panels slm1,slm2
+          --xy-offset-fractions 0,0.125,0.25,0.375,0.5
+          --xy-z-planes 20
+          --xy-half-width-um 600
+
+      - name: Plot mechanism matrix
+        run: python tools/plot_slm_registration_architecture_study.py --tag report_core --xy-half-width-um 600
+
+      - name: Build mechanism report
+        run: python tools/build_slm_registration_architecture_report.py --tag report_core
+
+      - name: Canonical 2 mm bench control
+        run: >-
+          python tools/run_slm_registration_architecture_study.py
+          --tag report_bench
+          --stages sweep,axial,xy
+          --charges 0,10,20
+          --beam-radii-px 250
+          --offset-fractions 0,0.25,0.5
+          --axes x,y
+          --panels slm1,slm2,differential
+          --fine-grid-n 2000
+          --relay-grid-n 1024
+          --window-mm 8.0
+          --axial-charges 10,20
+          --axial-beam-radii-px 250
+          --axial-panels slm1,slm2
+          --axial-axis x
+          --axial-offset-fractions 0,0.25,0.5
+          --axial-z-planes 20
+          --xy-charge 20
+          --xy-beam-radius-px 250
+          --xy-panels slm1,slm2
+          --xy-offset-fractions 0,0.25,0.5
+          --xy-z-planes 20
+          --xy-half-width-um 1400
+
+      - name: Plot bench control
+        run: python tools/plot_slm_registration_architecture_study.py --tag report_bench --xy-half-width-um 1400
+
+      - name: Build bench report
+        run: python tools/build_slm_registration_architecture_report.py --tag report_bench
+
+      - name: Write summaries
+        run: |
+          python tools/summarise_slm_registration_architecture_study.py --tag report_core > outputs/validation/slm_registration_architecture/report_core/summary.txt
+          python tools/summarise_slm_registration_architecture_study.py --tag report_bench > outputs/validation/slm_registration_architecture/report_bench/summary.txt
+
+      - name: Upload report evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: slm-registration-report-evidence
+          path: |
+            outputs/validation/slm_registration_architecture/report_core
+            outputs/validation/slm_registration_architecture/report_bench
+            outputs/figures/slm_registration_architecture/report_core
+            outputs/figures/slm_registration_architecture/report_bench
+            outputs/reports/slm_registration_architecture/report_core
+            outputs/reports/slm_registration_architecture/report_bench
+          if-no-files-found: error
+          compression-level: 6
