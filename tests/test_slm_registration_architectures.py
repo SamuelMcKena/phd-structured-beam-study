@@ -65,23 +65,28 @@ def test_canonical_slm2_carrier_is_confirmed_20_pixel_blaze() -> None:
 
 
 
-def test_slm2_carries_carrier_blaze_in_both_architectures() -> None:
+def test_both_slms_carry_20_pixel_carrier_blaze_in_both_architectures() -> None:
     x = np.asarray([[0.0, 1.0e-6, 2.0e-6]])
     y = np.zeros_like(x)
     carrier = 6250.0
 
     for architecture in ARCHITECTURES:
-        _, slm2, roles = architecture_phase_components(
+        slm1, slm2, roles = architecture_phase_components(
             architecture,
             charge=0,
-            carrier_cpm=carrier,
+            slm1_carrier_cpm=carrier,
+            slm2_carrier_cpm=carrier,
             correction_command=None,
         )
-        phase = slm2(x, y)
         expected = 2.0 * np.pi * carrier * x
-        assert phase == pytest.approx(expected)
+        assert slm1(x, y) == pytest.approx(expected)
+        assert slm2(x, y) == pytest.approx(expected)
+        assert roles["SLM1_carrier_blaze_present"] is True
         assert roles["SLM2_carrier_blaze_present"] is True
+        assert "carrier_blaze" in roles["SLM1"]
         assert "carrier_blaze" in roles["SLM2"]
+        assert roles["total_scalar_carrier_cpm"] == pytest.approx(2.0 * carrier)
+
 
 
 def test_phase_ownership_upstream_vortex() -> None:
@@ -94,16 +99,20 @@ def test_phase_ownership_upstream_vortex() -> None:
     slm1, slm2, roles = architecture_phase_components(
         "upstream_vortex",
         charge=3,
-        carrier_cpm=1000.0,
+        slm1_carrier_cpm=1000.0,
+        slm2_carrier_cpm=1000.0,
         correction_command=corr,
     )
     assert roles["vortex_owner"] == "SLM1"
     assert roles["correction_owner"] == "SLM2"
-    assert tuple(roles["SLM1"]) == ("vortex",)
+    assert tuple(roles["SLM1"]) == ("vortex", "carrier_blaze")
     assert tuple(roles["SLM2"]) == ("correction", "carrier_blaze")
 
-    assert slm1(x, y)[0, 0] == pytest.approx(0.0)
-    assert slm1(x, y)[0, 1] == pytest.approx(3.0 * np.pi / 2.0)
+    expected_slm1 = (
+        3.0 * np.arctan2(y, x)
+        + 2.0 * np.pi * 1000.0 * x
+    )
+    assert slm1(x, y) == pytest.approx(expected_slm1)
     expected_slm2 = corr(x, y) + 2.0 * np.pi * 1000.0 * x
     assert slm2(x, y) == pytest.approx(expected_slm2)
 
@@ -123,10 +132,11 @@ def test_phase_ownership_downstream_vortex() -> None:
     )
     assert roles["vortex_owner"] == "SLM2"
     assert roles["correction_owner"] == "SLM1"
-    assert tuple(roles["SLM1"]) == ("correction",)
+    assert tuple(roles["SLM1"]) == ("correction", "carrier_blaze")
     assert tuple(roles["SLM2"]) == ("vortex", "carrier_blaze")
 
-    assert slm1(x, y) == pytest.approx(corr(x, y))
+    expected_slm1 = corr(x, y) + 2.0 * np.pi * 1000.0 * x
+    assert slm1(x, y) == pytest.approx(expected_slm1)
     expected_slm2 = (
         3.0 * np.arctan2(y, x)
         + 2.0 * np.pi * 1000.0 * x
@@ -138,7 +148,8 @@ def test_flat_correction_is_explicit_physics_isolation_baseline() -> None:
     _, _, roles = architecture_phase_components(
         "downstream_vortex",
         charge=10,
-        carrier_cpm=6250.0,
+        slm1_carrier_cpm=6250.0,
+        slm2_carrier_cpm=6250.0,
         correction_command=None,
     )
     assert roles["correction_status"] == "flat_zero_physics_isolation"
