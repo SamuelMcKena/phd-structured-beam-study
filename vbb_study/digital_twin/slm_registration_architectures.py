@@ -278,9 +278,9 @@ def build_architecture_registration_route(
 ) -> dict[str, Any]:
     """Build one architecture-comparison route through the physical axicon.
 
-    The route is intentionally matched between architectures.  Only ownership
-    of the vortex and correction terms changes; SLM2 carries the same
-    carrier/blaze term in both cases.
+    The route is intentionally matched between architectures. Only ownership
+    of the vortex and correction terms changes; BOTH SLM1 and SLM2 carry their
+    carrier/blaze terms in both cases.
 
     Returned diagnostic planes are sufficient to quantify where the
     registration signature first appears:
@@ -421,8 +421,8 @@ def build_architecture_registration_route(
     )
     field = lean_asm_propagate(field, coarse, lam, f4f)
 
-    # Remove the selected-order carrier in the 4F image frame.  Both
-    # architectures use the same SLM2 carrier/blaze, so this operation is common.
+    # Remove the deterministic summed two-panel carrier in the 4F image frame.
+    # Both architectures use the same two blazed panels, so this operation is common.
     field = field * np.exp(+1j * TWOPI * total_carrier * coarse["X"])
     field_on_axicon = np.asarray(field, dtype=np.complex128)
 
