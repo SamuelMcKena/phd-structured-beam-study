@@ -170,6 +170,24 @@ def main() -> None:
             + _frame_block(axial[cols].head(30), index=False)
         )
 
+    symmetry_text = (
+        "Architecture label-symmetry evidence was not generated for this tag."
+    )
+    symmetry_path = datadir / "architecture_label_symmetry.csv"
+    if symmetry_path.exists():
+        sym = pd.read_csv(symmetry_path)
+        max_delta = float(sym["abs_delta"].max()) if not sym.empty else float("nan")
+        symmetry_text = (
+            "Because both SLMs carry the same blaze and the present effective-channel "
+            "model has no measured inter-SLM propagation/relay transform, swapping the "
+            "vortex-owning panel is mathematically a panel relabelling in the flat-correction "
+            "baseline. The generated symmetry gate gives a maximum A/B paired metric "
+            f"difference of {_fmt(max_delta)}. Therefore this model can quantify local "
+            "registration sensitivity but cannot, by itself, establish that upstream or "
+            "downstream vortex generation is intrinsically more robust. Any architecture "
+            "preference requires measured panel-specific geometry, calibration or correction."
+        )
+
     correction_status = manifest.get("correction_map", "unknown")
     spp = manifest.get("sampling", {})
     amax = overall.get("upstream_vortex", float("nan"))
@@ -199,7 +217,9 @@ electronic-pattern shifts so that beam-to-hologram centring remains nominal.
 
 The primary morphology metric used in this generated report is
 `{metric}`. The largest generated value for Architecture A is {_fmt(amax)};
-the largest for Architecture B is {_fmt(bmax)}. {ratio_text}
+the largest for Architecture B is {_fmt(bmax)}. The corrected two-blaze model
+also enforces an architecture-label symmetry gate in the flat-correction
+effective-channel limit. {symmetry_text}
 
 ## 1. Study definition
 
@@ -250,7 +270,11 @@ The principal comparisons are:
 
 ## 3. Quantitative results
 
-### 3.1 Worst generated sensitivity
+### 3.1 Architecture-label symmetry sanity check
+
+{symmetry_text}
+
+### 3.2 Worst generated sensitivity
 
 Architecture A maximum: **{_fmt(amax)}**
 
@@ -258,19 +282,19 @@ Architecture B maximum: **{_fmt(bmax)}**
 
 {ratio_text}
 
-### 3.2 Architecture ratio by charge and beam radius
+### 3.3 Architecture ratio by charge and beam radius
 
 {ratio_table if ratio_table else "Not available."}
 
-### 3.3 Pixel-unit-cell sensitivity
+### 3.4 Pixel-unit-cell sensitivity
 
 {unit_text}
 
-### 3.4 Relative SLM1-SLM2 registration
+### 3.5 Relative SLM1-SLM2 registration
 
 {inter_text}
 
-### 3.5 Post-axicon axial sensitivity
+### 3.6 Post-axicon axial sensitivity
 
 {axial_text}
 
@@ -293,10 +317,14 @@ The intended qualitative test is not whether one beam image looks generally
 
 ## 5. Discussion
 
-The architecture hypothesis is considered supported only where the
-translation-registered morphology metric, unit-cell maps and representative XY
-residuals agree. A reduction in raw laboratory-frame infidelity alone is
-insufficient because raw fidelity includes beam walk.
+The corrected two-blaze effective-channel model is intentionally symmetric
+under exchanging SLM1 and SLM2 when correction is flat and no measured
+inter-SLM transfer is supplied. Consequently, an apparent A/B winner in that
+limit would be a model bug rather than a physical conclusion. The valid result
+from this layer is the sensitivity of a vortex+blaze mask to its own pixel
+registration. Architecture discrimination must be deferred to a model that
+contains measured panel-specific transfer, parity/rotation, calibration and
+correction-map information.
 
 The study also separates the physics-isolation run from correction-on runs. A
 flat zero correction tests phase ownership only. Any claim about the practical
