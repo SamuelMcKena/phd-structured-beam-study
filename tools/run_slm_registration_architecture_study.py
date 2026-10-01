@@ -4,14 +4,14 @@
 The study compares:
 
 A) upstream_vortex
-   SLM1 = vortex
+   SLM1 = vortex + carrier/blaze
    SLM2 = correction + carrier/blaze
 
 B) downstream_vortex
-   SLM1 = correction
+   SLM1 = correction + carrier/blaze
    SLM2 = vortex + carrier/blaze
 
-SLM2 carries the carrier/blaze in BOTH architectures.  The study changes only
+BOTH SLMs carry carrier/blaze ramps in BOTH architectures.  The study changes only
 sub-pixel beam/hologram-to-lattice registration; beam-to-hologram centring is
 held fixed by the compensated panel-translation/pattern-offset construction.
 
@@ -210,7 +210,11 @@ def run_sweep(args: argparse.Namespace, outdir: Path) -> Path:
                                 "offset_um": float(frac) * pitch * 1e6,
                                 "vortex_owner": route["metadata"]["phase_roles"]["vortex_owner"],
                                 "correction_owner": route["metadata"]["phase_roles"]["correction_owner"],
+                                "slm1_carrier_blaze_present": True,
                                 "slm2_carrier_blaze_present": True,
+                                "slm1_carrier_frequency_cpm": route["metadata"]["slm1_carrier_frequency_cpm"],
+                                "slm2_carrier_frequency_cpm": route["metadata"]["slm2_carrier_frequency_cpm"],
+                                "total_scalar_carrier_frequency_cpm": route["metadata"]["total_scalar_carrier_frequency_cpm"],
                                 "correction_status": route["metadata"]["phase_roles"]["correction_status"],
                                 "iris_selected_power_fraction": route["metadata"]["fourf"]["iris_selected_power_fraction"],
                             }
@@ -660,15 +664,15 @@ def write_manifest(args: argparse.Namespace, outdir: Path, artifacts: list[Path]
         "study": "slm_registration_architecture_comparison",
         "architectures": {
             "upstream_vortex": {
-                "SLM1": "vortex",
+                "SLM1": "vortex + carrier/blaze",
                 "SLM2": "correction + carrier/blaze",
             },
             "downstream_vortex": {
-                "SLM1": "correction",
+                "SLM1": "correction + carrier/blaze",
                 "SLM2": "vortex + carrier/blaze",
             },
         },
-        "hard_requirement": "SLM2 carrier/blaze present in both architectures",
+        "hard_requirement": "carrier/blaze present on BOTH SLM1 and SLM2 in both architectures",
         "correction_map": args.correction_npy or "none: flat-zero physics-isolation baseline",
         "hardware": _jsonable(hw),
         "sampling": {
