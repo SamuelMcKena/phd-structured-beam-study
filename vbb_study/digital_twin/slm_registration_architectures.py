@@ -7,12 +7,19 @@ architectures while keeping the downstream 4F route and physical axicon fixed.
 Architectures
 -------------
 ``upstream_vortex``
-    SLM1 creates the vortex.  SLM2 applies the correction term and ALWAYS also
-    carries the wrapped/quantised carrier-blaze term.
+    SLM1 creates the vortex and carries its own carrier/blaze.
+    SLM2 applies the correction term and carries its own carrier/blaze.
 
 ``downstream_vortex``
-    SLM1 applies the correction term.  SLM2 creates the vortex and ALWAYS also
-    carries the wrapped/quantised carrier-blaze term.
+    SLM1 applies the correction term and carries its own carrier/blaze.
+    SLM2 creates the vortex and carries its own carrier/blaze.
+
+Both physical SLM commands therefore contain the bench carrier/blaze.  The
+scalar effective-channel model treats the two ramps as sequential phase terms;
+the downstream common-4F order is consequently centred on their summed
+carrier.  This keeps the scalar propagation internally self-consistent and,
+critically, makes the A/B comparison fair with respect to local carrier
+sampling on both panels.
 
 The user-facing scientific question is therefore whether creating the vortex
 locally on SLM2 reduces sensitivity to the relative pixel registration of the
@@ -177,54 +184,71 @@ def architecture_phase_components(
     architecture: ArchitectureName,
     *,
     charge: int,
-    carrier_cpm: float,
+    slm1_carrier_cpm: float,
+    slm2_carrier_cpm: float,
     correction_command: CorrectionCommand | None = None,
 ) -> tuple[CorrectionCommand, CorrectionCommand, dict[str, Any]]:
-    """Return phase commands for SLM1 and SLM2.
+    """Return full displayed phase commands for SLM1 and SLM2.
 
-    SLM2 always carries the carrier/blaze ramp in BOTH architectures, as required
-    by the actual order-selection strategy.  Wrapping and 8-bit quantisation are
-    applied later by the common SLM model.
+    BOTH SLMs carry carrier/blaze ramps in both architectures.  The only
+    architecture-dependent change is whether the vortex or correction term is
+    owned by SLM1 or SLM2.
+
+    The common scalar route later centres the Fourier-plane selected order on
+    the sum of the two carrier frequencies.
     """
 
     architecture = _validate_architecture(architecture)
     ell = int(charge)
-    carrier = float(carrier_cpm)
+    c1 = float(slm1_carrier_cpm)
+    c2 = float(slm2_carrier_cpm)
     correction = zero_correction if correction_command is None else correction_command
 
     def vortex(xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
         return float(ell) * np.arctan2(yp, xp)
 
-    def carrier_blaze(xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
+    def carrier1(xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
         del yp
-        return TWOPI * carrier * xp
+        return TWOPI * c1 * xp
+
+    def carrier2(xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
+        del yp
+        return TWOPI * c2 * xp
 
     if architecture == "upstream_vortex":
-        slm1 = vortex
+
+        def slm1(xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
+            return vortex(xp, yp) + carrier1(xp, yp)
 
         def slm2(xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
-            return np.asarray(correction(xp, yp), dtype=float) + carrier_blaze(xp, yp)
+            return np.asarray(correction(xp, yp), dtype=float) + carrier2(xp, yp)
 
         roles = {
-            "SLM1": ("vortex",),
+            "SLM1": ("vortex", "carrier_blaze"),
             "SLM2": ("correction", "carrier_blaze"),
             "vortex_owner": "SLM1",
             "correction_owner": "SLM2",
         }
     else:
-        slm1 = correction
+
+        def slm1(xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
+            return np.asarray(correction(xp, yp), dtype=float) + carrier1(xp, yp)
 
         def slm2(xp: np.ndarray, yp: np.ndarray) -> np.ndarray:
-            return vortex(xp, yp) + carrier_blaze(xp, yp)
+            return vortex(xp, yp) + carrier2(xp, yp)
 
         roles = {
-            "SLM1": ("correction",),
+            "SLM1": ("correction", "carrier_blaze"),
             "SLM2": ("vortex", "carrier_blaze"),
             "vortex_owner": "SLM2",
             "correction_owner": "SLM1",
         }
 
+    roles["SLM1_carrier_blaze_present"] = True
     roles["SLM2_carrier_blaze_present"] = True
+    roles["slm1_carrier_cpm"] = c1
+    roles["slm2_carrier_cpm"] = c2
+    roles["total_scalar_carrier_cpm"] = c1 + c2
     roles["correction_status"] = (
         "flat_zero_physics_isolation"
         if correction_command is None
@@ -243,6 +267,8 @@ def build_architecture_registration_route(
     axicon: AxiconError = AxiconError(),
     beam_radius_m: float | None = None,
     correction_command: CorrectionCommand | None = None,
+    slm1_carrier_sign: float = +1.0,
+    slm2_carrier_sign: float = +1.0,
     pixelate_phase: bool = True,
     fill_factor_model: str = "throughput_only",
     pixel_value_model: str = "area_average",
@@ -278,7 +304,16 @@ def build_architecture_registration_route(
     panel_cfg = hw["panel"]
     lam = float(hw["wavelength_m"])
     pitch = float(hw["pixel_pitch_m"])
-    carrier = float(hw["carrier_cpm"])
+    carrier_mag = abs(float(hw["carrier_cpm"]))
+    slm1_carrier = float(slm1_carrier_sign) * carrier_mag
+    slm2_carrier = float(slm2_carrier_sign) * carrier_mag
+    total_carrier = slm1_carrier + slm2_carrier
+    if abs(total_carrier) <= EPS:
+        raise ValueError(
+            "the scalar common-4F architecture requires a non-zero summed "
+            "carrier; choose carrier signs consistent with the physical order "
+            "selection convention"
+        )
     w0 = (
         float(hw["beam_radius_on_slm_m"])
         if beam_radius_m is None
@@ -305,7 +340,8 @@ def build_architecture_registration_route(
     slm1_command, slm2_command, phase_roles = architecture_phase_components(
         architecture,
         charge=ell,
-        carrier_cpm=carrier,
+        slm1_carrier_cpm=slm1_carrier,
+        slm2_carrier_cpm=slm2_carrier,
         correction_command=correction_command,
     )
 
@@ -352,7 +388,7 @@ def build_architecture_registration_route(
     centre = nominal_order_position_m(
         wavelength_m=lam,
         focal_length_m=f4f,
-        carrier_cpm=carrier,
+        carrier_cpm=total_carrier,
     )
     iris = physical_iris(
         fine,
@@ -387,7 +423,7 @@ def build_architecture_registration_route(
 
     # Remove the selected-order carrier in the 4F image frame.  Both
     # architectures use the same SLM2 carrier/blaze, so this operation is common.
-    field = field * np.exp(+1j * TWOPI * carrier * coarse["X"])
+    field = field * np.exp(+1j * TWOPI * total_carrier * coarse["X"])
     field_on_axicon = np.asarray(field, dtype=np.complex128)
 
     axicon_t, axicon_meta = physical_axicon_on_own_plane(
@@ -403,8 +439,8 @@ def build_architecture_registration_route(
 
     blaze_period_px = (
         float("inf")
-        if abs(carrier) <= EPS
-        else 1.0 / (abs(carrier) * pitch)
+        if carrier_mag <= EPS
+        else 1.0 / (carrier_mag * pitch)
     )
     meta: dict[str, Any] = {
         "route_id": "slm_registration_architecture_comparison_v1",
@@ -412,9 +448,14 @@ def build_architecture_registration_route(
         "architecture": architecture,
         "vortex_charge": ell,
         "phase_roles": phase_roles,
+        "SLM1_carrier_blaze_present": True,
         "SLM2_carrier_blaze_present": True,
-        "carrier_frequency_cpm": carrier,
-        "carrier_blaze_period_px": blaze_period_px,
+        "slm1_carrier_frequency_cpm": slm1_carrier,
+        "slm2_carrier_frequency_cpm": slm2_carrier,
+        "total_scalar_carrier_frequency_cpm": total_carrier,
+        "slm1_carrier_blaze_period_px": blaze_period_px,
+        "slm2_carrier_blaze_period_px": blaze_period_px,
+        "effective_total_carrier_period_px": 1.0 / (abs(total_carrier) * pitch),
         "wavelength_m": lam,
         "beam_radius_on_slm_m": w0,
         "beam_radius_in_pixels": w0 / pitch,
@@ -449,7 +490,8 @@ def build_architecture_registration_route(
             "iris_selected_power_fraction": selected_fraction,
             "lens1": lens1_meta,
             "lens2": lens2_meta,
-            "selected_order_carrier_removal": "plus_G_after_4F_image_inversion",
+            "selected_order_carrier_removal": "summed_two_panel_carrier_after_4F_image_inversion",
+            "selected_order_total_carrier_cpm": total_carrier,
         },
         "decimation": decim_meta,
         "axicon": axicon_meta,
