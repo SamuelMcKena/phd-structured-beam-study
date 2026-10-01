@@ -14,7 +14,18 @@ from vbb_study.digital_twin.slm_registration_architectures import (
     pure_registration_error,
     unit_cell_offsets,
     canonical_registration_hardware,
+    _charge_from_case_id,
 )
+
+
+def test_generic_vortex_case_parser_supports_report_charges() -> None:
+    assert _charge_from_case_id("B0") == 0
+    assert _charge_from_case_id("V1") == 1
+    assert _charge_from_case_id("V10") == 10
+    assert _charge_from_case_id("V20") == 20
+    with pytest.raises(ValueError):
+        _charge_from_case_id("bad")
+
 
 
 def test_architecture_names_are_explicit() -> None:
