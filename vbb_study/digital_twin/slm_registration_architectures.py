@@ -390,9 +390,21 @@ def build_architecture_registration_route(
         focal_length_m=f4f,
         carrier_cpm=total_carrier,
     )
+    iris_radius = float(hw["fourier_iris_radius_m"])
+    half_window = 0.5 * float(sampling.window_m)
+    required_half_window = abs(float(centre[0])) + iris_radius
+    if required_half_window >= half_window:
+        raise ValueError(
+            "Fourier-plane selected order plus iris is clipped by the numerical "
+            f"window: need half-width > {required_half_window * 1e3:.3f} mm, "
+            f"have {half_window * 1e3:.3f} mm. With blaze on both SLMs the "
+            "scalar effective-channel carrier is the summed two-panel carrier; "
+            "increase --window-mm and fine-grid-n together so the 8 um pixel "
+            "lattice remains resolved."
+        )
     iris = physical_iris(
         fine,
-        radius_m=float(hw["fourier_iris_radius_m"]),
+        radius_m=iris_radius,
         centre_m=centre,
     )
     pre_iris_power = float(np.sum(np.abs(field) ** 2))
