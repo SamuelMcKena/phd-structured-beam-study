@@ -19,9 +19,9 @@ axicon.
 
 ~~~
 Gaussian
--> SLM1: vortex
+-> SLM1: vortex + carrier/blaze
 -> SLM2: correction + carrier/blaze
--> explicit 4F + fixed +1 selection
+-> explicit common 4F + selected order
 -> physical axicon
 -> free-space Bessel region
 ~~~
@@ -30,15 +30,22 @@ Gaussian
 
 ~~~
 Gaussian
--> SLM1: correction
+-> SLM1: correction + carrier/blaze
 -> SLM2: vortex + carrier/blaze
--> explicit 4F + fixed +1 selection
+-> explicit common 4F + selected order
 -> physical axicon
 -> free-space Bessel region
 ~~~
 
-SLM2 carries the carrier/blaze in both architectures. This is a hard study
-contract, not an optional plotting convention.
+Both SLM1 and SLM2 carry the carrier/blaze in both architectures. This is a
+hard study contract, not an optional plotting convention.
+
+In the scalar effective-channel model, the two displayed linear ramps are
+sequential phase terms. The common-4F selected-order centre is therefore
+computed from their summed scalar carrier, and the summed carrier is removed
+after the 4F image plane. This is the internally consistent scalar analogue of
+the two blazed masks. The absolute laboratory carrier sign/orientation remains
+a hardware-coordinate convention to verify experimentally.
 
 The current repository does not contain a validated spatial correction map.
 Therefore the default architecture comparison sets the correction term exactly
@@ -105,8 +112,8 @@ Production sweeps support:
 - y,
 - diagonal.
 
-This is required because SLM2 carries the carrier/blaze in both architectures,
-which introduces a preferred axis. A raw x-direction panel ranking must not be
+This is required because both panels carry x-directed carrier/blaze terms,
+which introduce a preferred axis. A raw x-direction panel ranking must not be
 generalised to morphology until y and diagonal behaviour are checked.
 
 ## Beam-size and charge matrix
@@ -292,7 +299,7 @@ pixel-value conventions.
 ## Required validation before report conclusions
 
 - phase ownership matches the declared architecture;
-- SLM2 carrier/blaze exists in both architectures;
+- SLM1 and SLM2 carrier/blaze terms exist in both architectures;
 - compensated registration leaves beam-to-hologram decentre at zero;
 - whole-pitch periodicity remains exact;
 - x/y symmetry is recovered when the carrier is removed in a diagnostic test;
