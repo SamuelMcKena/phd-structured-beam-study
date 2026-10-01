@@ -36,9 +36,9 @@ def main() -> None:
     metric = _metric(sweep)
 
     print("\n=== Study contract ===")
-    print("A: SLM1 vortex; SLM2 correction + carrier/blaze")
-    print("B: SLM1 correction; SLM2 vortex + carrier/blaze")
-    print("SLM2 carrier/blaze present in BOTH architectures")
+    print("A: SLM1 vortex + carrier/blaze; SLM2 correction + carrier/blaze")
+    print("B: SLM1 correction + carrier/blaze; SLM2 vortex + carrier/blaze")
+    print("Carrier/blaze present on BOTH SLM1 and SLM2 in BOTH architectures")
     print(f"headline metric: {metric}")
 
     edge = sweep[sweep["offset_fraction_px"] > 0].copy()
