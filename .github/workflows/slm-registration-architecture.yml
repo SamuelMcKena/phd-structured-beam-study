@@ -8,6 +8,7 @@ on:
       - 'vbb_study/digital_twin/slm_registration_metrics.py'
       - 'tools/run_slm_registration_architecture_study.py'
       - 'tools/plot_slm_registration_architecture_study.py'
+      - 'tools/summarise_slm_registration_architecture_study.py'
       - 'tests/test_slm_registration_architectures.py'
       - 'docs/98_slm_registration_architecture_comparison.md'
       - '.github/workflows/slm-registration-architecture.yml'
@@ -47,3 +48,4 @@ jobs:
           vbb_study/digital_twin/slm_registration_architectures.py
           tools/run_slm_registration_architecture_study.py
           tools/plot_slm_registration_architecture_study.py
+          tools/summarise_slm_registration_architecture_study.py
