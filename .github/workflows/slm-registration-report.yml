@@ -2,6 +2,14 @@ name: Build SLM registration report evidence
 
 on:
   workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/slm-registration-report.yml'
+      - 'vbb_study/digital_twin/slm_registration_architectures.py'
+      - 'tools/run_slm_registration_architecture_study.py'
+      - 'tools/plot_slm_registration_architecture_study.py'
+      - 'tools/summarise_slm_registration_architecture_study.py'
+      - 'tools/build_slm_registration_architecture_report.py'
 
 permissions:
   contents: read
