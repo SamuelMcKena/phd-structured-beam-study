@@ -233,6 +233,88 @@ def run_sweep(args: argparse.Namespace, outdir: Path) -> Path:
             writer = csv.DictWriter(f, fieldnames=fields)
             writer.writeheader()
             writer.writerows(rows)
+
+        # Strong sanity gate for the flat-correction effective-channel model.
+        # With identical panels, identical blazes and no inter-SLM propagation,
+        # swapping which physical panel owns the vortex can only relabel the two
+        # commuting phase factors. Therefore A/SLM1(vortex-owner) must match
+        # B/SLM2(vortex-owner), and A/SLM2(carrier-only) must match
+        # B/SLM1(carrier-only), for the same L, w, axis and offset.
+        if correction is None:
+            by_key = {}
+            for row in rows:
+                key = (
+                    str(row["architecture"]),
+                    int(row["charge"]),
+                    float(row["beam_radius_px"]),
+                    str(row["panel_dof"]),
+                    str(row["axis"]),
+                    float(row["offset_fraction_px"]),
+                )
+                by_key[key] = row
+
+            checks = []
+            for charge in charges:
+                for radius_px in radii_px:
+                    for axis in axes:
+                        for frac in fractions:
+                            pairs = (
+                                ("slm1", "slm2", "vortex_owner"),
+                                ("slm2", "slm1", "non_vortex_owner"),
+                            )
+                            for panel_a, panel_b, role in pairs:
+                                ka = (
+                                    "upstream_vortex",
+                                    int(charge),
+                                    float(radius_px),
+                                    panel_a,
+                                    axis,
+                                    float(frac),
+                                )
+                                kb = (
+                                    "downstream_vortex",
+                                    int(charge),
+                                    float(radius_px),
+                                    panel_b,
+                                    axis,
+                                    float(frac),
+                                )
+                                if ka not in by_key or kb not in by_key:
+                                    continue
+                                ra, rb = by_key[ka], by_key[kb]
+                                for metric_name in (
+                                    "infidelity",
+                                    "translation_registered_infidelity",
+                                ):
+                                    if metric_name not in ra or metric_name not in rb:
+                                        continue
+                                    delta = abs(float(ra[metric_name]) - float(rb[metric_name]))
+                                    checks.append(
+                                        {
+                                            "role": role,
+                                            "charge": int(charge),
+                                            "beam_radius_px": float(radius_px),
+                                            "axis": axis,
+                                            "offset_fraction_px": float(frac),
+                                            "metric": metric_name,
+                                            "abs_delta": delta,
+                                        }
+                                    )
+
+            symmetry_path = outdir / "architecture_label_symmetry.csv"
+            if checks:
+                fields2 = list(checks[0].keys())
+                with symmetry_path.open("w", newline="", encoding="utf-8") as f:
+                    writer = csv.DictWriter(f, fieldnames=fields2)
+                    writer.writeheader()
+                    writer.writerows(checks)
+                max_delta = max(float(row["abs_delta"]) for row in checks)
+                if max_delta > 1e-10:
+                    raise RuntimeError(
+                        "A/B panel-label symmetry gate failed in flat-correction "
+                        f"effective-channel model: max abs metric delta={max_delta:.3e}. "
+                        "Do not interpret architecture differences until this is fixed."
+                    )
     return path
 
 
