@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 
 import numpy as np
@@ -31,6 +32,13 @@ def _metric(df: pd.DataFrame) -> str:
         if name in df.columns:
             return name
     raise KeyError("no supported infidelity metric found")
+
+
+def _frame_block(df: pd.DataFrame, *, index: bool = False) -> str:
+    """Render a dataframe without requiring the optional tabulate package."""
+
+    text = df.to_string(index=index)
+    return "~~~\n" + text + "\n~~~"
 
 
 def _fmt(x: float) -> str:
@@ -98,9 +106,11 @@ def main() -> None:
                 f"{_fmt(row_max['B_over_A'])} "
                 f"(L={int(row_max['charge'])}, w={row_max['beam_radius_px']:g} px)."
             )
-        ratio_table = joined[
-            ["charge", "beam_radius_px", "A", "B", "B_over_A"]
-        ].sort_values(["beam_radius_px", "charge"]).to_markdown(index=False)
+        ratio_table = _frame_block(
+            joined[["charge", "beam_radius_px", "A", "B", "B_over_A"]]
+            .sort_values(["beam_radius_px", "charge"]),
+            index=False,
+        )
 
     unit_text = (
         "The two-dimensional pixel-unit-cell stage was not generated for this tag."
@@ -117,7 +127,7 @@ def main() -> None:
         unit_text = (
             "The generated pixel-unit-cell maps quantify centre/edge/corner sensitivity. "
             "The worst morphology metric by architecture/panel was:\n\n"
-            + u.to_markdown(index=False)
+            + _frame_block(u, index=False)
         )
 
     inter_text = "The relative SLM1-SLM2 map was not generated for this tag."
@@ -131,7 +141,33 @@ def main() -> None:
         )
         inter_text = (
             "The relative SLM1-SLM2 registration map gives the following extrema:\n\n"
-            + table.to_markdown()
+            + _frame_block(table, index=True)
+        )
+
+    axial_text = "The post-axicon axial stage was not generated for this tag."
+    axial_path = datadir / "axial_metrics.csv"
+    if axial_path.exists():
+        axial = pd.read_csv(axial_path)
+        cols = [
+            c
+            for c in (
+                "architecture",
+                "charge",
+                "beam_radius_px",
+                "panel",
+                "offset_fraction_px",
+                "peak_intensity_ratio",
+                "bessel_zone_ratio",
+                "propagated_translation_registered_infidelity",
+                "propagated_infidelity",
+            )
+            if c in axial.columns
+        ]
+        axial_text = (
+            "The generated axial stage quantifies peak intensity, Bessel-zone "
+            "length and propagated transverse morphology at the zero-registration "
+            "reference-z plane. Representative rows are:\n\n"
+            + _frame_block(axial[cols].head(30), index=False)
         )
 
     correction_status = manifest.get("correction_map", "unknown")
@@ -144,9 +180,7 @@ def main() -> None:
         figures = sorted(figdir.glob("*.png"))
 
     fig_md = "\n".join(
-        f"![{path.stem}]({path.relative_to(reportdir.parent.parent.parent)})"
-        if reportdir.parent.parent.parent in path.parents
-        else f"Figure available at: {path}"
+        f"![{path.stem}]({os.path.relpath(path, start=reportdir)})"
         for path in figures
     )
 
@@ -233,6 +267,10 @@ Architecture B maximum: **{_fmt(bmax)}**
 ### 3.4 Relative SLM1-SLM2 registration
 
 {inter_text}
+
+### 3.5 Post-axicon axial sensitivity
+
+{axial_text}
 
 ## 4. Qualitative error signatures
 
