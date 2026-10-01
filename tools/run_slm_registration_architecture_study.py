@@ -24,6 +24,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from dataclasses import asdict, is_dataclass
 import math
 from pathlib import Path
 from typing import Any, Callable
@@ -57,6 +58,8 @@ def _parse_csv_numbers(text: str, cast=float) -> list[Any]:
 
 
 def _jsonable(value: Any) -> Any:
+    if is_dataclass(value):
+        return _jsonable(asdict(value))
     if isinstance(value, dict):
         return {str(k): _jsonable(v) for k, v in value.items()}
     if isinstance(value, (list, tuple)):
