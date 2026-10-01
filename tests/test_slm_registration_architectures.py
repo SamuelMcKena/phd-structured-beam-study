@@ -127,7 +127,8 @@ def test_phase_ownership_downstream_vortex() -> None:
     slm1, slm2, roles = architecture_phase_components(
         "downstream_vortex",
         charge=3,
-        carrier_cpm=1000.0,
+        slm1_carrier_cpm=1000.0,
+        slm2_carrier_cpm=1000.0,
         correction_command=corr,
     )
     assert roles["vortex_owner"] == "SLM2"
