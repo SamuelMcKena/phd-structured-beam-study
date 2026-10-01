@@ -162,7 +162,6 @@ def run_sweep(args: argparse.Namespace, outdir: Path) -> Path:
             raise ValueError(f"unknown architecture {architecture!r}")
 
     rows: list[dict[str, Any]] = []
-    references: dict[tuple, dict[str, Any]] = {}
 
     for architecture in architectures:
         for charge in charges:
@@ -176,13 +175,7 @@ def run_sweep(args: argparse.Namespace, outdir: Path) -> Path:
                             panel=panel,
                             axis=axis,
                         )
-                        key = _reference_key(
-                            architecture,
-                            charge,
-                            radius_px,
-                            panel,
-                            axis,
-                        )
+                        reference: dict[str, Any] | None = None
                         for frac, state in zip(fractions, states):
                             route = build_architecture_registration_route(
                                 case_id,
@@ -198,12 +191,11 @@ def run_sweep(args: argparse.Namespace, outdir: Path) -> Path:
                                 keep_fine_post_iris=True,
                             )
                             if float(frac) == 0.0:
-                                references[key] = route
-                            ref = references.get(key)
+                                reference = route
                             metrics = _route_metrics(
                                 route,
                                 charge=charge,
-                                reference_route=ref,
+                                reference_route=reference,
                             )
                             row = {
                                 "architecture": architecture,
@@ -223,6 +215,9 @@ def run_sweep(args: argparse.Namespace, outdir: Path) -> Path:
                             rows.append(row)
                             if float(frac) != 0.0:
                                 del route
+                        # Release the fine-grid zero-registration reference before
+                        # moving to the next charge/radius/panel/axis combination.
+                        reference = None
 
     path = outdir / "architecture_sweep.csv"
     if rows:
