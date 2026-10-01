@@ -9,6 +9,7 @@ on:
       - 'tools/run_slm_registration_architecture_study.py'
       - 'tools/plot_slm_registration_architecture_study.py'
       - 'tools/summarise_slm_registration_architecture_study.py'
+      - 'tools/build_slm_registration_architecture_report.py'
       - 'tests/test_slm_registration_architectures.py'
       - 'docs/98_slm_registration_architecture_comparison.md'
       - '.github/workflows/slm-registration-architecture.yml'
@@ -49,3 +50,4 @@ jobs:
           tools/run_slm_registration_architecture_study.py
           tools/plot_slm_registration_architecture_study.py
           tools/summarise_slm_registration_architecture_study.py
+          tools/build_slm_registration_architecture_report.py
