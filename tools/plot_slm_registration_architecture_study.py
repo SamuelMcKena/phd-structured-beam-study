@@ -88,7 +88,9 @@ def plot_offset_curves(df: pd.DataFrame, outdir: Path) -> Path:
     axs[1].axhline(1.0, ls="--", lw=1)
     axs[1].set_xticks(np.arange(len(panels)), panels, rotation=25)
     axs[1].set_ylabel("Architecture B / Architecture A sensitivity")
-    axs[1].set_title(f"Direct architecture comparison at {maxoff:.3f} pixel")
+    axs[1].set_title(
+        f"Label-symmetry diagnostic at {maxoff:.3f} pixel (flat correction: expect 1)"
+    )
     axs[1].grid(True, axis="y", alpha=0.25)
 
     path = outdir / "01_offset_curves_and_architecture_ratio.png"
@@ -141,7 +143,10 @@ def plot_beam_charge_maps(df: pd.DataFrame, outdir: Path) -> list[Path]:
         ax.set_yticks(np.arange(a.shape[0]), [f"{int(v)}" for v in a.index])
         ax.set_xlabel("Beam radius on SLM (pixels)")
         ax.set_ylabel("Vortex charge L")
-        ax.set_title("Architecture sensitivity ratio: downstream-vortex / upstream-vortex")
+        ax.set_title(
+            "Architecture label-symmetry ratio: downstream-vortex / upstream-vortex\n"
+            "(flat correction, no measured inter-SLM transfer: expect unity)"
+        )
         plt.colorbar(im, ax=ax, pad=0.01, label="B / A")
         path = outdir / "03_architecture_ratio_beam_charge.png"
         fig.savefig(path, dpi=320, bbox_inches="tight")
