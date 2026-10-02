@@ -209,6 +209,8 @@ def propagate_axicon(C, W, z_values, *, params=ReferenceParameters(), dx_target=
 
 
 def spectrum_fidelity(C, reference):
+    C=np.asarray(C,dtype=np.complex128)
+    reference=np.asarray(reference,dtype=np.complex128)
     den=np.vdot(C,C).real*np.vdot(reference,reference).real
     return float(np.clip(abs(np.vdot(reference,C))**2/max(den,1e-300),0,1))
 
