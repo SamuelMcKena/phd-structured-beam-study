@@ -32,7 +32,7 @@ def save(fig,path):
     plt.close(fig)
 
 
-def geometry(out):
+def geometry(out, architectures=True):
     fig,axs=plt.subplots(2,4,figsize=(13.5,7.3),layout='constrained')
     cases=[(0,0),(.125,0),(.25,0),(.375,0),(.5,0),(0,.5),(.5,.5)]
     for ax,(x,y) in zip(axs.flat,cases):
@@ -53,6 +53,8 @@ def geometry(out):
     ax.text(0,.32,'Red: common optical centre\nBlue: illuminated footprint\nGrey: physical pixel boundaries',linespacing=1.6)
     ax.text(0,.05,'Central few pixels of a broad beam;\nfootprint edge is outside this zoom.',fontsize=11)
     save(fig,out/'01_registration_geometry')
+    if not architectures:
+        return
     fig,ax=plt.subplots(figsize=(12.8,5.4));ax.set(xlim=(0,13),ylim=(0,5));ax.axis('off')
     for y,label,texts in [(3.6,'A — upstream vortex',['Vortex + blaze','Correction + blaze']),
                            (1.2,'B — downstream vortex',['Correction + blaze','Vortex + blaze'])]:

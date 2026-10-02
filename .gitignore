@@ -16,3 +16,6 @@ outputs/validation/registration_iris_adjusted/
 outputs/figures/registration_definitive/
 outputs/figures/registration_fixed_iris/
 outputs/reports/registration_definitive/
+outputs/validation/registration_interpanel_200mm/
+outputs/validation/registration_preserved_baseline/
+outputs/reports/registration_interpanel/

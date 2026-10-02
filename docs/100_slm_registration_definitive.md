@@ -1,5 +1,11 @@
 # Audited SLM registration study
 
+**Scope update:** the subsequently clarified approximate 200 mm free-space
+SLM1–SLM2 gap, with the 4F after both panels, is studied separately in
+[the inter-panel propagation revision](101_slm_registration_interpanel_propagation.md).
+The exact architecture equality below applies to this document's identity-
+transfer local baseline, not to arbitrary separated panels.
+
 This study supersedes quantitative claims from docs 97–99 and the old sampled
 4F report route. Both panels retain 20-pixel blazes. The historical route now
 records nominal free-space numerical power loss and rejects its quantitative

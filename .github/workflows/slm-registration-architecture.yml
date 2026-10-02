@@ -14,6 +14,9 @@ on:
       - 'tests/test_slm_registration_architectures.py'
       - 'tests/test_registration_reference.py'
       - 'vbb_study/digital_twin/registration_reference.py'
+      - 'vbb_study/digital_twin/registration_interpanel.py'
+      - 'tests/test_registration_interpanel.py'
+      - 'tools/*registration_interpanel*'
       - 'docs/98_slm_registration_architecture_comparison.md'
       - '.github/workflows/slm-registration-architecture.yml'
   workflow_dispatch:
@@ -47,6 +50,7 @@ jobs:
           tests/test_slm_pixel_registration.py
           tests/test_slm_registration_architectures.py
           tests/test_registration_reference.py
+          tests/test_registration_interpanel.py
       - name: Compile architecture study modules
         run: >-
           python -m compileall -q

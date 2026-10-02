@@ -60,3 +60,11 @@ def test_beam_does_not_follow_lattice():
 def test_bad_aperture_window_rejected():
     with pytest.raises(ValueError,match='physical aperture'):
         replace(InterpanelParameters(),panel2_window_m=.008).validate(ReferenceParameters())
+
+def test_separable_plane_against_direct_sum():
+    rng=np.random.default_rng(3);c=rng.normal(size=(9,9))+1j*rng.normal(size=(9,9))
+    f=np.arange(-4,5)*100.;x=np.arange(11)*3e-6-.000013
+    basis=np.exp(2j*np.pi*x[:,None]*f[None,:])
+    a=fourier_line(c,f[0],100.,x[0],3e-6,len(x))
+    b=fourier_line(a.T,f[0],100.,x[0],3e-6,len(x)).T
+    np.testing.assert_allclose(b,basis@c@basis.T,rtol=3e-6,atol=2e-5)
