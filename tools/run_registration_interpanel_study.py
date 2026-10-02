@@ -6,7 +6,7 @@ from dataclasses import replace,asdict
 import numpy as np
 from scipy.ndimage import map_coordinates
 from vbb_study.digital_twin.registration_interpanel import *
-from vbb_study.digital_twin.registration_reference import synthesize,propagate_axicon,spectrum_fidelity
+from vbb_study.digital_twin.registration_reference import synthesize,propagate_axicon,spectrum_fidelity,local_fidelity
 from tools.run_registration_reference_study import image_metrics,write_csv
 
 ROOT=Path(__file__).resolve().parents[1]
@@ -28,6 +28,22 @@ def diagnostic_z(L,w,arch):
 
 def run(out,stage):
     out.mkdir(parents=True,exist_ok=True);t=InterpanelParameters();rows=[];ledger=[]
+    if stage=='local':
+        # Independently reproduce the complete corrected two-blaze local layer.
+        from tools.run_registration_reference_study import run as local_run
+        from scipy.stats import linregress
+        local=out/'local_reference';local_run(local,['sweep','unit_cell'],'adapted')
+        scaling=[]
+        for w in [25,50,100,150,250]:
+            for L in [1,3,5,10,20]:
+                scaling.append(dict(L=L,w_px=w,eta=L/w,
+                    infidelity=1-local_fidelity(L,w,(.5,0),carrier=False)))
+        write_csv(local/'no_carrier_scaling.csv',scaling)
+        fit=linregress(np.log([r['eta'] for r in scaling]),np.log([r['infidelity'] for r in scaling]))
+        (local/'scaling_fit.json').write_text(json.dumps(dict(prefactor=float(np.exp(fit.intercept)),
+            exponent=float(fit.slope),log_R_squared=float(fit.rvalue**2),
+            scope='no-carrier local diagnostic only; not a law for two-blaze selection or 200 mm propagation'),indent=2))
+        return
     for L,w in CASES:
         p=parameters(L,w);W=t.panel2_window_m
         for arch in ARCHS:
@@ -142,6 +158,6 @@ def run(out,stage):
     (out/f'manifest_{stage}.json').write_text(json.dumps(manifest,indent=2))
 
 if __name__=='__main__':
-    a=argparse.ArgumentParser();a.add_argument('--stage',required=True,choices=['sweep','controls','postcontrols','extra'])
+    a=argparse.ArgumentParser();a.add_argument('--stage',required=True,choices=['local','sweep','controls','postcontrols','extra'])
     a.add_argument('--output',type=Path,default=ROOT/'outputs/validation/registration_interpanel_200mm')
     args=a.parse_args();run(args.output,args.stage)

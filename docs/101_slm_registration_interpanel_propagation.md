@@ -49,11 +49,18 @@ objective focal-detail or material-processing prediction.
 
 From the repository root, with dependencies installed:
 
+The evidence environment used Python 3.12, NumPy 2.3.5, SciPy 1.17.0,
+pandas 2.2.3, Matplotlib 3.10.8 and python-docx 1.2.0. The dedicated CI
+workflow pins those numerical and reporting versions. Numerical caching is
+keyed by the solver and runner source; report and plot changes regenerate
+their outputs without changing the cached optical calculation.
+
 ```bash
 export PYTHONPATH=.
 export OPENBLAS_NUM_THREADS=2
 export OMP_NUM_THREADS=2
 python -m pytest -q tests/test_slm_pixel_registration.py tests/test_slm_registration_architectures.py tests/test_registration_reference.py tests/test_registration_interpanel.py
+python -m tools.run_registration_interpanel_study --stage local
 python -m tools.run_registration_interpanel_study --stage sweep
 python -m tools.run_registration_interpanel_study --stage controls
 python -m tools.run_registration_interpanel_study --stage postcontrols

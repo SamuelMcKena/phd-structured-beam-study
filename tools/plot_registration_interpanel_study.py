@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Publication XY maps with shared crops, reference-normalised scales and residuals."""
-import argparse
+import argparse,json
 from pathlib import Path
 import numpy as np
 import pandas as pd
@@ -12,14 +12,46 @@ plt.rcParams.update({'font.size':16,'axes.titlesize':16,'axes.labelsize':15,'sav
 
 def save(fig,path):fig.savefig(path,bbox_inches='tight',facecolor='white');plt.close(fig)
 
+def local_figures(data,out):
+    local=data/'local_reference'
+    if not all((local/name).exists() for name in ['sweep.csv','no_carrier_scaling.csv','scaling_fit.json','unit_cell.csv']):return
+    d=pd.read_csv(local/'sweep.csv');q=d[(d.offset_px==.5)&(d.axis=='x')]
+    fig,axs=plt.subplots(1,2,figsize=(11,4.7),layout='constrained')
+    for w,g in q.groupby('w_px'):
+        for ax,key in zip(axs,['local_infidelity','raw_infidelity']):
+            ax.semilogy(g.L,np.maximum(g[key],1e-12),'o-',label=f'w = {w} px')
+    for ax in axs:ax.set_xlabel('Charge L');ax.set_ylabel('Complex-field infidelity');ax.set_xticks([0,1,3,5,10,20]);ax.grid(alpha=.2)
+    axs[0].set_title('Local two-panel phase product');axs[1].set_title('After ideal order selection');axs[1].legend(fontsize=11,ncol=2)
+    fig.suptitle('Local identity-transfer baseline  |  Both SLMs blazed  |  Half-pixel x shift',fontsize=16)
+    save(fig,out/'03_local_charge_radius.png')
+    s=pd.read_csv(local/'no_carrier_scaling.csv');fit=json.loads((local/'scaling_fit.json').read_text())
+    fig,axs=plt.subplots(1,2,figsize=(11,4.7),layout='constrained')
+    for w,g in s.groupby('w_px'):axs[0].loglog(g.eta,g.infidelity,'o',label=f'{w} px')
+    xx=np.geomspace(s.eta.min(),s.eta.max(),100)
+    axs[0].loglog(xx,fit['prefactor']*xx**fit['exponent'],'k--',label=f"Fit exponent {fit['exponent']:.2f}")
+    for w,g in q[q.L>0].groupby('w_px'):axs[1].loglog(g.eta,g.raw_infidelity,'o-',label=f'{w} px')
+    for ax in axs:ax.set_xlabel(r'$\eta=L p/w$');ax.set_ylabel('Complex-field infidelity');ax.grid(alpha=.2,which='both')
+    axs[0].set_title('Vortex-only local diagnostic');axs[1].set_title('Two-blaze selected channel');axs[0].legend(fontsize=10,ncol=2)
+    fig.suptitle('Scaling is diagnostic not a universal propagated-field law',fontsize=16)
+    save(fig,out/'04_local_scaling.png')
+    u=pd.read_csv(local/'unit_cell.csv');fig,axs=plt.subplots(1,2,figsize=(10,4.8),layout='constrained')
+    for ax,w in zip(axs,[50,250]):
+        g=u[u.w_px==w];im=ax.imshow(g.pivot(index='rho_y',columns='rho_x',values='raw_infidelity'),origin='lower',
+            extent=(-.0625,.9375,-.0625,.9375),cmap='magma',interpolation='nearest')
+        ax.set_title(f'L = 20, w = {w} px');ax.set_xlabel(r'$\rho_x$ / pixels');ax.set_ylabel(r'$\rho_y$ / pixels')
+        fig.colorbar(im,ax=ax,label='Selected-field infidelity',shrink=.8)
+    fig.suptitle('Local unit cell  |  Two-blaze identity-transfer baseline',fontsize=16)
+    save(fig,out/'05_local_unit_cell.png')
+
 def run(data,out):
     out.mkdir(parents=True,exist_ok=True)
+    local_figures(data,out)
     from tools.plot_registration_reference_study import geometry
     geometry(out,architectures=False)
     fig,axs=plt.subplots(2,1,figsize=(10,5),layout='constrained')
     for ax,arch in zip(axs,['A','B']):
         ax.set_xlim(0,10);ax.set_ylim(0,2);ax.axis('off')
-        texts=['SLM1\nVortex + blaze','SLM2\nFlat correction + blaze'] if arch=='A' else ['SLM1\nFlat correction + blaze','SLM2\nVortex + blaze']
+        texts=['SLM1\nVortex + blaze','SLM2\nFlat correction\n+ blaze'] if arch=='A' else ['SLM1\nFlat correction\n+ blaze','SLM2\nVortex + blaze']
         for x,label in zip([.3,4.7,7.8],texts+['4F\nOrder selection']):
             ax.add_patch(Rectangle((x,.55),1.9,1.05,facecolor='#eef2f6',edgecolor='#334155'))
             ax.text(x+.95,1.075,label,ha='center',va='center',fontsize=12)
@@ -83,6 +115,29 @@ def run(data,out):
     axs[0].set_ylabel('Selected-field infidelity (%)');axs[1].set_ylabel('Propagated shape residual (%)')
     fig.suptitle('Bench radius 2 mm  |  Conditional 200 mm gap  |  Flat correction',fontsize=16)
     save(fig,out/'presentation_02_bench_sensitivity_200mm.png')
+    files=sorted(data.glob('axial_*.csv'))
+    if files:
+        fig,axs=plt.subplots(1,2,figsize=(11,4.6),layout='constrained')
+        for path in files:
+            g=pd.read_csv(path);r=g.iloc[0];arch='A' if r.architecture=='upstream_vortex' else 'B'
+            ax=axs[0 if r.w_px==50 else 1];ax.plot(1000*g.z_m,100*g.power_normalised_residual_l2,'o-',label=f'L={int(r.L)}, {arch}')
+        for ax in axs:ax.set_xlabel('Distance beyond axicon (mm)');ax.set_ylabel('Half-pixel shape residual (%)');ax.grid(alpha=.2);ax.legend(fontsize=11)
+        axs[0].set_title('Stress radius 50 px');axs[1].set_title('Bench radius 250 px')
+        fig.suptitle('Common physical z planes  |  Fixed 300 µm XY metric region',fontsize=16)
+        save(fig,out/'06_axial_registration.png')
+    path=data/'actual_panel_L20_w50_upstream_vortex.npz'
+    if path.exists():
+        a=np.load(path);E=a['fields'];extent=[1000*a['x'][0],1000*a['x'][-1],1000*a['y'][0],1000*a['y'][-1]]
+        fig,axs=plt.subplots(2,2,figsize=(9,7.6),layout='constrained');peak=np.max(abs(E[0,0])**2)
+        for i,d in enumerate([0,.5]):
+            im=axs[i,0].imshow(abs(E[i,0])**2/peak,origin='lower',extent=extent,cmap='inferno',vmin=0,vmax=1.05,interpolation='bilinear')
+            ph=axs[i,1].imshow(np.angle(E[i,1]),origin='lower',extent=extent,cmap='twilight',vmin=-np.pi,vmax=np.pi,interpolation='nearest')
+            for ax,title in zip(axs[i],[f'Incident on SLM2, Δx={d:g}p',f'After SLM2 phase, Δx={d:g}p']):
+                ax.set_title(title);ax.set_xlabel('x (mm)');ax.set_ylabel('y (mm)')
+        fig.colorbar(im,ax=list(axs[:,0]),shrink=.75,label='Intensity / baseline peak')
+        fig.colorbar(ph,ax=list(axs[:,1]),shrink=.75,label='Wrapped envelope phase (rad)')
+        fig.suptitle('Stress L = 20, w = 50 px  |  Architecture A\nActual SLM2 plane before downstream order selection',fontsize=16)
+        save(fig,out/'07_actual_slm2_plane.png')
 
 if __name__=='__main__':
     p=argparse.ArgumentParser();p.add_argument('--data',type=Path,required=True);p.add_argument('--output',type=Path,required=True)
