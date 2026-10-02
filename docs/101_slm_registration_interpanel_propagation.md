@@ -65,6 +65,7 @@ python -m tools.run_registration_interpanel_study --stage sweep
 python -m tools.run_registration_interpanel_study --stage controls
 python -m tools.run_registration_interpanel_study --stage postcontrols
 python -m tools.run_registration_interpanel_study --stage extra
+python -m tools.refine_registration_interpanel_figures --data outputs/validation/registration_interpanel_200mm
 python -m tools.plot_registration_interpanel_study --data outputs/validation/registration_interpanel_200mm --output outputs/validation/registration_interpanel_200mm/figures
 python -m tools.build_registration_interpanel_report --data outputs/validation/registration_interpanel_200mm --output outputs/reports/registration_interpanel
 ```

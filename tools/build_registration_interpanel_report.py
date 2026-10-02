@@ -43,7 +43,7 @@ The 200 mm transfer breaks the exact phase-allocation symmetry of the previous i
 '''+table(['Charge and radius','Architecture','Selected infidelity','Fine propagated shape'],[
         [f'L={int(r.L)}, w={int(r.w_px)} px',arch(r.architecture),f'{r.selected_infidelity:.4g}',
          f'{100*get(r.L,r.w_px,r.architecture,fine).power_normalised_residual_l2:.3f}%'] for r in headline.itertuples()])+'''
-The final ring intensity is substantially less affected in the bench-radius cases than in the deliberately small-beam stress cases. No architecture winner is inferred from different nominal fields or different diagnostic planes. The experimental transfer coordinates, panel response and correction phase still require calibration. The following sections distinguish model validation, simulated observation and experimental inference.
+The final ring intensity is substantially less affected in the bench-radius cases than in the deliberately small-beam stress cases at these planes. Large relative residuals at dark precursor planes are distinguished from changes in the brighter Bessel-forming region. No architecture winner is inferred from different nominal fields or different diagnostic planes. The experimental transfer coordinates, panel response and correction phase still require calibration.
 ''')
     page('1 Experimental geometry and registration',r'''
 Architecture A places vortex plus blaze on SLM1 and flat correction plus blaze on SLM2. Architecture B reverses vortex ownership while retaining both blazes. Figure 1 shows the clarified order of components. There is no order-selection aperture between the panels. The approximate gap is user-reported rather than measured.
@@ -82,7 +82,11 @@ SLM1 pixel subcells have analytic top-hat Fourier factors. Their propagated fiel
 
 The diagnostic iris radius is $B=\max[2500,5L/(2\pi w)]$ cycles/m. It is fixed for all registration states and both architectures within each charge/radius comparison. Widening it exposes the intended stress-case spectrum, but real order purity and unmodulated leakage remain uncalibrated. The ideal relay has unit magnification with image parity unfolded. The 300 mm lens separation alone does not establish those properties.
 
-The axicon is a conditional 20-degree BASE-angle ideal cone with index 1.458, not a measured prescription. A phase-only axicon leaves its immediate intensity unchanged. Every reported post-axicon intensity is propagated to a nonzero distance. The scalar solver supports broad relative morphology, not vector focal-detail or material-processing predictions.
+The axicon is a conditional 20-degree BASE-angle ideal cone with index 1.458, not a measured prescription. For the assumed flat-entry cone-exit orientation [3],
+
+$$\beta=\arcsin(n\sin\alpha)-\alpha,\qquad k_r=(2\pi/\lambda)\sin\beta,\qquad t_a(r)=e^{-ik_r r}.$$
+
+This gives a deflection angle of 9.9117 degrees and radial phase period 5.978 µm. A phase-only axicon leaves its immediate intensity unchanged. Every post-axicon intensity is propagated to a nonzero distance. The scalar solver supports broad relative morphology, not vector focal-detail or material-processing predictions.
 ''')
     page('4 Code audit and numerical validation',f'''
 The prior one-blaze result compared unequal physical phase commands and could not support an architecture preference. Both current panel commands contain the 20-pixel blaze. The earlier sampled 4F route also lost approximately 9–55% of power in nominal free-space steps; those propagated conclusions remain rejected. The independent source-spectrum reference is retained for local registration and exact zero-transfer validation.
@@ -140,9 +144,9 @@ The iris bandwidth adds a filtering scale $L/(2\pi B w)$, while the separated-pa
 ''')
     page('8 Pixel corners edges and centres',r'''
 The two-dimensional unit-cell scan in Figure 5 resolves eight positions per axis for the selected local cases. Its colours show a scalar fidelity metric, not a beam-intensity image. The principal visual beam evidence remains the large XY profiles in the following sections.
-'''+figure('05_local_unit_cell.png','L=20 local unit-cell maps for the 50-pixel stress beam and 250-pixel bench radius. Each map uses its own explicitly labelled infidelity scale. The physical lattice origin at zero is a corner in this convention; half a pixel in both axes places the singularity at a pixel centre.')+r'''
+'''+figure('05_local_unit_cell.png','L=20 local unit-cell maps for the 50-pixel stress beam and 250-pixel bench radius. Each map uses its own explicitly labelled infidelity scale. The physical lattice origin at zero is a corner in this convention; half a pixel in both axes places the singularity at a pixel centre.',6.3)+r'''
 Registration cannot be reduced to a single distance from an arbitrarily named pixel centre when a carrier selects one axis. Corner, vertical-edge and horizontal-edge states sample different phase partitions. The additional separated-panel direction controls retain these distinctions without identifying the local unit-cell maps with the propagated 200 mm route.
-''')
+'''+figure('08_immediate_slm1.png','Immediately after the phase-only vortex-plus-blaze SLM1, the ideal Gaussian intensity is unchanged apart from uniform throughput. Registration changes its pixelated phase, not an immediate intensity hole. Wrapped phase is shown only in the illuminated region; the physical pixel steps are intentional.',6.3))
     page('Field incident on the second physical panel',r'''
 Before downstream order selection, the upstream stress vortex has propagated 200 mm and encountered the independent SLM2 lattice. The images below are fields at that actual plane, rather than images inferred from a selected-channel radial profile. The fixed frame follows the nominal carrier ray and does not follow state-dependent centroid motion.
 '''+figure('07_actual_slm2_plane.png','Architecture A stress case at zero and half-pixel SLM1 registration. Left: intensity immediately incident on SLM2. Right: wrapped phase immediately after SLM2. The first carrier is represented in a demodulated coordinate frame; the second panel still applies its own physical blaze. Darkness does not by itself establish a topological winding.')+r'''
@@ -157,6 +161,7 @@ In the ideal phase-only model, the instantaneous SLM2 modulation changes phase r
                 page(f'{label} L20 Architecture A '+('signed residual ' if residual else 'intensity ')+('before axicon' if plane=='pre' else 'after propagation'),f'''
 The {w}-pixel incident radius corresponds to {w*8e-3:g} mm on SLM1. Only its vortex-plus-blaze panel is shifted in this sequence. Architecture A's second panel retains its own blaze with zero correction. Figure {fignum+1} shows the actual XY {'signed intensity difference' if residual else 'intensity'} {where} for all five requested x registrations.
 '''+figure(name,('Signed residuals are divided by the zero-registration peak and share a symmetric colour scale. ' if residual else 'All five intensities are divided by one zero-registration peak; they are not individually peak-normalised. ')+
+                ('The propagated sequences use 1 µm numerical sampling. ' if plane=='post' else '')+
                 'The physical crop is fixed. Display interpolation improves readability only; numerical metrics use the saved complex arrays. Both panels remain blazed.')+f'''
 At half a pixel, the selected full-field infidelity is {r.selected_infidelity:.5g}. The pre-axicon power-normalised intensity residual is {100*r.pre_power_normalised_residual_l2:.3f}%. At the indicated downstream plane, the finely sampled residual is {100*fr.power_normalised_residual_l2:.3f}%. That downstream metric is evaluated in a fixed 300 µm-wide XY region, not over the entire transverse field.
 
@@ -175,23 +180,29 @@ Comparing registration tolerance requires each perturbed field to be compared ag
 ''')
     page('Current approximately 2 mm bench answer',f'''
 For the stated conditional geometry, the current 250-pixel radius remains substantially less registration-sensitive than the 50-pixel stress case. Figure {fignum+1} separates selected complex-field change from propagated intensity change over the full x sweep for charges 10 and 20. The charge dependence is visible in the field-level metric even where the final ring change is small.
-'''+figure('presentation_02_bench_sensitivity_200mm.png','Field infidelity and image-shape residual for the bench radius. Each legend declares the physical diagnostic distance. The right-hand graph uses primary 2 µm fields; the table below gives independent 1 µm endpoint controls.')+table(['Charge','Architecture','z beyond axicon','Fine shape residual'],[
+'''+figure('presentation_02_bench_sensitivity_200mm.png','Field infidelity and image-shape residual for the bench radius. Each legend declares the physical diagnostic distance. The right-hand graph uses the refined 1 µm fields throughout; the table reports the same endpoint data. Separate 2 µm, window and panel-quadrature convergence checks are retained.')+table(['Charge','Architecture','z beyond axicon','Fine shape residual'],[
         [int(r.L),arch(r.architecture),f'{1000*r.z_m:g} mm',f'{100*r.power_normalised_residual_l2:.3f}%'] for r in bench.itertuples()])+'''
-The simulated evidence does not make subpixel registration a compelling primary explanation for gross distortion of the present bench beam. The complex field changes slightly while the final sampled ring intensity is relatively robust. This conclusion is limited to flat correction, ideal panel response and the assumed optical mapping. It does not cover decentre, LUT error, camera aliasing, axicon tilt or a non-flat measured correction map.
+The simulated evidence does not make subpixel registration a compelling primary explanation for gross distortion of the present bench beam in its brighter propagated region. The complex field changes slightly while the sampled ring intensity is relatively robust at the declared planes. This is not robustness at every z: the following axial section identifies large relative residuals where nominal ROI power is weak. The conclusion is limited to flat correction, ideal panel response and the assumed optical mapping. It does not cover decentre, LUT error, camera aliasing, axicon tilt or a non-flat measured correction map.
 ''')
     direction=extra[extra.diagnostic.isin(['y','diagonal','common','differential'])]
     page('Directions common and differential registration',r'''
-The x blaze breaks rotational invariance. Artificial no-carrier square-aperture symmetry is recovered in tests, while carrier-induced anisotropy is permitted in the physical baseline. The endpoint results below retain y and diagonal shifts, as well as common and differential motion. A diagonal half-pixel shift moves each coordinate by half a pixel and is not the same Euclidean displacement as an x-only shift.
-'''+table(['Charge radius','Architecture','Mode','Selected infidelity'],[
-        [f'L={int(r.L)}, w={int(r.w_px)}',arch(r.architecture),r.diagnostic,f'{r.selected_infidelity:.4g}']
-        for r in direction[direction.L==20].itertuples()])+r'''
+The x blaze breaks rotational invariance. Artificial no-carrier square-aperture symmetry is recovered in tests, while carrier-induced anisotropy is permitted in the physical baseline. A diagonal half-pixel shift moves each coordinate by half a pixel and is not the same Euclidean displacement as an x-only shift. In the table, x, y and diagonal shift the vortex owner only. Common mode uses $\rho_1=\rho_2=(1/2,1/2)$; differential mode uses $\rho_1=(1/4,1/4)$ and $\rho_2=(-1/4,-1/4)$, modulo one pixel.
+'''+table(['L20 radius','Architecture','x','y','Diagonal','Common','Differential'],[
+        [f'{w} px',arch(a),f'{get(20,w,a).selected_infidelity:.3g}']+
+        [f'{direction[(direction.L==20)&(direction.w_px==w)&(direction.architecture==a)&(direction.diagnostic==mode)].selected_infidelity.iloc[0]:.3g}'
+         for mode in ['y','diagonal','common','differential']]
+        for w in [50,250] for a in ['upstream_vortex','downstream_vortex']])+r'''
+All entries are selected complex-field infidelities against their own nominal route. The common and differential states have different displacement definitions and are not ranked solely by their numerical magnitude. The response of the flat correction panel is available separately in the independent-panel x sweeps; it is not a prediction for a measured non-flat correction.
 Axial comparisons are saved from 1 to 25 mm downstream of the conditional cone, with baseline and half-pixel fields at common z values. The interval is diagnostic, not a calibrated experimental Bessel-zone length. A threshold-defined high-intensity interval depends on the chosen region and may be censored by the sampled endpoints; no exact zone start, end or length is inferred from a sparse uncalibrated scan.
 
 The axicon does not erase complex-field differences. Propagation redistributes their visible intensity effect, so a weak effect at one plane does not prove identical fields everywhere. Conversely, a field-level infidelity is not a percentage loss of ring intensity. CSVs retain centroid displacement, power ratio and absolute and normalised residuals to distinguish these statements.
 ''')
+    context=pd.read_csv(data/'axial_context.csv');bright=context[context.baseline_roi_power_fraction_of_axial_max>=.01]
     page('Axial evolution at common physical planes',f'''
 The axial calculation compares each perturbed field with its own nominal route at the same downstream distance. Figure {fignum+1} avoids comparing the architectures only at their separate chosen diagnostic planes. The common 300 µm-wide transverse region is held fixed. Its metric is conditional on the ideal scalar cone and may omit power outside that region.
-'''+figure('06_axial_registration.png','Half-pixel x registration of the vortex owner, evaluated at common distances from 1 to 25 mm beyond the physical axicon. The broad axial trend tests whether a single-plane observation hides a much larger downstream change. The sparse scan does not establish a measured Bessel-zone start or end.')+r'''
+'''+figure('06_axial_registration.png','Upper row: baseline ROI power relative to each route\'s own sampled axial maximum. Lower row: half-pixel x shape residual. Filled points flag ROI power at least 1% of that maximum; open points include much weaker planes. This diagnostic threshold is not a measured Bessel-zone definition.')+f'''
+At weak precursor planes the bench relative shape residual reaches {100*context[context.w_px==250].power_normalised_residual_l2.max():.1f}%. Normalisation by a very small nominal intensity distribution makes this a different physical observation from degradation of a bright working ring. For sampled points meeting the declared 1% ROI-power criterion, the largest bench shape residual is {100*bright[bright.w_px==250].power_normalised_residual_l2.max():.2f}%. Those axial values use 2 µm fields and establish broad context, not a fine peak-location tolerance.
+
 Numerical window controls accompany the fixed-plane headline cases. Fine peak location, fitted width and winding near low-intensity contours need stronger sampling and a calibrated cone before they support an experimental axial-zone claim. A dark central pixel or a ring-shaped image is not treated as sufficient proof that a well-defined charge persists across every contour.
 ''')
     cross=[]
@@ -219,7 +230,7 @@ The highest-priority geometry measurement is the optical path and nominal-axis m
 
 The local mechanism is rapid sampled helical phase variation, concentrated near the singularity and increasingly important at high charge or small beam radius. The separated-panel system adds diffraction evolution and carrier walk-off; a single scaling variable cannot describe it universally. Both blazes are necessary in either architecture. Pure registration remains distinct from imposed decentre, while propagated centroid motion is an observable consequence.
 
-For the declared approximately 200 mm conditional route, the current 2 mm-radius beam is robust in the tested half-pixel sweeps compared with the intentionally small-radius stress beam. This is a relative scalar conclusion. Absolute Bessel dimensions, detailed vector peak structure, real diffraction efficiency, corrected-panel sensitivity and material response remain outside the accepted evidence.
+For the declared approximately 200 mm conditional route, the current 2 mm-radius beam is robust at the specified brighter diagnostic planes compared with the intentionally small-radius stress beam. Dark precursor planes can have large normalised residuals and are not hidden by that conclusion. This is a relative scalar result. Absolute Bessel dimensions, detailed vector peak structure, real diffraction efficiency, corrected-panel sensitivity and material response remain outside the accepted evidence.
 
 ## Reproducibility appendix
 
@@ -236,26 +247,33 @@ The fractional-coordinate evaluation uses Bluestein chirp convolution, an algori
 
 [2] SciPy documentation, `scipy.signal.CZT`, version 1.15.0, notes on Bluestein evaluation and numerical accuracy. https://docs.scipy.org/doc/scipy-1.15.0/reference/generated/scipy.signal.CZT.html
 
+[3] Thorlabs, “Axicons, UV Fused Silica,” base-angle and deflection-angle convention. https://www.thorlabs.com/newgrouppage9.cfm?objectgroup_id=4277. The manufacturer relation defines the conditional ideal cone, not the identity or calibration of the laboratory optic.
+
 The approximate 200 mm gap and downstream relay placement originate in the user's subsequent setup clarification. Pixel pitch, blaze period, wavelength and beam radius are declared hardware-scale inputs. Equal ideal LUTs, aligned coordinates, carrier signs, relay magnification and the cone prescription remain numerical assumptions. None is presented as a measured calibration.
 
-The measured-map audit found no accepted panel-specific correction phase or coordinate transfer suitable for this calculation. The repository's GUI and digital-twin phase definitions informed the centred pixel command; a template or synthetic phase file was not promoted into experimental evidence. Historical reports and the earlier branch remain preserved for traceability.
+The geometry audit included the canonical hardware manifest, the nominal F300 profile, the measured-bench template and evidence register, the uploaded June publication-study source, the archived v0.6 GUI, the practical-system volume, calibration response acquisitions and q20 retrieval bundles. A demo inventory's 0.04 mm inter-panel value was explicitly a diagnostic placeholder and was rejected as laboratory geometry. The new approximate 200 mm gap comes from the user's clarification, not that placeholder.
+
+Calibration response images and coarse gain/modal inference were not a panel-coordinate measured phase map. The retrieval templates left scale, parity, rotation, conjugacy and the 1030 nm LUT unresolved. A synthetic or uncalibrated correction was therefore not promoted into correction-ON evidence. The GUI's direct phase-coordinate evaluation informed the centre-sampled command. Historical reports and the earlier branch remain preserved for traceability.
 ''')
     md=out/'SLM_Registration_200mm_Report.md';md.write_text(BREAK.join(pages))
     docx=out/'SLM_Registration_200mm_Report.docx'
     subprocess.run(['pandoc',str(md),'-f','markdown+raw_attribute','--standalone','-o',str(docx)],check=True)
     doc=Document(docx);sec=doc.sections[0];sec.page_width=Inches(8.5);sec.page_height=Inches(11)
+    # Pandoc uses capitalised built-in names, while python-docx's lookup maps
+    # Heading 1 to lower-case Word XML names. Resolve the actual objects.
+    def style(name):return next(s for s in doc.styles if s.name==name)
     sec.top_margin=sec.bottom_margin=Inches(.7);sec.left_margin=sec.right_margin=Inches(.8)
     for s in doc.styles:
         if s.type==1:s.font.name='Times New Roman';s.font.color.rgb=RGBColor(0,0,0)
     for name in ['Normal','Body Text','First Paragraph']:
-        doc.styles[name].font.size=Pt(11);doc.styles[name].paragraph_format.line_spacing=1.04
-        doc.styles[name].paragraph_format.space_after=Pt(7)
+        style(name).font.size=Pt(11);style(name).paragraph_format.line_spacing=1.04
+        style(name).paragraph_format.space_after=Pt(7)
     for name,size in [('Title',22),('Heading 1',15),('Heading 2',12)]:
-        doc.styles[name].font.size=Pt(size);doc.styles[name].paragraph_format.space_before=Pt(0)
-    doc.paragraphs[0].style=doc.styles['Title']
+        style(name).font.size=Pt(size);style(name).paragraph_format.space_before=Pt(0)
+    doc.paragraphs[0].style=style('Title')
     for p in doc.paragraphs:
         if p.text.startswith('Figure '):
-            p.style=doc.styles['Caption']
+            p.style=style('Caption')
             for r in p.runs:r.font.size=Pt(9.5);r.font.italic=False
         if p._p.xpath('.//w:drawing'):p.paragraph_format.keep_with_next=True
     for t in doc.tables:

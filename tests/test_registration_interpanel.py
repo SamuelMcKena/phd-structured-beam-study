@@ -57,6 +57,16 @@ def test_beam_does_not_follow_lattice():
         g=-rho*8e-6;physical_x=(x-g)+g
         assert physical_x[np.argmax(incident_amplitude(physical_x,0,400e-6))]==pytest.approx(0,abs=1e-20)
 
+def test_actual_propagated_gaussian_centroid_stays_fixed_under_panel2_registration():
+    # Exercise the route itself, not just the compensated-coordinate algebra.
+    # If illumination mistakenly followed the moved lattice, the half-pixel
+    # state would acquire a 4 um imposed beam/hologram decentre.
+    p=replace(ReferenceParameters(),carrier_cpm=0)
+    for rho in [0,.125,.25,.375,.5]:
+        r=interpanel_route(0,50,rho2=(rho,rho),hardware=p,transfer=cheap())
+        assert abs(r['metadata']['slm2_incident_centroid_x_m'])<1e-8
+        assert abs(r['metadata']['slm2_incident_centroid_y_m'])<1e-8
+
 def test_bad_aperture_window_rejected():
     with pytest.raises(ValueError,match='physical aperture'):
         replace(InterpanelParameters(),panel2_window_m=.008).validate(ReferenceParameters())
