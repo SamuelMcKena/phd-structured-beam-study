@@ -15,7 +15,7 @@ def run(data,out):
     files=sorted(p for p in data.rglob('*') if p.is_file())
     entries=[]
     for p in files:
-        supplemental=p.suffix=='.npz' and p.name.startswith(('control_','actual_panel_','axial_','immediate_slm1_'))
+        supplemental=p.suffix=='.npz' and p.name.startswith(('control_','actual_panel_','axial_','immediate_slm1_','fine_sequence_'))
         with p.open('rb') as stream:digest=hashlib.file_digest(stream,'sha256').hexdigest()
         entries.append(dict(path=str(p.relative_to(data)),part=2 if supplemental else 1,
             size_bytes=p.stat().st_size,sha256=digest))
@@ -27,10 +27,11 @@ Branch: slm-registration-architecture-comparison
 Packaging source commit: {commit}
 
 Part 1, SLM_Registration_200mm_Evidence.zip: every CSV and assumption manifest,
-the full five-offset complex-field sequences, refined post-axicon fields,
+the full primary five-offset complex-field sequences, refined endpoints,
 the complete local charge/radius/unit-cell layer, and all standalone figures.
 Part 2, SLM_Registration_200mm_Controls.zip: full convergence coefficient
-arrays, actual SLM2-plane fields and common-z axial complex fields.
+arrays, the full refined post-axicon sequences, immediate SLM1 and actual
+SLM2-plane fields, and common-z axial complex fields.
 Extract both parts into the SAME directory. They do not overwrite data files.
 The identical file_inventory.json in each part gives SHA256, byte size and part
 for every numerical/figure file. Reports are supplied separately as DOCX/PDF.
