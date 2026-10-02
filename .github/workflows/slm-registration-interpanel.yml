@@ -57,12 +57,26 @@ jobs:
           python -m tools.plot_registration_interpanel_study --data outputs/validation/registration_interpanel_200mm --output outputs/validation/registration_interpanel_200mm/figures
           python -m tools.build_registration_interpanel_report --data outputs/validation/registration_interpanel_200mm --output outputs/reports/registration_interpanel
           libreoffice -env:UserInstallation=file:///tmp/interpanel-lo --headless --convert-to pdf --outdir outputs/reports/registration_interpanel outputs/reports/registration_interpanel/SLM_Registration_200mm_Report.docx
+      - name: Portable evidence parts
+        run: python -m tools.package_registration_interpanel_evidence --data outputs/validation/registration_interpanel_200mm --output outputs/delivery/registration_interpanel
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: registration-200mm-conditional-evidence
-          path: |
-            outputs/validation/registration_interpanel_200mm
-            outputs/reports/registration_interpanel
+          name: registration-200mm-evidence
+          path: outputs/delivery/registration_interpanel/SLM_Registration_200mm_Evidence.zip
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registration-200mm-controls
+          path: outputs/delivery/registration_interpanel/SLM_Registration_200mm_Controls.zip
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registration-200mm-report
+          path: outputs/reports/registration_interpanel
           if-no-files-found: error
           compression-level: 6

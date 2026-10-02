@@ -5,6 +5,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from docx import Document
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+from docx.enum.table import WD_CELL_VERTICAL_ALIGNMENT
 from docx.shared import Inches,Pt,RGBColor
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
@@ -278,16 +280,25 @@ Calibration response images and coarse gain/modal inference were not a panel-coo
         if p._p.xpath('.//w:drawing'):p.paragraph_format.keep_with_next=True
     for t in doc.tables:
         for i,row in enumerate(t.rows):
-            for cell in row.cells:
+            for j,cell in enumerate(row.cells):
                 pr=cell._tc.get_or_add_tcPr();b=OxmlElement('w:tcBorders')
                 for side in ['top','left','bottom','right']:
                     e=OxmlElement('w:'+side);e.set(qn('w:val'),'single');e.set(qn('w:sz'),'4');e.set(qn('w:color'),'D9D9D9');b.append(e)
                 pr.append(b)
+                cell.vertical_alignment=WD_CELL_VERTICAL_ALIGNMENT.CENTER
+                if i==0:
+                    shading=OxmlElement('w:shd');shading.set(qn('w:fill'),'EEF2F6');pr.append(shading)
+                margins=OxmlElement('w:tcMar')
+                for side,value in [('left','100'),('right','100'),('top','60'),('bottom','60')]:
+                    e=OxmlElement('w:'+side);e.set(qn('w:w'),value);e.set(qn('w:type'),'dxa');margins.append(e)
+                pr.append(margins)
                 for p in cell.paragraphs:
+                    if j>0:p.alignment=WD_ALIGN_PARAGRAPH.CENTER
                     p.paragraph_format.space_before=Pt(3);p.paragraph_format.space_after=Pt(3)
                     for r in p.runs:r.font.size=Pt(9.5);r.font.bold=i==0
         repeat=OxmlElement('w:tblHeader');t.rows[0]._tr.get_or_add_trPr().append(repeat)
     field=OxmlElement('w:fldSimple');field.set(qn('w:instr'),'PAGE');sec.footer.paragraphs[0]._p.append(field)
+    sec.footer.paragraphs[0].alignment=WD_ALIGN_PARAGRAPH.CENTER
     doc.core_properties.author='Samuel McKenna';doc.core_properties.title='SLM pixel registration with free space between two panels'
     doc.save(docx)
     (out/'report_evidence_check.json').write_text(json.dumps(dict(planned_pages=len(pages),figures=fignum,headline_rows=len(headline),

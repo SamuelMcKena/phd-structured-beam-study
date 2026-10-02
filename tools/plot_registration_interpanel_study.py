@@ -10,7 +10,17 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Rectangle
 plt.rcParams.update({'font.size':16,'axes.titlesize':16,'axes.labelsize':15,'savefig.dpi':300})
 
-def save(fig,path):fig.savefig(path,bbox_inches='tight',facecolor='white');plt.close(fig)
+def save(fig,path):
+    from PIL import Image
+    from io import BytesIO
+    temp=path.with_name(path.stem+'.tmp'+path.suffix);buffer=BytesIO()
+    fig.savefig(buffer,format='png',bbox_inches='tight',facecolor='white');plt.close(fig)
+    payload=buffer.getvalue()
+    with Image.open(BytesIO(payload)) as check:check.verify()
+    temp.write_bytes(payload)
+    if temp.stat().st_size!=len(payload):raise IOError('Incomplete figure write')
+    with Image.open(temp) as check:check.verify()
+    temp.replace(path)
 
 def local_figures(data,out):
     local=data/'local_reference'
@@ -122,7 +132,7 @@ def run(data,out):
     axs[0].set_ylabel('Selected-field infidelity (%)');axs[1].set_ylabel('Propagated shape residual (%)')
     fig.suptitle('Bench radius 2 mm  |  Conditional 200 mm gap  |  Flat correction',fontsize=16)
     save(fig,out/'presentation_02_bench_sensitivity_200mm.png')
-    files=sorted(data.glob('axial_*.csv'))
+    files=sorted(data.glob('axial_L*.csv'))
     if files:
         fig,axs=plt.subplots(2,2,figsize=(11,7.5),layout='constrained');context=[]
         for path in files:
@@ -160,7 +170,7 @@ def run(data,out):
         E=a['fields'][:,ids][:,:,ids];I=abs(E[0])**2;I/=I.max()
         fig,axs=plt.subplots(1,3,figsize=(11,3.9),layout='constrained')
         im=axs[0].imshow(I,origin='lower',extent=[x[0],x[-1],x[0],x[-1]],cmap='inferno',vmin=0,vmax=1,interpolation='bilinear')
-        axs[0].set_title('Immediate SLM1 intensity')
+        axs[0].set_title('SLM1 intensity')
         for ax,e,d in zip(axs[1:],E,[0,.5]):
             phase=np.ma.masked_where(I<1e-3,np.angle(e))
             ph=ax.imshow(phase,origin='lower',extent=[x[0],x[-1],x[0],x[-1]],cmap='twilight',vmin=-np.pi,vmax=np.pi,interpolation='nearest')
