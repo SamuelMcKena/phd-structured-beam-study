@@ -50,7 +50,7 @@ def complex_fidelity(field: np.ndarray, reference: np.ndarray) -> float:
     b = np.asarray(reference, dtype=np.complex128).ravel()
     num = abs(complex(np.vdot(b, a))) ** 2
     den = float(np.vdot(a, a).real) * float(np.vdot(b, b).real)
-    return float(num / max(den, EPS))
+    return float(np.clip(num / max(den, EPS), 0.0, 1.0))
 
 
 def relative_l2_phase_aligned(field: np.ndarray, reference: np.ndarray) -> float:

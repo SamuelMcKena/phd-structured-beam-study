@@ -1,0 +1,58 @@
+name: Build SLM registration report evidence
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/slm-registration-report.yml'
+      - 'vbb_study/digital_twin/*registration*.py'
+      - 'tools/*registration*.py'
+      - 'tests/test*registration*.py'
+      - 'docs/100_slm_registration_definitive.md'
+permissions:
+  contents: read
+concurrency:
+  group: registration-report-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+  OMP_NUM_THREADS: '2'
+  OPENBLAS_NUM_THREADS: '2'
+  MKL_NUM_THREADS: '2'
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - run: python -m pip install -r requirements.txt python-docx
+      - run: sudo apt-get update && sudo apt-get install -y pandoc libreoffice-writer
+      - name: Physics gates
+        run: python -m pytest -q tests/test_slm_pixel_registration.py tests/test_slm_registration_architectures.py tests/test_registration_reference.py
+      - name: Reproduce primary adjusted-iris evidence
+        run: python tools/run_registration_reference_study.py
+      - name: Additional controls and diagnostics
+        run: |
+          python tools/run_registration_extra_controls.py
+          python tools/complete_registration_diagnostics.py
+          python tools/audit_registration_legacy.py
+      - name: Figures and editable academic report
+        run: |
+          python tools/plot_registration_reference_study.py
+          python tools/complete_registration_diagnostics.py
+          python tools/build_registration_reference_report.py
+      - name: Export PDF
+        run: libreoffice -env:UserInstallation=file:///tmp/registration-lo --headless --convert-to pdf --outdir outputs/reports/registration_definitive outputs/reports/registration_definitive/SLM_Pixel_Registration_Report.docx
+      - uses: actions/upload-artifact@v4
+        with:
+          name: registration-definitive-evidence
+          path: |
+            outputs/validation/registration_iris_adjusted
+            outputs/figures/registration_definitive
+            outputs/reports/registration_definitive
+          if-no-files-found: error
+          compression-level: 6

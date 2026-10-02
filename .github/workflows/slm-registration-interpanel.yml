@@ -1,0 +1,82 @@
+name: Conditional 200 mm inter SLM registration evidence
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/slm-registration-interpanel.yml'
+      - 'vbb_study/digital_twin/registration_interpanel.py'
+      - 'tools/*registration_interpanel*'
+      - 'tests/test_registration_interpanel.py'
+      - 'docs/101_slm_registration_interpanel_propagation.md'
+permissions:
+  contents: read
+env:
+  PYTHONPATH: .
+  MPLBACKEND: Agg
+  OMP_NUM_THREADS: '2'
+  OPENBLAS_NUM_THREADS: '2'
+  MKL_NUM_THREADS: '2'
+jobs:
+  evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install numpy==2.3.5 scipy==1.17.0 pandas==2.2.3 matplotlib==3.10.8 pytest python-docx==1.2.0
+      - run: sudo apt-get update && sudo apt-get install -y pandoc libreoffice-writer
+      - name: Registration physics gates
+        run: python -m pytest -q tests/test_slm_pixel_registration.py tests/test_slm_registration_architectures.py tests/test_registration_reference.py tests/test_registration_interpanel.py
+      - name: Restore source keyed numerical evidence
+        id: numeric-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: outputs/validation/registration_interpanel_200mm
+          key: registration-200mm-py312-np235-sp117-v1-${{ hashFiles('vbb_study/digital_twin/*.py', 'tools/run_registration_interpanel_study.py', 'tools/run_registration_reference_study.py', 'tools/refine_registration_interpanel_figures.py') }}
+      - name: Sequential staged simulations and convergence
+        if: steps.numeric-cache.outputs.cache-hit != 'true'
+        run: |
+          python -m tools.run_registration_interpanel_study --stage local
+          python -m tools.run_registration_interpanel_study --stage sweep
+          python -m tools.run_registration_interpanel_study --stage controls
+          python -m tools.run_registration_interpanel_study --stage postcontrols
+          python -m tools.run_registration_interpanel_study --stage extra
+      - name: Refined one micron XY sequences
+        if: steps.numeric-cache.outputs.cache-hit != 'true'
+        run: python -m tools.refine_registration_interpanel_figures --data outputs/validation/registration_interpanel_200mm
+      - name: Preserve completed numerical evidence before document export
+        if: steps.numeric-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: outputs/validation/registration_interpanel_200mm
+          key: ${{ steps.numeric-cache.outputs.cache-primary-key }}
+      - name: Scientific figures and editable report
+        run: |
+          python -m tools.plot_registration_interpanel_study --data outputs/validation/registration_interpanel_200mm --output outputs/validation/registration_interpanel_200mm/figures
+          python -m tools.build_registration_interpanel_report --data outputs/validation/registration_interpanel_200mm --output outputs/reports/registration_interpanel
+          libreoffice -env:UserInstallation=file:///tmp/interpanel-lo --headless --convert-to pdf --outdir outputs/reports/registration_interpanel outputs/reports/registration_interpanel/SLM_Registration_200mm_Report.docx
+      - name: Portable evidence parts
+        run: python -m tools.package_registration_interpanel_evidence --data outputs/validation/registration_interpanel_200mm --output outputs/delivery/registration_interpanel
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registration-200mm-evidence
+          path: outputs/delivery/registration_interpanel/SLM_Registration_200mm_Evidence.zip
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registration-200mm-controls
+          path: outputs/delivery/registration_interpanel/SLM_Registration_200mm_Controls.zip
+          if-no-files-found: error
+          compression-level: 0
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: registration-200mm-report
+          path: outputs/reports/registration_interpanel
+          if-no-files-found: error
+          compression-level: 6

@@ -117,3 +117,10 @@ The current vortex evidence freeze is under `outputs/validation/report_freeze/`.
 evidence paths and SHA-256 hashes without copying large artifacts. The standalone export should omit
 temporary directories, duplicate root notebooks, bulk ZIP archives, and files over GitHub's size
 limit.
+# SLM registration update
+
+The definitive audited registration implementation and reproduction sequence
+are documented in [docs/100_slm_registration_definitive.md](docs/100_slm_registration_definitive.md).
+The primary study adjusts the iris to retain each intended vortex, while keeping
+both 20-pixel blazes and pure beam–hologram centring. Historical report results
+are preserved and explicitly superseded where numerical propagation failed.
