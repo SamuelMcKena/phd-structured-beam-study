@@ -189,7 +189,7 @@ The simulated evidence does not make subpixel registration a compelling primary 
     direction=extra[extra.diagnostic.isin(['y','diagonal','common','differential'])]
     page('Directions common and differential registration',r'''
 The x blaze breaks rotational invariance. Artificial no-carrier square-aperture symmetry is recovered in tests, while carrier-induced anisotropy is permitted in the physical baseline. A diagonal half-pixel shift moves each coordinate by half a pixel and is not the same Euclidean displacement as an x-only shift. In the table, x, y and diagonal shift the vortex owner only. Common mode uses $\rho_1=\rho_2=(1/2,1/2)$; differential mode uses $\rho_1=(1/4,1/4)$ and $\rho_2=(-1/4,-1/4)$, modulo one pixel.
-'''+table(['L20 radius','Architecture','x','y','Diagonal','Common','Differential'],[
+'''+table(['L20 radius','Route','x','y','Diagonal','Common','Diff. mode'],[
         [f'{w} px',arch(a),f'{get(20,w,a).selected_infidelity:.3g}']+
         [f'{direction[(direction.L==20)&(direction.w_px==w)&(direction.architecture==a)&(direction.diagnostic==mode)].selected_infidelity.iloc[0]:.3g}'
          for mode in ['y','diagonal','common','differential']]

@@ -158,7 +158,7 @@ def run(data,out):
         for i,d in enumerate([0,.5]):
             im=axs[i,0].imshow(abs(E[i,0])**2/peak,origin='lower',extent=extent,cmap='inferno',vmin=0,vmax=1.05,interpolation='bilinear')
             ph=axs[i,1].imshow(np.angle(E[i,1]),origin='lower',extent=extent,cmap='twilight',vmin=-np.pi,vmax=np.pi,interpolation='nearest')
-            for ax,title in zip(axs[i],[f'Incident on SLM2, Δx={d:g}p',f'After SLM2 phase, Δx={d:g}p']):
+            for ax,title in zip(axs[i],[f'SLM2 input, Δx={d:g}p',f'SLM2 phase, Δx={d:g}p']):
                 ax.set_title(title);ax.set_xlabel('x (mm)');ax.set_ylabel('y (mm)')
         fig.colorbar(im,ax=list(axs[:,0]),shrink=.75,label='Intensity / baseline peak')
         fig.colorbar(ph,ax=list(axs[:,1]),shrink=.75,label='Wrapped envelope phase (rad)')
